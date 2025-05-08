@@ -1,71 +1,115 @@
 
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 import { FileEntry, FileSystemState } from '../types';
 import { nanoid } from 'nanoid';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
 interface FileSystemContextType {
   fileSystem: FileSystemState;
-  createFile: (path: string, name: string, content?: string) => void;
-  createFolder: (path: string, name: string) => void;
-  updateFile: (id: string, content: string) => void;
-  deleteFile: (id: string) => void;
+  createFile: (path: string, name: string, content?: string) => Promise<void>;
+  createFolder: (path: string, name: string) => Promise<void>;
+  updateFile: (id: string, content: string) => Promise<void>;
+  deleteFile: (id: string) => Promise<void>;
   selectFile: (file: FileEntry | null) => void;
   getFileByPath: (path: string) => FileEntry | null;
+  isLoading: boolean;
 }
-
-// Initial file system
-const initialFiles: FileEntry[] = [
-  {
-    id: nanoid(),
-    name: 'Project',
-    path: '/',
-    type: 'folder',
-    children: [
-      {
-        id: nanoid(),
-        name: 'src',
-        path: '/src',
-        type: 'folder',
-        children: [
-          {
-            id: nanoid(),
-            name: 'index.js',
-            path: '/src/index.js',
-            type: 'file',
-            content: '// This is the main entry file\nconsole.log("Hello world!");',
-            lastModified: Date.now()
-          },
-          {
-            id: nanoid(),
-            name: 'App.js',
-            path: '/src/App.js',
-            type: 'file',
-            content: 'import React from "react";\n\nfunction App() {\n  return (\n    <div>\n      <h1>Hello Sabrina!</h1>\n    </div>\n  );\n}\n\nexport default App;',
-            lastModified: Date.now()
-          }
-        ]
-      },
-      {
-        id: nanoid(),
-        name: 'README.md',
-        path: '/README.md',
-        type: 'file',
-        content: '# Project Documentation\n\nThis is a sample project for Sabrina and Travis to collaborate on.',
-        lastModified: Date.now()
-      }
-    ]
-  }
-];
 
 const FileSystemContext = createContext<FileSystemContextType | null>(null);
 
 export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [fileSystem, setFileSystem] = useState<FileSystemState>({
-    files: initialFiles,
+    files: [],
     selectedFile: null
   });
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Load files from Supabase when user is authenticated
+  useEffect(() => {
+    const fetchFiles = async () => {
+      if (!user) return;
+      
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('files')
+          .select('*')
+          .eq('user_id', user.id);
+          
+        if (error) {
+          throw error;
+        }
+        
+        if (data) {
+          // Convert flat file list to hierarchical structure
+          const fileEntries: FileEntry[] = [];
+          const fileMap = new Map<string, FileEntry>();
+          
+          // First pass: create all file entries
+          data.forEach(file => {
+            const entry: FileEntry = {
+              id: file.id,
+              name: file.name,
+              path: file.path,
+              type: file.type as 'file' | 'folder',
+              content: file.content || '',
+              lastModified: new Date(file.last_modified).getTime()
+            };
+            
+            if (entry.type === 'folder') {
+              entry.children = [];
+            }
+            
+            fileMap.set(entry.path, entry);
+          });
+          
+          // Second pass: organize into hierarchy
+          fileMap.forEach(entry => {
+            const parentPath = entry.path.substring(0, entry.path.lastIndexOf('/'));
+            
+            if (parentPath) {
+              const parent = fileMap.get(parentPath);
+              if (parent && parent.children) {
+                parent.children.push(entry);
+              } else if (parentPath === '/') {
+                // Root-level entries
+                fileEntries.push(entry);
+              }
+            } else {
+              // Root-level entries
+              fileEntries.push(entry);
+            }
+          });
+          
+          setFileSystem({
+            files: fileEntries,
+            selectedFile: null
+          });
+        }
+      } catch (error: any) {
+        console.error('Error fetching files:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load files',
+          variant: 'destructive',
+        });
+        
+        // Initialize with empty file system on error
+        setFileSystem({
+          files: [],
+          selectedFile: null
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchFiles();
+  }, [user, toast]);
 
   // Helper to find a node in the file tree
   const findNode = (
@@ -138,7 +182,16 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   // Create a new file
-  const createFile = (path: string, name: string, content: string = '') => {
+  const createFile = async (path: string, name: string, content: string = '') => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to create files',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const { node } = findNode(path, fileSystem.files);
     
     if (!node || node.type !== 'folder') {
@@ -160,37 +213,76 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
     
-    const newFile: FileEntry = {
-      id: nanoid(),
-      name,
-      path: `${path === '/' ? '' : path}/${name}`,
-      type: 'file',
-      content,
-      lastModified: Date.now()
-    };
+    const filePath = `${path === '/' ? '' : path}/${name}`;
+    const fileId = nanoid();
     
-    setFileSystem(prev => {
-      const newFiles = [...prev.files];
-      const { node: targetNode } = findNode(path, newFiles);
-      
-      if (targetNode && targetNode.children) {
-        targetNode.children = [...targetNode.children, newFile];
+    try {
+      // Create file in Supabase
+      const { error } = await supabase
+        .from('files')
+        .insert({
+          id: fileId,
+          user_id: user.id,
+          name,
+          path: filePath,
+          type: 'file',
+          content,
+          last_modified: new Date().toISOString(),
+        });
+        
+      if (error) {
+        throw error;
       }
       
-      return {
-        ...prev,
-        files: newFiles
+      const newFile: FileEntry = {
+        id: fileId,
+        name,
+        path: filePath,
+        type: 'file',
+        content,
+        lastModified: Date.now()
       };
-    });
-    
-    toast({
-      title: 'Success',
-      description: `File '${name}' created successfully.`,
-    });
+      
+      // Update local state
+      setFileSystem(prev => {
+        const newFiles = [...prev.files];
+        const { node: targetNode } = findNode(path, newFiles);
+        
+        if (targetNode && targetNode.children) {
+          targetNode.children = [...targetNode.children, newFile];
+        }
+        
+        return {
+          ...prev,
+          files: newFiles
+        };
+      });
+      
+      toast({
+        title: 'Success',
+        description: `File '${name}' created successfully.`,
+      });
+    } catch (error: any) {
+      console.error('Error creating file:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to create file',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Create a new folder
-  const createFolder = (path: string, name: string) => {
+  const createFolder = async (path: string, name: string) => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to create folders',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const { node } = findNode(path, fileSystem.files);
     
     if (!node || node.type !== 'folder') {
@@ -212,37 +304,76 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
     
-    const newFolder: FileEntry = {
-      id: nanoid(),
-      name,
-      path: `${path === '/' ? '' : path}/${name}`,
-      type: 'folder',
-      children: [],
-      lastModified: Date.now()
-    };
+    const folderPath = `${path === '/' ? '' : path}/${name}`;
+    const folderId = nanoid();
     
-    setFileSystem(prev => {
-      const newFiles = [...prev.files];
-      const { node: targetNode } = findNode(path, newFiles);
-      
-      if (targetNode && targetNode.children) {
-        targetNode.children = [...targetNode.children, newFolder];
+    try {
+      // Create folder in Supabase
+      const { error } = await supabase
+        .from('files')
+        .insert({
+          id: folderId,
+          user_id: user.id,
+          name,
+          path: folderPath,
+          type: 'folder',
+          content: null,
+          last_modified: new Date().toISOString(),
+        });
+        
+      if (error) {
+        throw error;
       }
       
-      return {
-        ...prev,
-        files: newFiles
+      const newFolder: FileEntry = {
+        id: folderId,
+        name,
+        path: folderPath,
+        type: 'folder',
+        children: [],
+        lastModified: Date.now()
       };
-    });
-    
-    toast({
-      title: 'Success',
-      description: `Folder '${name}' created successfully.`,
-    });
+      
+      // Update local state
+      setFileSystem(prev => {
+        const newFiles = [...prev.files];
+        const { node: targetNode } = findNode(path, newFiles);
+        
+        if (targetNode && targetNode.children) {
+          targetNode.children = [...targetNode.children, newFolder];
+        }
+        
+        return {
+          ...prev,
+          files: newFiles
+        };
+      });
+      
+      toast({
+        title: 'Success',
+        description: `Folder '${name}' created successfully.`,
+      });
+    } catch (error: any) {
+      console.error('Error creating folder:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to create folder',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Update a file's content
-  const updateFile = (id: string, content: string) => {
+  const updateFile = async (id: string, content: string) => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to update files',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const { node } = findNodeById(id, fileSystem.files);
     
     if (!node || node.type !== 'file') {
@@ -254,32 +385,65 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
     
-    setFileSystem(prev => {
-      const newFiles = JSON.parse(JSON.stringify(prev.files));
-      const { node: targetNode } = findNodeById(id, newFiles);
-      
-      if (targetNode) {
-        targetNode.content = content;
-        targetNode.lastModified = Date.now();
+    try {
+      // Update file in Supabase
+      const { error } = await supabase
+        .from('files')
+        .update({
+          content,
+          last_modified: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('user_id', user.id);
+        
+      if (error) {
+        throw error;
       }
       
-      return {
-        ...prev,
-        files: newFiles,
-        selectedFile: prev.selectedFile?.id === id 
-          ? { ...prev.selectedFile, content, lastModified: Date.now() } 
-          : prev.selectedFile
-      };
-    });
-    
-    toast({
-      title: 'Success',
-      description: `File '${node.name}' updated successfully.`,
-    });
+      // Update local state
+      setFileSystem(prev => {
+        const newFiles = JSON.parse(JSON.stringify(prev.files));
+        const { node: targetNode } = findNodeById(id, newFiles);
+        
+        if (targetNode) {
+          targetNode.content = content;
+          targetNode.lastModified = Date.now();
+        }
+        
+        return {
+          ...prev,
+          files: newFiles,
+          selectedFile: prev.selectedFile?.id === id 
+            ? { ...prev.selectedFile, content, lastModified: Date.now() } 
+            : prev.selectedFile
+        };
+      });
+      
+      toast({
+        title: 'Success',
+        description: `File '${node.name}' updated successfully.`,
+      });
+    } catch (error: any) {
+      console.error('Error updating file:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update file',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Delete a file or folder
-  const deleteFile = (id: string) => {
+  const deleteFile = async (id: string) => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to delete files',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const { parent, node, index } = findNodeById(id, fileSystem.files);
     
     if (!node) {
@@ -291,30 +455,64 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
     
-    setFileSystem(prev => {
-      const newFiles = JSON.parse(JSON.stringify(prev.files));
+    try {
+      // Delete file from Supabase
+      const { error } = await supabase
+        .from('files')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+        
+      if (error) {
+        throw error;
+      }
       
-      if (!parent) {
-        // It's a root-level file/folder
-        newFiles.splice(index, 1);
-      } else {
-        const { node: parentNode } = findNodeById(parent.id, newFiles);
-        if (parentNode && parentNode.children) {
-          parentNode.children = parentNode.children.filter(child => child.id !== id);
+      // If it's a folder, delete all children recursively
+      if (node.type === 'folder') {
+        const { error: childrenError } = await supabase
+          .from('files')
+          .delete()
+          .like('path', `${node.path}/%`)
+          .eq('user_id', user.id);
+          
+        if (childrenError) {
+          throw childrenError;
         }
       }
       
-      return {
-        ...prev,
-        files: newFiles,
-        selectedFile: prev.selectedFile?.id === id ? null : prev.selectedFile
-      };
-    });
-    
-    toast({
-      title: 'Success',
-      description: `'${node.name}' deleted successfully.`,
-    });
+      // Update local state
+      setFileSystem(prev => {
+        const newFiles = JSON.parse(JSON.stringify(prev.files));
+        
+        if (!parent) {
+          // It's a root-level file/folder
+          newFiles.splice(index, 1);
+        } else {
+          const { node: parentNode } = findNodeById(parent.id, newFiles);
+          if (parentNode && parentNode.children) {
+            parentNode.children = parentNode.children.filter(child => child.id !== id);
+          }
+        }
+        
+        return {
+          ...prev,
+          files: newFiles,
+          selectedFile: prev.selectedFile?.id === id ? null : prev.selectedFile
+        };
+      });
+      
+      toast({
+        title: 'Success',
+        description: `'${node.name}' deleted successfully.`,
+      });
+    } catch (error: any) {
+      console.error('Error deleting file:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete file',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Select a file for viewing/editing
@@ -334,7 +532,8 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updateFile,
         deleteFile,
         selectFile,
-        getFileByPath
+        getFileByPath,
+        isLoading
       }}
     >
       {children}

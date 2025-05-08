@@ -9,19 +9,29 @@ import { ChatProvider } from '@/contexts/ChatContext';
 import { FileSystemProvider } from '@/contexts/FileSystemContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const [showFiles, setShowFiles] = useState(true);
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     toast({
       title: 'Logged out',
       description: 'You have been logged out successfully.',
     });
   };
+  
+  if (authLoading) {
+    return (
+      <div className="flex flex-col h-screen justify-center items-center">
+        <Loader2 className="h-10 w-10 animate-spin text-travis mb-4" />
+        <p className="text-gray-500">Loading your workspace...</p>
+      </div>
+    );
+  }
   
   if (!user) {
     return null;
