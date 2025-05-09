@@ -1,3 +1,4 @@
+
 // Supabase Edge Function for OpenAI integration
 // Update to make sure Travis always has developer capabilities
 
@@ -17,6 +18,8 @@ interface FileOperation {
   content?: string
   success?: boolean
   message?: string
+  originOperation?: string  // Track where the operation came from (e.g., "move")
+  isSafeToDelete?: boolean  // Explicit safety flag
 }
 
 interface RequestBody {
@@ -204,6 +207,9 @@ When asked to modify or create files, you can do so directly - you don't need to
 
 IMPORTANT: When the user mentions a file by name (e.g., "index.html" or "style.css") or refers to
 editing a file, ALWAYS check this project structure first to see if the file exists.
+
+CRITICAL: NEVER delete existing files like index.html or style.css unless explicitly instructed to do so.
+When moving files around, ensure you don't accidentally remove other files.
         `.trim()
       };
       
@@ -240,13 +246,11 @@ Your capabilities:
 - You can see and understand the entire project structure
 - You can create complete projects from scratch (Next.js, React, Vue, Angular, etc.)
 - You can set up complex configurations (webpack, babel, eslint, etc.)
-- You can set up complex configurations (webpack, babel, eslint, etc.)
 - You can install and configure libraries and frameworks
 - You can implement features directly rather than just giving instructions
 - You can make changes to any file in the project
 - You track context from previous messages and understand the project's evolution
-- You can create full-stack applications with both frontend and backend components
-- You maintain memories of past conversations with Sabrina`;
+- You can create full-stack applications with both frontend and backend components`;
 
       // Determine if this is a file operation request by checking the last user message
       const lastUserMessage = enhancedMessages.findLast(msg => msg.role === 'user');
@@ -300,7 +304,9 @@ ${isFileOperation || fileSystemEnabled
 1. FIRST check the PROJECT STRUCTURE to see what files already exist
 2. If asked to modify a specific file, look for it in the project structure
 3. USE file operations to actually create or update the necessary files
-4. RESPOND to the user with what specific changes you made and why`
+4. RESPOND to the user with what specific changes you made and why
+5. NEVER DELETE OR ALTER FILES NOT MENTIONED BY THE USER
+6. ESPECIALLY DO NOT DELETE index.html, style.css or other important files`
   : `IMPORTANT: This seems to be a general conversation. You should:
 1. Respond conversationally while staying aware of the project structure
 2. Draw on your memory of past conversations with Sabrina
@@ -320,7 +326,12 @@ To perform file operations, include file_operations in your JSON response like t
   { "operation": "delete", "path": "/obsolete.txt" }
 ]
 
-IMPORTANT: ALWAYS execute a read operation first when asked to modify a file, so you can see its current contents before modifying it.` : ''}`;
+IMPORTANT GUIDELINES FOR FILE OPERATIONS:
+1. ALWAYS execute a read operation first when asked to modify a file, so you can see its current contents before modifying it.
+2. NEVER delete files that weren't explicitly mentioned by the user (especially index.html, style.css)
+3. When moving files, use read → create → delete sequence, and ONLY delete the original file after verifying the new one exists
+4. Be extremely careful with delete operations and only use them when necessary
+5. Create necessary parent folders before creating files in them` : ''}`;
     }
     
     // Additional instructions for file operations - ALWAYS include this if there's any mention of files
@@ -345,7 +356,7 @@ IMPORTANT: ALWAYS execute a read operation first when asked to modify a file, so
        lastUserMessage.content.toLowerCase().includes('.css') ||
        lastUserMessage.content.toLowerCase().includes('.js'));
        
-    // Add file operations instruction - even more emphasis on reading files first
+    // Add file operations instruction - even more emphasis on reading files first and safety
     if (isFileRelated || fileSystemEnabled) {
       enhancedMessages.push({
         role: 'system',
@@ -355,7 +366,8 @@ IMPORTANT: ALWAYS execute a read operation first when asked to modify a file, so
 2. When moving files between directories, first read the source file, then create it in the new location, THEN delete the original only after successful creation.
 3. When working with folders, always ensure the parent folder exists before creating files inside.
 4. Check if folders and files exist before attempting operations on them.
-5. Your response MUST be formatted as a valid JSON object.
+5. CRITICAL SAFETY: NEVER delete files that weren't explicitly mentioned by the user, especially index.html and style.css.
+6. Your response MUST be formatted as a valid JSON object.
 
 Your response MUST include:
 {
@@ -373,7 +385,8 @@ IMPORTANT:
 - When moving files, use read → create → delete sequence of operations
 - NEVER rely on the client to infer operations; be explicit with each step
 - Format your entire response as valid JSON
-- When folders are needed, create them with "content": null`
+- When folders are needed, create them with "content": null
+- DO NOT delete unrelated files like index.html or style.css unless specifically asked to`
       });
     } else {
       enhancedMessages.push({
@@ -445,8 +458,33 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
             
             // Extract file operations if they exist
             if (contentObj && contentObj.file_operations) {
+              // Add explicit safety flags to file operations
+              const enhancedFileOps = contentObj.file_operations.map(op => {
+                // Add safety flags for delete operations as part of move
+                if (op.operation === 'delete') {
+                  // Check if this is part of a move operation by looking for a matching create
+                  const isPartOfMove = contentObj.file_operations.some(
+                    otherOp => otherOp.operation === 'create' && 
+                    otherOp.path !== op.path && 
+                    otherOp.content && 
+                    contentObj.file_operations.some(
+                      readOp => readOp.operation === 'read' && readOp.path === op.path
+                    )
+                  );
+                  
+                  if (isPartOfMove) {
+                    return {
+                      ...op,
+                      originOperation: 'move',  // Mark the delete as part of a move
+                      isSafeToDelete: true      // Explicitly mark as safe to delete
+                    };
+                  }
+                }
+                return op;
+              });
+              
               // Add file operations to the message object
-              data.choices[0].message.file_operations = contentObj.file_operations;
+              data.choices[0].message.file_operations = enhancedFileOps;
               
               // Update the content to be just the textual response
               data.choices[0].message.content = contentObj.response || 

@@ -35,12 +35,15 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
 `;
 
   const fileOperationsPrompt = `
-CRITICAL INSTRUCTIONS: Before making ANY file changes, ALWAYS:
+CRITICAL INSTRUCTIONS FOR FILE OPERATIONS: Before making ANY file changes, ALWAYS:
 1. First READ all relevant files to understand the current state
 2. DO NOT delete any existing files unless explicitly asked to do so
 3. When moving files, create the new file first, then delete the original only after confirming the new one exists
 4. Always check if a file exists before trying to modify or delete it
 5. Preserve all existing project files (like index.html, style.css) even when creating new folders or files
+6. NEVER delete files that aren't directly mentioned by the user
+
+EXTREMELY IMPORTANT: When asked to create new files or folders, or move files, you must NOT delete or modify ANY OTHER files in the project. Files like index.html and style.css should NEVER be deleted unless specifically asked to do so.
 
 When asked to create projects or implement features, you MUST:
 1. Look at the existing project structure to understand what you're working with
@@ -60,6 +63,7 @@ WHEN MOVING FILES:
 1. First read the original file
 2. Then create the file at the new location with the same content
 3. Only delete the original file after confirming the new one was created successfully
+4. NEVER delete any unrelated files
 
 WHEN CREATING A FOLDER OR NEW FILE:
 1. First check what files already exist

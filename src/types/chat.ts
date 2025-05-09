@@ -12,4 +12,8 @@ export interface FileOperation {
     type: string;
     lastModified?: string;
   };
+  // New property to track which specific operation requested this deletion
+  originOperation?: string;
+  // Flag to prevent deletion of unrelated files
+  isSafeToDelete?: boolean;
 }

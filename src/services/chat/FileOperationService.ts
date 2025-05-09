@@ -34,13 +34,16 @@ export const getProjectStructure = async (fileSystem: any): Promise<string> => {
 // Track state of operations to prevent accidental deletions
 const operationState = {
   createdFiles: new Set<string>(),
-  readFiles: new Map<string, string>()
+  readFiles: new Map<string, string>(),
+  // Add a set to track specifically which files should be deleted
+  safeToDeleteFiles: new Set<string>()
 };
 
 // Reset operation state between each batch of operations
 const resetOperationState = () => {
   operationState.createdFiles.clear();
   operationState.readFiles.clear();
+  operationState.safeToDeleteFiles.clear();
 };
 
 // Process file operations with improved handling of file moves and copies
@@ -48,7 +51,7 @@ export const processFileOperations = async (
   fileSystem: any,
   operations: FileOperation[]
 ): Promise<FileOperation[]> => {
-  console.log('[FileOperationService] Starting to process operations:', operations);
+  console.log('[FileOperationService] Starting to process operations:', operations.length);
   
   if (!fileSystem) {
     console.error('[FileOperationService] File system is not available');
@@ -82,7 +85,7 @@ export const processFileOperations = async (
     return 0;
   });
   
-  // First, do all read operations to understand the current state
+  // STEP 1: First, do all read operations to understand the current state
   const readOperations = sortedOperations.filter(op => op.operation === 'read');
   for (const op of readOperations) {
     try {
@@ -91,7 +94,7 @@ export const processFileOperations = async (
       const cleanPath = normalizedPath.replace(/\/+$/, '');
       
       const readResult = await fileSystem.getFileContentByPath(cleanPath);
-      console.log(`[FileOperationService] Read result:`, readResult ? 'Content received' : 'No content');
+      console.log(`[FileOperationService] Read result for ${cleanPath}:`, readResult ? 'Content received' : 'No content');
       
       // Store read content for potential move operations
       if (readResult) {
@@ -111,7 +114,7 @@ export const processFileOperations = async (
           lastModified: fileInfo.lastModified
         } : undefined,
         success: readResult !== null,
-        message: readResult !== null ? 'File read successfully' : 'File not found or empty'
+        message: readResult !== null ? `File ${cleanPath} read successfully` : `File not found or empty at ${cleanPath}`
       });
     } catch (error: any) {
       console.error(`[FileOperationService] Error reading file ${op.path}:`, error);
@@ -123,7 +126,7 @@ export const processFileOperations = async (
     }
   }
   
-  // Then do create and write operations
+  // STEP 2: Process create and write operations
   const createWriteOperations = sortedOperations.filter(op => 
     op.operation === 'create' || op.operation === 'write' || op.operation === 'move' || op.operation === 'copy'
   );
@@ -264,6 +267,8 @@ export const processFileOperations = async (
           const normalizedTargetPath = op.targetPath.startsWith('/') ? op.targetPath : `/${op.targetPath}`;
           const cleanTargetPath = normalizedTargetPath.replace(/\/+$/, '');
           
+          console.log(`[FileOperationService] ${op.operation} from ${cleanPath} to ${cleanTargetPath}`);
+          
           // Try to get content from prior read operation or read it now
           let content = operationState.readFiles.get(cleanPath);
           if (!content) {
@@ -295,6 +300,7 @@ export const processFileOperations = async (
           
           // Track successful file creation
           operationState.createdFiles.add(cleanTargetPath);
+          console.log(`[FileOperationService] Successfully created file at ${cleanTargetPath}`);
           
           results.push({
             operation: 'create',
@@ -304,13 +310,19 @@ export const processFileOperations = async (
             message: `File created at ${cleanTargetPath} as part of ${op.operation} operation`
           });
           
-          // For move operations, delete source file only if target was successfully created
+          // For move operations, mark source file as safe to delete only if target was successfully created
           if (op.operation === 'move' && operationState.createdFiles.has(cleanTargetPath)) {
-            // Only schedule deletion, will be done in the delete phase
+            // Mark this specific file as safe to delete
+            operationState.safeToDeleteFiles.add(cleanPath);
+            console.log(`[FileOperationService] Marked ${cleanPath} as safe to delete after successful move to ${cleanTargetPath}`);
+            
+            // Schedule deletion with extra safety properties
             results.push({
               operation: 'delete',
               path: cleanPath,
               targetPath: cleanTargetPath, // Track relationship between source and target
+              originOperation: 'move',     // Mark as part of a move operation
+              isSafeToDelete: true,        // Flag this file as explicitly safe to delete
               success: true,
               message: `Source file ${cleanPath} scheduled for deletion after successful move to ${cleanTargetPath}`
             });
@@ -327,12 +339,11 @@ export const processFileOperations = async (
     }
   }
   
-  // Finally process delete operations, but only if we haven't encountered errors
-  // and only if source files have been successfully moved
+  // STEP 3: Finally process delete operations, but with enhanced safety checks
   const deleteOperations = sortedOperations.filter(op => op.operation === 'delete');
   
   if (deleteOperations.length > 0) {
-    console.log(`[FileOperationService] Processing ${deleteOperations.length} delete operations`);
+    console.log(`[FileOperationService] Processing ${deleteOperations.length} delete operations with extra safety`);
     
     for (const op of deleteOperations) {
       try {
@@ -340,22 +351,38 @@ export const processFileOperations = async (
         const normalizedPath = op.path.startsWith('/') ? op.path : `/${op.path}`;
         const cleanPath = normalizedPath.replace(/\/+$/, '');
         
-        // Special safety check: if this is part of a move operation, verify target exists
-        if (op.targetPath) {
+        // ENHANCED SAFETY CHECK #1: Is this file marked as safe to delete from a move operation?
+        const isSafeToDelete = operationState.safeToDeleteFiles.has(cleanPath) || op.isSafeToDelete === true;
+        
+        // ENHANCED SAFETY CHECK #2: If this is part of a move operation, verify target exists
+        if (op.targetPath && op.originOperation === 'move') {
           const targetExists = operationState.createdFiles.has(op.targetPath);
           if (!targetExists) {
             console.error(`[FileOperationService] Cannot delete ${cleanPath} because target ${op.targetPath} was not created successfully`);
             results.push({
               ...op,
               success: false,
-              message: `Delete aborted: target file not created successfully`
+              message: `Delete aborted: target file not created successfully for ${cleanPath}`
             });
             continue;
           }
         }
         
+        // ENHANCED SAFETY CHECK #3: Only delete if explicitly marked as safe or direct user deletion
+        if (!isSafeToDelete && op.originOperation === 'move') {
+          console.error(`[FileOperationService] Refusing to delete ${cleanPath} - not marked as safe to delete`);
+          results.push({
+            ...op,
+            success: false,
+            message: `Delete aborted: safety check failed for ${cleanPath}`
+          });
+          continue;
+        }
+        
+        // If all safety checks pass, proceed with deletion
         const file = fileSystem.getFileByPath(cleanPath);
         if (file) {
+          console.log(`[FileOperationService] Safety checks passed, deleting file: ${cleanPath} (id: ${file.id})`);
           await fileSystem.deleteFile(file.id);
           console.log(`[FileOperationService] Delete completed for ${cleanPath}`);
           results.push({
@@ -392,6 +419,6 @@ export const processFileOperations = async (
     console.error('[FileOperationService] Error refreshing files:', refreshError);
   }
   
-  console.log('[FileOperationService] Finished processing operations. Results:', results);
+  console.log('[FileOperationService] Finished processing operations. Results:', results.length);
   return results;
 };
