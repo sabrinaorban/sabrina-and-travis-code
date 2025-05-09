@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ChatHistory } from '@/components/ChatHistory';
 import { ChatInput } from '@/components/ChatInput';
@@ -7,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ChatProvider } from '@/contexts/ChatContext';
-import { FileSystemProvider } from '@/contexts/FileSystemContext';
+import { FileSystemProvider, useFileSystem } from '@/contexts/FileSystemContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { GitHubAuth } from '@/components/GitHubAuth';
@@ -18,7 +19,7 @@ import {
   FolderPlus, FilePlus, Github 
 } from 'lucide-react';
 
-const Dashboard: React.FC = () => {
+const DashboardContent: React.FC = () => {
   const [showFiles, setShowFiles] = useState(true);
   const { user, logout, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -28,6 +29,7 @@ const Dashboard: React.FC = () => {
   const [newFileName, setNewFileName] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [currentPath, setCurrentPath] = useState('/');
+  const { refreshFiles } = useFileSystem();
   
   const handleLogout = async () => {
     await logout();
@@ -70,157 +72,153 @@ const Dashboard: React.FC = () => {
   }
   
   return (
-    <ChatProvider>
-      <FileSystemProvider>
-        <div className="flex flex-col h-screen">
-          {/* Header */}
-          <header className="bg-white border-b py-3 px-4 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => setShowFiles(!showFiles)}
-              >
-                <Menu size={20} />
-              </Button>
-              <h1 className="text-xl font-bold text-travis">Travis AI Assistant</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="flex items-center gap-1"
-                onClick={handleOpenGitHubDialog}
-              >
-                <Github size={16} />
-                GitHub
-              </Button>
-              <span className="font-medium">Welcome, {user.name}</span>
-              <Button variant="outline" onClick={handleLogout}>Logout</Button>
-            </div>
-          </header>
-          
-          {/* Main Content */}
-          <div className="flex flex-1 overflow-hidden">
-            {/* Files Panel */}
-            {showFiles && (
-              <div className="w-64 flex-shrink-0 flex flex-col">
-                <div className="flex justify-between items-center p-2 bg-gray-50 border-b">
-                  <h3 className="font-medium">Files</h3>
-                  <div className="flex gap-1">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={handleCreateFile}
-                      title="Create new file"
-                    >
-                      <FilePlus size={16} />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={handleCreateFolder}
-                      title="Create new folder"
-                    >
-                      <FolderPlus size={16} />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      title="Refresh files"
-                      onClick={() => fileSystem.refreshFiles()}
-                    >
-                      <RefreshCw size={16} />
-                    </Button>
-                  </div>
-                </div>
-                <FileSystemControls currentPath={currentPath} setCurrentPath={setCurrentPath} />
-                <div className="flex-1 overflow-auto">
-                  <FileExplorer />
-                </div>
-                {/* CRITICAL: Always include the GitHub commit panel here */}
-                <GitHubCommitPanel />
-              </div>
-            )}
-            
-            {/* Center Panel - Code Editor */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <CodeEditor />
-            </div>
-            
-            {/* Right Panel - Chat */}
-            <div className="w-96 flex-shrink-0 flex flex-col border-l">
-              <ChatHistory />
-              <ChatInput />
-            </div>
-          </div>
-
-          {/* Dialogs */}
-          <Dialog open={isNewFileDialogOpen} onOpenChange={setIsNewFileDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New File</DialogTitle>
-              </DialogHeader>
-              <div className="py-4">
-                <Input
-                  placeholder="Enter file name"
-                  value={newFileName}
-                  onChange={(e) => setNewFileName(e.target.value)}
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsNewFileDialogOpen(false)}>Cancel</Button>
-                <FileSystemCreateFile 
-                  fileName={newFileName} 
-                  path={currentPath} 
-                  onSuccess={() => setIsNewFileDialogOpen(false)} 
-                />
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {/* New Folder Dialog */}
-          <Dialog open={isNewFolderDialogOpen} onOpenChange={setIsNewFolderDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Folder</DialogTitle>
-              </DialogHeader>
-              <div className="py-4">
-                <Input
-                  placeholder="Enter folder name"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsNewFolderDialogOpen(false)}>Cancel</Button>
-                <FileSystemCreateFolder 
-                  folderName={newFolderName} 
-                  path={currentPath} 
-                  onSuccess={() => setIsNewFolderDialogOpen(false)} 
-                />
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          
-          {/* GitHub Dialog */}
-          <Dialog open={isGitHubDialogOpen} onOpenChange={setIsGitHubDialogOpen}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>GitHub Integration</DialogTitle>
-              </DialogHeader>
-              <div className="py-4 space-y-6">
-                <GitHubAuth />
-                <GitHubRepoSelector />
-              </div>
-              <DialogFooter>
-                <Button onClick={() => setIsGitHubDialogOpen(false)}>Close</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+    <div className="flex flex-col h-screen">
+      {/* Header */}
+      <header className="bg-white border-b py-3 px-4 flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => setShowFiles(!showFiles)}
+          >
+            <Menu size={20} />
+          </Button>
+          <h1 className="text-xl font-bold text-travis">Travis AI Assistant</h1>
         </div>
-      </FileSystemProvider>
-    </ChatProvider>
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-1"
+            onClick={handleOpenGitHubDialog}
+          >
+            <Github size={16} />
+            GitHub
+          </Button>
+          <span className="font-medium">Welcome, {user.name}</span>
+          <Button variant="outline" onClick={handleLogout}>Logout</Button>
+        </div>
+      </header>
+      
+      {/* Main Content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Files Panel */}
+        {showFiles && (
+          <div className="w-64 flex-shrink-0 flex flex-col">
+            <div className="flex justify-between items-center p-2 bg-gray-50 border-b">
+              <h3 className="font-medium">Files</h3>
+              <div className="flex gap-1">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={handleCreateFile}
+                  title="Create new file"
+                >
+                  <FilePlus size={16} />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={handleCreateFolder}
+                  title="Create new folder"
+                >
+                  <FolderPlus size={16} />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  title="Refresh files"
+                  onClick={refreshFiles}
+                >
+                  <RefreshCw size={16} />
+                </Button>
+              </div>
+            </div>
+            <FileSystemControls currentPath={currentPath} setCurrentPath={setCurrentPath} />
+            <div className="flex-1 overflow-auto">
+              <FileExplorer />
+            </div>
+            {/* CRITICAL: Always include the GitHub commit panel here */}
+            <GitHubCommitPanel />
+          </div>
+        )}
+        
+        {/* Center Panel - Code Editor */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <CodeEditor />
+        </div>
+        
+        {/* Right Panel - Chat */}
+        <div className="w-96 flex-shrink-0 flex flex-col border-l">
+          <ChatHistory />
+          <ChatInput />
+        </div>
+      </div>
+
+      {/* Dialogs */}
+      <Dialog open={isNewFileDialogOpen} onOpenChange={setIsNewFileDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New File</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Enter file name"
+              value={newFileName}
+              onChange={(e) => setNewFileName(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsNewFileDialogOpen(false)}>Cancel</Button>
+            <FileSystemCreateFile 
+              fileName={newFileName} 
+              path={currentPath} 
+              onSuccess={() => setIsNewFileDialogOpen(false)} 
+            />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Folder Dialog */}
+      <Dialog open={isNewFolderDialogOpen} onOpenChange={setIsNewFolderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Enter folder name"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsNewFolderDialogOpen(false)}>Cancel</Button>
+            <FileSystemCreateFolder 
+              folderName={newFolderName} 
+              path={currentPath} 
+              onSuccess={() => setIsNewFolderDialogOpen(false)} 
+            />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* GitHub Dialog */}
+      <Dialog open={isGitHubDialogOpen} onOpenChange={setIsGitHubDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>GitHub Integration</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-6">
+            <GitHubAuth />
+            <GitHubRepoSelector />
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsGitHubDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };
 
@@ -318,7 +316,14 @@ const FileSystemControls: React.FC<{
   );
 };
 
-// Import the useFileSystem hook at the top level of your file
-import { useFileSystem } from '../contexts/FileSystemContext';
+const Dashboard: React.FC = () => {
+  return (
+    <ChatProvider>
+      <FileSystemProvider>
+        <DashboardContent />
+      </FileSystemProvider>
+    </ChatProvider>
+  );
+};
 
 export default Dashboard;
