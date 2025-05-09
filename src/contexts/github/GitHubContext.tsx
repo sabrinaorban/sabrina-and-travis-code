@@ -4,7 +4,7 @@ import { FileEntry } from '@/types';
 import { useFileSystem } from '../FileSystemContext';
 import { useAuth } from '../AuthContext';
 import { GithubTokenService } from '@/services/github/githubTokenService';
-import { useGithubRepos } from '@/hooks/useGithubRepos';
+import { useGithubOperations } from '@/hooks/github/useGithubOperations';
 import { useGitHubAuth } from './useGitHubAuth';
 import { useGitHubMemory } from './useGitHubMemory';
 import { useGitHubRepoSelection } from './useGitHubRepoSelection';
@@ -24,7 +24,8 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   console.log('GitHubProvider - Initializing with user:', user?.id);
   
   // Initialize GitHub auth
-  const { authState, authenticate, logout } = useGithubAuth();
+  const githubAuthHook = useGitHubAuth();
+  const { authState, authenticate, logout } = githubAuthHook;
   
   useEffect(() => {
     console.log('GitHubProvider - Auth state update:', authState);
@@ -44,7 +45,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     saveFileToRepo,
     syncRepoToFileSystem: syncRepo,
     reset
-  } = useGithubRepos(authState.token);
+  } = useGithubOperations(authState.token);
 
   // Debug logs for current state
   useEffect(() => {
@@ -58,7 +59,8 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Use custom hooks for GitHub functionality
   const { loadGitHubMemory } = useGitHubMemory();
-  const { handleLogout, isAuthInitialized, setAuthInitialized } = useGitHubAuth(user, authState, logout);
+  const githubAuthUtils = useGitHubAuth(user, authState, logout);
+  const { handleLogout, isAuthInitialized, setAuthInitialized } = githubAuthUtils;
   const { isRestoringRepo } = useGitHubRepoSelection(
     authState, 
     fetchRepositories, 
