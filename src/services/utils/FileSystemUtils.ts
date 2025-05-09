@@ -1,109 +1,94 @@
 
-import { FileOperation } from '../../types/chat';
-import { FileSystemContextType } from '../../types/fileSystem';
+import { FileEntry } from '../../types';
 
-// Function to get project structure (renamed to avoid conflicts)
-export const getSimpleProjectStructure = async (fileSystem: FileSystemContextType): Promise<string> => {
-  if (!fileSystem || !fileSystem.fileSystem) {
-    return 'File system not available';
+// Helper to find a node in the file tree
+export const findNode = (
+  path: string,
+  nodes: FileEntry[]
+): { parent: FileEntry | null; node: FileEntry | null } => {
+  // Root path case
+  if (path === '/') {
+    return { parent: null, node: { id: 'root', name: 'root', path: '/', type: 'folder', children: nodes } };
   }
+
+  // Split the path to get parent path and name
+  const parts = path.split('/').filter(p => p);
   
-  const files = fileSystem.fileSystem.files;
+  let currentNodes = nodes;
+  let parent: FileEntry | null = null;
+  let current: FileEntry | null = null;
   
-  if (!files || files.length === 0) {
-    return 'No files found';
-  }
-  
-  const structure = files.map(file => {
-    if (file.type === 'file') {
-      return `- ${file.path} (file)`;
-    } else {
-      return `- ${file.path} (folder)`;
+  // Navigate the tree to find the path
+  for (let i = 0; i < parts.length; i++) {
+    const isLast = i === parts.length - 1;
+    const part = parts[i];
+    
+    current = currentNodes.find(node => node.name === part) || null;
+    
+    if (!current) return { parent: null, node: null };
+    
+    if (isLast) {
+      return { parent, node: current };
     }
-  }).join('\n');
+    
+    if (current.type !== 'folder' || !current.children) {
+      return { parent: null, node: null };
+    }
+    
+    parent = current;
+    currentNodes = current.children;
+  }
   
-  return structure;
+  return { parent, node: current };
 };
 
-// Handle file operation from the assistant
-export const handleFileOperation = async (
-  fileSystem: any,
-  operation: string,
-  path: string,
-  content?: string
-): Promise<{ success: boolean; message: string }> => {
-  try {
-    if (!fileSystem) {
-      return { success: false, message: 'File system not available' };
+// Helper to find a node by ID
+export const findNodeById = (
+  id: string,
+  nodes: FileEntry[]
+): { parent: FileEntry | null; node: FileEntry | null; index: number } => {
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    
+    if (node.id === id) {
+      return { parent: null, node, index: i };
     }
     
-    console.log(`Processing file operation: ${operation} on ${path}`);
-    
-    // When creating files, ensure parent folders exist
-    if (operation === 'create' || operation === 'write') {
-      // If it's a folder (content is null)
-      if (content === null && (path.endsWith('/') || !path.includes('.'))) {
-        await ensureFolderExists(fileSystem, path);
-        return { success: true, message: `Folder ${path} created successfully` };
-      } else {
-        // It's a file, so ensure its parent folder exists
-        const lastSlashIndex = path.lastIndexOf('/');
-        if (lastSlashIndex > 0) {
-          const folderPath = path.substring(0, lastSlashIndex);
-          await ensureFolderExists(fileSystem, folderPath);
-        }
-        
-        // Get folder path and file name
-        const fileName = path.substring(lastSlashIndex + 1);
-        const folderPath = lastSlashIndex === 0 ? '/' : path.substring(0, lastSlashIndex);
-        
-        if (operation === 'create') {
-          await fileSystem.createFile(folderPath, fileName, content || '');
-          return { success: true, message: `File ${path} created successfully` };
-        } else {
-          await fileSystem.updateFileByPath(path, content || '');
-          return { success: true, message: `File ${path} updated successfully` };
-        }
+    if (node.type === 'folder' && node.children) {
+      const result = findNodeById(id, node.children);
+      if (result.node) {
+        return { ...result, parent: node };
       }
-    } else if (operation === 'read') {
-      const content = fileSystem.getFileContentByPath(path);
-      if (content === null) {
-        return { success: false, message: `File not found at path: ${path}` };
-      }
-      return { success: true, message: `File ${path} read successfully` };
-    } else if (operation === 'delete') {
-      // Need file ID to delete - get it from path
-      const file = fileSystem.getFileByPath(path);
-      if (!file) {
-        return { success: false, message: `File not found at path: ${path}` };
-      }
-      
-      await fileSystem.deleteFile(file.id);
-      return { success: true, message: `File ${path} deleted successfully` };
-    } else {
-      return { success: false, message: `Unsupported operation: ${operation}` };
     }
-  } catch (error: any) {
-    console.error(`Error performing file operation ${operation} on ${path}:`, error);
-    return {
-      success: false,
-      message: error.message || `Failed to ${operation} file ${path}`
-    };
   }
+  
+  return { parent: null, node: null, index: -1 };
 };
 
 // Enhanced implementation of ensuring a folder exists, creating parent folders as needed
 export const ensureFolderExists = async (fileSystem: any, folderPath: string): Promise<void> => {
-  if (folderPath === '/' || folderPath === '') return;
+  if (!fileSystem || !fileSystem.createFolder) {
+    console.error('[FileSystemUtils] Invalid fileSystem object or missing createFolder method');
+    return;
+  }
+  
+  if (folderPath === '/' || folderPath === '') {
+    console.log('[FileSystemUtils] Root folder already exists, nothing to do');
+    return;
+  }
   
   // Clean up the path (remove trailing slashes)
   const cleanPath = folderPath.replace(/\/+$/, '');
+  console.log(`[FileSystemUtils] Ensuring folder exists: ${cleanPath}`);
   
   // Check if folder exists
-  const folder = fileSystem.getFileByPath(cleanPath);
-  if (folder) return;
+  const folder = fileSystem.getFileByPath ? fileSystem.getFileByPath(cleanPath) : null;
+  if (folder) {
+    console.log(`[FileSystemUtils] Folder already exists: ${cleanPath}`);
+    return;
+  }
   
-  console.log(`Creating folder structure for: ${cleanPath}`);
+  console.log(`[FileSystemUtils] Creating folder structure for: ${cleanPath}`);
   
   // Need to create folder - ensure parent folders exist first
   const segments = cleanPath.split('/').filter(Boolean);
@@ -112,44 +97,117 @@ export const ensureFolderExists = async (fileSystem: any, folderPath: string): P
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i];
     const nextPath = currentPath === '' ? `/${segment}` : `${currentPath}/${segment}`;
-    const folder = fileSystem.getFileByPath(nextPath);
+    const existingFolder = fileSystem.getFileByPath ? fileSystem.getFileByPath(nextPath) : null;
     
-    if (!folder) {
+    if (!existingFolder) {
       // Create this folder - path is parent, name is segment
       const parentPath = currentPath === '' ? '/' : currentPath;
-      await fileSystem.createFolder(parentPath, segment);
-      console.log(`Created folder ${segment} at ${parentPath}`);
+      console.log(`[FileSystemUtils] Creating folder ${segment} at ${parentPath}`);
+      
+      try {
+        await fileSystem.createFolder(parentPath, segment);
+        console.log(`[FileSystemUtils] Created folder ${segment} at ${parentPath}`);
+      } catch (error) {
+        console.error(`[FileSystemUtils] Error creating folder ${segment} at ${parentPath}:`, error);
+      }
+    } else {
+      console.log(`[FileSystemUtils] Folder already exists: ${nextPath}`);
     }
     
     currentPath = nextPath;
   }
+  
+  // Refresh files to update the UI
+  if (fileSystem.refreshFiles) {
+    console.log(`[FileSystemUtils] Refreshing files after folder creation`);
+    await fileSystem.refreshFiles();
+  }
 };
 
-// Renamed to avoid conflicts
-export const processSimpleFileOperations = async (
-  fileSystem: any,
-  fileOperations: FileOperation[]
-): Promise<FileOperation[]> => {
-  let processedOperations: FileOperation[] = [];
-  
-  if (fileOperations && fileOperations.length > 0) {
-    for (const op of fileOperations) {
-      const result = await handleFileOperation(
-        fileSystem,
-        op.operation,
-        op.path,
-        op.content
-      );
-      
-      processedOperations.push({
-        ...op,
-        success: result.success,
-        message: result.message
-      });
-      
-      console.log(`File operation result:`, result);
-    }
+// Create a test Next.js project
+export const createNextJsProject = async (fileSystem: any): Promise<boolean> => {
+  if (!fileSystem) {
+    console.error('[FileSystemUtils] File system not available');
+    return false;
   }
   
-  return processedOperations;
+  try {
+    console.log('[FileSystemUtils] Creating Next.js project structure');
+    
+    // Create main project folder
+    await ensureFolderExists(fileSystem, '/nextjs-app');
+    
+    // Create basic structure folders
+    await ensureFolderExists(fileSystem, '/nextjs-app/pages');
+    await ensureFolderExists(fileSystem, '/nextjs-app/public');
+    await ensureFolderExists(fileSystem, '/nextjs-app/styles');
+    
+    // Create package.json
+    const packageJson = `{
+  "name": "nextjs-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^12.0.0",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  }
+}`;
+    
+    await fileSystem.createFile('/nextjs-app', 'package.json', packageJson);
+    
+    // Create next.config.js
+    const nextConfig = `/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+}
+
+module.exports = nextConfig`;
+    
+    await fileSystem.createFile('/nextjs-app', 'next.config.js', nextConfig);
+    
+    // Create index.js in pages folder
+    const indexJs = `export default function Home() {
+  return (
+    <div>
+      <h1>Hello</h1>
+    </div>
+  );
+}`;
+    
+    await fileSystem.createFile('/nextjs-app/pages', 'index.js', indexJs);
+    
+    // Create global CSS file
+    const globalCss = `html,
+body {
+  padding: 0;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
+    Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+* {
+  box-sizing: border-box;
+}`;
+    
+    await fileSystem.createFile('/nextjs-app/styles', 'globals.css', globalCss);
+    
+    console.log('[FileSystemUtils] Next.js project created successfully');
+    return true;
+    
+  } catch (error) {
+    console.error('[FileSystemUtils] Error creating Next.js project:', error);
+    return false;
+  }
 };
