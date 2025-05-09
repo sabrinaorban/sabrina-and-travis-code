@@ -51,7 +51,7 @@ export const GitHubRepoSelector: React.FC = () => {
       console.log(`Syncing repository ${owner}/${repo} (${currentBranch})...`);
       const result = await syncRepoToFileSystem(owner, repo, currentBranch);
       
-      // Fixed: Check boolean result instead of treating void as a condition
+      // Fixed: Check boolean result
       if (result === true) {
         // Force refresh files with a delay to ensure database operations complete
         console.log('Sync successful, refreshing files...');

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { FileEntry } from '../types';
 import { GitHubContextType } from '../types/github';
@@ -147,7 +146,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [authState.isAuthenticated, authState.token, authState.username, user, toast, loadGitHubMemory]);
 
-  // Sync repository to file system
+  // Sync repository to file system - updated to return boolean
   const syncRepoToFileSystem = async (owner: string, repo: string, branch: string): Promise<boolean> => {
     const result = await syncRepo(owner, repo, branch, createFile, createFolder);
     await refreshFiles();

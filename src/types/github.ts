@@ -68,7 +68,7 @@ export interface GitHubContextType {
   fetchRepositories: () => Promise<GitHubRepo[]>; // Updated to match implementation
   fetchFileContent: (filePath: string) => Promise<string | null>;
   isLoading: boolean;
-  saveFileToRepo: (filePath: string, content: string, commitMessage: string) => Promise<boolean>; // Updated to match implementation
-  syncRepoToFileSystem: (owner: string, repo: string, branch: string) => Promise<void>; // Added
+  saveFileToRepo: (filePath: string, content: string, commitMessage: string) => Promise<boolean>; 
+  syncRepoToFileSystem: (owner: string, repo: string, branch: string) => Promise<boolean>; // Changed return type to boolean
   logout: () => void;
 }
