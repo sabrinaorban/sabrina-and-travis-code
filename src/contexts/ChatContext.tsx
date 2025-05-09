@@ -32,39 +32,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       try {
         console.log('Fetching messages for user:', user.id);
-        // Check if user exists in users table first
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', user.id)
-          .maybeSingle();
-          
-        if (userError) {
-          console.error('Error checking user:', userError);
-          // No need to throw, we'll handle this case below
-        }
-        
-        // If user doesn't exist in users table, create them
-        if (!userData) {
-          console.log('User not found in users table, creating user record');
-          const { error: insertError } = await supabase
-            .from('users')
-            .insert({
-              id: user.id,
-              name: user.name,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-            
-          if (insertError) {
-            console.error('Error creating user record:', insertError);
-            toast({
-              title: 'Error',
-              description: 'Failed to create user record',
-              variant: 'destructive',
-            });
-          }
-        }
+        // First ensure user exists in users table
+        await getOrCreateUserProfile(user.id, user.email || undefined);
         
         // Now fetch messages
         const fetchedMessages = await fetchMessages(user.id);
@@ -112,35 +81,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!content.trim()) return;
 
     try {
-      // First check if user exists in users table
-      const { data: userData, error: userCheckError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', user.id)
-        .maybeSingle();
-        
-      if (userCheckError) {
-        console.error('Error checking user:', userCheckError);
-        throw userCheckError;
-      }
-      
-      // Create user if they don't exist
-      if (!userData) {
-        console.log('User not found, creating record...');
-        const { error: insertUserError } = await supabase
-          .from('users')
-          .insert({
-            id: user.id,
-            name: user.name,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-          
-        if (insertUserError) {
-          console.error('Error creating user:', insertUserError);
-          throw insertUserError;
-        }
-      }
+      // Ensure user exists in the database
+      await getOrCreateUserProfile(user.id, user.email || undefined);
       
       // Create and add user message
       const newUserMessage = await storeUserMessage(user.id, content);

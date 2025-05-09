@@ -50,6 +50,7 @@ export const getOrCreateUserProfile = async (userId: string, email?: string): Pr
     console.log('Creating new user profile for:', userId, email);
     const name = email ? email.split('@')[0] : 'User';
     
+    // Use service role token to bypass RLS during initial user creation
     const { data: newUser, error: insertError } = await supabase
       .from('users')
       .insert([

@@ -83,7 +83,23 @@ serve(async (req) => {
     }
     
     // Parse request body
-    const { messages, memoryContext } = await req.json() as RequestBody;
+    let messages, memoryContext;
+    try {
+      const body = await req.json() as RequestBody;
+      messages = body.messages;
+      memoryContext = body.memoryContext;
+    } catch (parseError) {
+      console.error('Error parsing request body:', parseError);
+      return new Response(
+        JSON.stringify({
+          error: 'Invalid JSON in request body'
+        }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
     
     if (!messages || !Array.isArray(messages)) {
       return new Response(

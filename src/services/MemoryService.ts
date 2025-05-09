@@ -1,5 +1,5 @@
 
-import { supabase, generateUUID } from '../lib/supabase';
+import { supabase, generateUUID, getOrCreateUserProfile } from '../lib/supabase';
 import { Message } from '../types';
 
 export interface MemoryContext {
@@ -27,35 +27,8 @@ export const MemoryService = {
     try {
       console.log('Storing memory:', key, 'for user:', userId);
       
-      // First check if the user exists in the users table
-      const { data: userExists, error: userCheckError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', userId)
-        .maybeSingle();
-        
-      if (userCheckError) {
-        console.error('Error checking if user exists:', userCheckError);
-        throw userCheckError;
-      }
-      
-      // Create user if they don't exist
-      if (!userExists) {
-        console.log('User not found in users table, creating user record');
-        const { error: createUserError } = await supabase
-          .from('users')
-          .insert({
-            id: userId,
-            name: 'User',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-          
-        if (createUserError) {
-          console.error('Error creating user record:', createUserError);
-          throw createUserError;
-        }
-      }
+      // Ensure user exists in the database
+      await getOrCreateUserProfile(userId);
       
       // Check if memory exists
       const { data: existingData, error: checkError } = await supabase
@@ -142,35 +115,8 @@ export const MemoryService = {
     try {
       console.log('Getting memory context for user:', userId);
       
-      // First check if the user exists in the users table
-      const { data: userExists, error: userCheckError } = await supabase
-        .from('users')
-        .select('id, name')
-        .eq('id', userId)
-        .maybeSingle();
-        
-      if (userCheckError) {
-        console.error('Error checking if user exists:', userCheckError);
-        // Continue with the function but handle the potential issues
-      }
-      
-      // Create user if they don't exist
-      if (!userExists) {
-        console.log('User not found in users table, creating user record');
-        const { error: createUserError } = await supabase
-          .from('users')
-          .insert({
-            id: userId,
-            name: 'User',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-          
-        if (createUserError) {
-          console.error('Error creating user record:', createUserError);
-          // Continue with the function but handle the potential issues
-        }
-      }
+      // Ensure user exists
+      await getOrCreateUserProfile(userId);
       
       // Get recent messages
       const { data: messagesData } = await supabase
