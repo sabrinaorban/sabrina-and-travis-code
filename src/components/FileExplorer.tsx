@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import FileNode from './FileExplorer/FileNode';
 import EmptyFilesPlaceholder from './FileExplorer/EmptyFilesPlaceholder';
 import RefreshControl from './FileExplorer/RefreshControl';
+import { FileEntry } from '../types'; // Add the missing import
 
 export const FileExplorer: React.FC = () => {
   const { fileSystem, selectFile, refreshFiles, isLoading } = useFileSystem();

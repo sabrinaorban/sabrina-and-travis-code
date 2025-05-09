@@ -69,7 +69,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         getFileContentByPath: (path: string) => getFileContentByPath(path, fileSystem.files),
         updateFileByPath: (path: string, content: string) => updateFileByPath(path, content, fileSystem.files),
         isLoading,
-        refreshFiles,
+        refreshFiles, // Removed argument here as the type definition doesn't expect one
         deleteAllFiles,
         getModifiedFiles: () => getModifiedFiles(fileSystem.files)
       }}
