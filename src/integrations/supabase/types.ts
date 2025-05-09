@@ -50,6 +50,33 @@ export type Database = {
           },
         ]
       }
+      github_tokens: {
+        Row: {
+          created_at: string | null
+          id: string
+          token: string
+          updated_at: string | null
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          token: string
+          updated_at?: string | null
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          token?: string
+          updated_at?: string | null
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
       memory: {
         Row: {
           created_at: string

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, GitCommit } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 export const GitHubCommitPanel: React.FC = () => {
   const { authState, currentRepo, currentBranch, saveFileToRepo, isLoading } = useGitHub();
@@ -21,18 +22,40 @@ export const GitHubCommitPanel: React.FC = () => {
   const handleCommit = async () => {
     if (!selectedFile || !commitMessage.trim()) return;
     
-    // Get the GitHub path for this file (strip the leading slash)
-    const githubPath = selectedFile.path.startsWith('/') 
-      ? selectedFile.path.substring(1) 
-      : selectedFile.path;
-    
-    await saveFileToRepo(
-      githubPath,
-      selectedFile.content || '',
-      commitMessage
-    );
-    
-    setCommitMessage('');
+    try {
+      // Get the GitHub path for this file (strip the leading slash)
+      const githubPath = selectedFile.path.startsWith('/') 
+        ? selectedFile.path.substring(1) 
+        : selectedFile.path;
+      
+      const result = await saveFileToRepo(
+        githubPath,
+        selectedFile.content || '',
+        commitMessage
+      );
+      
+      if (result) {
+        toast({
+          title: "Success",
+          description: `Changes pushed to ${currentRepo.full_name} (${currentBranch})`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to push changes",
+          variant: "destructive"
+        });
+      }
+      
+      setCommitMessage('');
+    } catch (error) {
+      console.error("Error committing file:", error);
+      toast({
+        title: "Error",
+        description: "Failed to push changes",
+        variant: "destructive"
+      });
+    }
   };
 
   return (

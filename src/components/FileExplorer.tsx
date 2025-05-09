@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { FileEntry } from '../types';
 import { useFileSystem } from '../contexts/FileSystemContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { File, Folder, FolderOpen, Trash, RefreshCw } from 'lucide-react';
+import { File, Folder, FolderOpen, Trash, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface FileNodeProps {
@@ -32,8 +33,6 @@ const FileNode: React.FC<FileNodeProps> = ({
   const handleSelect = () => {
     if (file.type === 'file') {
       onSelect(file);
-    } else {
-      setIsOpen(!isOpen);
     }
   };
 
@@ -66,6 +65,15 @@ const FileNode: React.FC<FileNodeProps> = ({
         onClick={handleSelect}
       >
         {file.type === 'folder' && (
+          <span className="mr-1" onClick={handleToggle}>
+            {isOpen ? 
+              <ChevronDown size={16} className="text-gray-500" /> : 
+              <ChevronRight size={16} className="text-gray-500" />
+            }
+          </span>
+        )}
+        
+        {file.type === 'folder' && (
           <span className="mr-1">
             {isOpen ? 
               <FolderOpen size={16} className="text-yellow-500" /> : 
@@ -78,7 +86,12 @@ const FileNode: React.FC<FileNodeProps> = ({
           <File size={16} className="mr-1.5 text-blue-500" />
         )}
         
-        <span className="flex-grow truncate">{file.name}</span>
+        <span 
+          className="flex-grow truncate"
+          onClick={file.type === 'folder' ? handleToggle : undefined}
+        >
+          {file.name}
+        </span>
         
         <Button
           variant="ghost"

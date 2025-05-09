@@ -5,67 +5,65 @@ export class GithubTokenService {
   /**
    * Save GitHub token to Supabase
    */
-  static async saveToken(userId: string, token: string, username: string): Promise<boolean> {
+  static async saveToken(userId: string, token: string, username: string | null): Promise<void> {
     try {
       const { error } = await supabase
         .from('github_tokens')
-        .upsert({ 
+        .upsert({
           user_id: userId,
           token,
           username,
-          created_at: new Date().toISOString()
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
         });
-      
+        
       if (error) throw error;
-      
-      return true;
-    } catch (err) {
-      console.error('Error saving GitHub token:', err);
-      return false;
+      console.log('GitHub token saved successfully');
+    } catch (error) {
+      console.error('Error saving GitHub token:', error);
+      throw error;
     }
   }
 
   /**
    * Load GitHub token from Supabase
    */
-  static async loadToken(userId: string): Promise<{ token: string | null; username: string | null }> {
+  static async loadToken(userId: string): Promise<{ token: string; username: string | null }> {
     try {
       const { data, error } = await supabase
         .from('github_tokens')
         .select('token, username')
         .eq('user_id', userId)
-        .single();
-      
-      if (error) {
-        throw error;
-      }
+        .maybeSingle();
+        
+      if (error) throw error;
       
       return {
-        token: data?.token || null,
+        token: data?.token || '',
         username: data?.username || null
       };
-    } catch (err) {
-      console.error('Error loading GitHub token:', err);
-      return { token: null, username: null };
+    } catch (error) {
+      console.error('Error loading GitHub token:', error);
+      return { token: '', username: null };
     }
   }
 
   /**
    * Delete GitHub token from Supabase
    */
-  static async deleteToken(userId: string): Promise<boolean> {
+  static async deleteToken(userId: string): Promise<void> {
     try {
       const { error } = await supabase
         .from('github_tokens')
         .delete()
         .eq('user_id', userId);
-      
+        
       if (error) throw error;
-      
-      return true;
-    } catch (err) {
-      console.error('Error deleting GitHub token:', err);
-      return false;
+      console.log('GitHub token deleted successfully');
+    } catch (error) {
+      console.error('Error deleting GitHub token:', error);
+      throw error;
     }
   }
 }
