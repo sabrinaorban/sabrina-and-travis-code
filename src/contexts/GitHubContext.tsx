@@ -1,135 +1,173 @@
-
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { GitHubRepo, GitHubBranch, GitHubFile, GitHubAuthState } from '../types/github';
-import { githubService } from '../services/GitHubService';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { GitHubRepo, GitHubBranch, GitHubFile, GitHubAuthState } from '../types/github';
+import { FileEntry } from '../types';
+import { useFileSystem } from './FileSystemContext';
+import { toast } from '@/hooks/use-toast';
+import { supabase } from '../lib/supabase'; // Import supabase client
 
 interface GitHubContextType {
   authState: GitHubAuthState;
-  repositories: GitHubRepo[];
+  authenticate: (code: string) => Promise<void>;
+  repos: GitHubRepo[];
+  branches: GitHubBranch[];
   currentRepo: GitHubRepo | null;
   currentBranch: string | null;
-  availableBranches: GitHubBranch[];
+  files: GitHubFile[];
+  selectedFile: FileEntry | null;
+  setSelectedFile: (file: FileEntry | null) => void;
+  selectRepo: (repo: GitHubRepo) => Promise<void>;
+  selectBranch: (branchName: string) => Promise<void>;
+  fetchFileContent: (filePath: string) => Promise<string | null>;
   isLoading: boolean;
-  authenticate: (token: string) => Promise<boolean>;
+  saveFileToRepo: (filePath: string, content: string, commitMessage: string) => Promise<void>;
   logout: () => void;
-  fetchRepositories: () => Promise<void>;
-  selectRepository: (repo: GitHubRepo) => Promise<void>;
-  selectBranch: (branch: string) => Promise<void>;
-  syncRepoToFileSystem: (owner: string, repo: string, branch: string) => Promise<void>;
-  getRepoFileContent: (path: string) => Promise<string>;
-  saveFileToRepo: (path: string, content: string, commitMessage: string) => Promise<boolean>;
 }
 
+const initialAuthState: GitHubAuthState = {
+  isAuthenticated: false,
+  token: null,
+  username: null,
+  loading: false,
+  error: null
+};
+
+// GitHub context creation
 const GitHubContext = createContext<GitHubContextType | null>(null);
 
 export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  
   const [authState, setAuthState] = useState<GitHubAuthState>({
     isAuthenticated: false,
     token: null,
     username: null,
-    loading: false,
+    loading: true,
     error: null
   });
-  
-  const [repositories, setRepositories] = useState<GitHubRepo[]>([]);
+  const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [branches, setBranches] = useState<GitHubBranch[]>([]);
   const [currentRepo, setCurrentRepo] = useState<GitHubRepo | null>(null);
   const [currentBranch, setCurrentBranch] = useState<string | null>(null);
-  const [availableBranches, setAvailableBranches] = useState<GitHubBranch[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [files, setFiles] = useState<GitHubFile[]>([]);
+  const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
+  const { refreshFiles } = useFileSystem();
 
-  // Load stored token from Supabase when user is authenticated
+  // Load stored token on component mount
   useEffect(() => {
-    if (user) {
-      const loadStoredToken = async () => {
-        setAuthState(prev => ({ ...prev, loading: true }));
+    const loadStoredToken = async () => {
+      if (user) {
         try {
-          const token = await githubService.getTokenFromSupabase(user.id);
+          // Using the imported supabase client
+          const { data, error } = await supabase
+            .from('github_tokens')
+            .select('token, username')
+            .eq('user_id', user.id)
+            .single();
           
-          if (token) {
-            // Verify token and authenticate
-            githubService.setToken(token);
-            try {
-              const userInfo = await githubService.verifyToken();
-              
-              setAuthState({
-                isAuthenticated: true,
-                token,
-                username: userInfo.login,
-                loading: false,
-                error: null
-              });
-              
-              githubService.setUsername(userInfo.login);
-              
-              // Load repositories
-              await fetchRepositories();
-            } catch (error) {
-              console.error('Invalid stored token:', error);
-              setAuthState({
-                isAuthenticated: false,
-                token: null,
-                username: null,
-                loading: false,
-                error: 'Stored token is invalid'
-              });
-            }
+          if (error) {
+            console.error('Error retrieving GitHub token:', error);
+            setAuthState(prev => ({ ...prev, loading: false }));
+            return;
+          }
+          
+          if (data && data.token) {
+            setAuthState({
+              isAuthenticated: true,
+              token: data.token,
+              username: data.username || null,
+              loading: false,
+              error: null
+            });
+            
+            // If token is valid, fetch user repos
+            fetchUserRepos(data.token);
           } else {
             setAuthState(prev => ({ ...prev, loading: false }));
           }
-        } catch (error) {
-          console.error('Error loading stored token:', error);
+        } catch (err) {
+          console.error('Failed to load GitHub token:', err);
           setAuthState(prev => ({ 
             ...prev, 
-            loading: false, 
-            error: 'Failed to load stored authentication' 
+            loading: false,
+            error: 'Failed to load GitHub credentials'
           }));
         }
-      };
-      
-      loadStoredToken();
-    }
+      } else {
+        setAuthState(prev => ({ ...prev, loading: false }));
+      }
+    };
+    
+    loadStoredToken();
   }, [user]);
 
-  // Authenticate with GitHub
-  const authenticate = async (token: string): Promise<boolean> => {
-    setAuthState(prev => ({ ...prev, loading: true, error: null }));
-    
+  // Function to fetch user repositories
+  const fetchUserRepos = async (token: string) => {
+    setIsLoading(true);
     try {
-      githubService.setToken(token);
-      const userInfo = await githubService.verifyToken();
-      
-      setAuthState({
-        isAuthenticated: true,
-        token,
-        username: userInfo.login,
-        loading: false,
-        error: null
+      const response = await fetch('https://api.github.com/user/repos', {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github.v3+json'
+        }
       });
-      
-      githubService.setUsername(userInfo.login);
-      
-      // Store token in Supabase if user is logged in
-      if (user) {
-        await githubService.storeTokenInSupabase(user.id, token);
+      if (!response.ok) {
+        throw new Error(`GitHub API Error: ${response.status}`);
       }
-      
-      // Load repositories
-      await fetchRepositories();
-      
-      toast({
-        title: "GitHub Connected",
-        description: `Successfully connected to GitHub as ${userInfo.login}`,
-      });
-      
-      return true;
+      const data: GitHubRepo[] = await response.json();
+      setRepos(data);
     } catch (error: any) {
-      console.error('GitHub authentication failed:', error);
+      console.error('Error fetching repos:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to fetch repositories: ${error.message}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to authenticate with GitHub
+  const authenticate = async (code: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/github/callback?code=${code}`);
+      if (!response.ok) {
+        throw new Error(`Authentication failed: ${response.status}`);
+      }
+      const data = await response.json();
       
+      if (data.access_token && data.username) {
+        setAuthState({
+          isAuthenticated: true,
+          token: data.access_token,
+          username: data.username,
+          loading: false,
+          error: null
+        });
+        
+        // Save token to Supabase
+        await saveToken(data.access_token, data.username);
+        
+        // Fetch user repos
+        fetchUserRepos(data.access_token);
+      } else {
+        setAuthState({
+          isAuthenticated: false,
+          token: null,
+          username: null,
+          loading: false,
+          error: 'Failed to retrieve access token'
+        });
+        toast({
+          title: 'Error',
+          description: 'Failed to retrieve access token from GitHub.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      console.error('Authentication error:', error);
       setAuthState({
         isAuthenticated: false,
         token: null,
@@ -137,315 +175,226 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         loading: false,
         error: error.message || 'Authentication failed'
       });
-      
       toast({
-        title: "Authentication Failed",
-        description: error.message || "Could not authenticate with GitHub",
-        variant: "destructive"
-      });
-      
-      return false;
-    }
-  };
-
-  // Logout from GitHub
-  const logout = () => {
-    setAuthState({
-      isAuthenticated: false,
-      token: null,
-      username: null,
-      loading: false,
-      error: null
-    });
-    
-    setRepositories([]);
-    setCurrentRepo(null);
-    setCurrentBranch(null);
-    setAvailableBranches([]);
-    
-    toast({
-      title: "Disconnected",
-      description: "Successfully disconnected from GitHub",
-    });
-  };
-
-  // Fetch repositories
-  const fetchRepositories = async (): Promise<void> => {
-    if (!authState.isAuthenticated) return;
-    
-    setIsLoading(true);
-    try {
-      const repos = await githubService.getRepositories();
-      setRepositories(repos);
-    } catch (error: any) {
-      console.error('Error fetching repositories:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch repositories",
-        variant: "destructive"
+        title: 'Error',
+        description: error.message || 'Authentication failed.',
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Select a repository
-  const selectRepository = async (repo: GitHubRepo): Promise<void> => {
+  // Function to fetch branches for a repository
+  const fetchBranches = async (repoFullName: string, token: string) => {
     setIsLoading(true);
     try {
-      setCurrentRepo(repo);
-      
-      // Fetch branches
-      const [owner, repoName] = repo.full_name.split('/');
-      const branches = await githubService.getBranches(owner, repoName);
-      setAvailableBranches(branches);
-      
-      // Default to the default branch
-      setCurrentBranch(repo.default_branch);
-      
-      toast({
-        title: "Repository Selected",
-        description: `Now working with ${repo.full_name}`,
-      });
-    } catch (error: any) {
-      console.error('Error selecting repository:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load repository details",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Select a branch
-  const selectBranch = async (branch: string): Promise<void> => {
-    setCurrentBranch(branch);
-    
-    toast({
-      title: "Branch Selected",
-      description: `Switched to branch ${branch}`,
-    });
-  };
-
-  // Import files from GitHub to the virtual file system
-  const syncRepoToFileSystem = async (owner: string, repo: string, branch: string): Promise<void> => {
-    if (!user) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to sync files",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setIsLoading(true);
-    try {
-      await importGitHubDirectory(owner, repo, '', branch);
-      
-      toast({
-        title: "Sync Complete",
-        description: "Repository files have been synced to your workspace",
-      });
-    } catch (error: any) {
-      console.error('Error syncing repository:', error);
-      toast({
-        title: "Sync Failed",
-        description: error.message || "Failed to sync repository files",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Recursive function to import a directory from GitHub
-  const importGitHubDirectory = async (
-    owner: string, 
-    repo: string, 
-    path: string = '', 
-    branch: string
-  ): Promise<void> => {
-    if (!user) return;
-    
-    try {
-      const contents = await githubService.getContents(owner, repo, path, branch);
-      
-      // Handle array of files/directories
-      if (Array.isArray(contents)) {
-        for (const item of contents) {
-          if (item.type === 'file') {
-            // Get file content and create in virtual file system
-            const content = await githubService.getFileContent(owner, repo, item.path, branch);
-            await createFileInSystem(item.path, content);
-          } else if (item.type === 'dir') {
-            // Create the directory and process its contents recursively
-            await createFolderInSystem(item.path);
-            await importGitHubDirectory(owner, repo, item.path, branch);
-          }
+      const response = await fetch(`https://api.github.com/repos/${repoFullName}/branches`, {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github.v3+json'
         }
-      }
-      // Handle single file
-      else if (contents.type === 'file') {
-        const content = await githubService.getFileContent(owner, repo, path, branch);
-        await createFileInSystem(path, content);
-      }
-    } catch (error) {
-      console.error(`Error importing path ${path}:`, error);
-      throw error;
-    }
-  };
-
-  // Create a file in the virtual file system
-  const createFileInSystem = async (path: string, content: string): Promise<void> => {
-    if (!user) return;
-    
-    try {
-      // Extract directory path and filename
-      const lastSlashIndex = path.lastIndexOf('/');
-      const dirPath = lastSlashIndex > 0 ? `/${path.substring(0, lastSlashIndex)}` : '/';
-      const fileName = path.substring(lastSlashIndex + 1);
-      
-      // Create file in Supabase with GitHub metadata
-      const { error } = await supabase.from('files')
-        .upsert({
-          name: fileName,
-          path: `/${path}`,
-          type: 'file',
-          content: content,
-          user_id: user.id,
-          last_modified: new Date().toISOString(),
-          github_path: path,
-          github_repo: currentRepo?.full_name || null,
-          github_branch: currentBranch || null
-        });
-        
-      if (error) throw error;
-    } catch (error) {
-      console.error(`Error creating file ${path}:`, error);
-      throw error;
-    }
-  };
-
-  // Create a folder in the virtual file system
-  const createFolderInSystem = async (path: string): Promise<void> => {
-    if (!user) return;
-    
-    try {
-      // Extract parent directory path and folder name
-      const lastSlashIndex = path.lastIndexOf('/');
-      const dirPath = lastSlashIndex > 0 ? `/${path.substring(0, lastSlashIndex)}` : '/';
-      const folderName = path.substring(lastSlashIndex + 1);
-      
-      // Create folder in Supabase with GitHub metadata
-      const { error } = await supabase.from('files')
-        .upsert({
-          name: folderName,
-          path: `/${path}`,
-          type: 'folder',
-          content: null,
-          user_id: user.id,
-          last_modified: new Date().toISOString(),
-          github_path: path,
-          github_repo: currentRepo?.full_name || null,
-          github_branch: currentBranch || null
-        });
-        
-      if (error) throw error;
-    } catch (error) {
-      console.error(`Error creating folder ${path}:`, error);
-      throw error;
-    }
-  };
-
-  // Get content of a file from GitHub
-  const getRepoFileContent = async (path: string): Promise<string> => {
-    if (!currentRepo || !currentBranch) {
-      throw new Error('No repository or branch selected');
-    }
-    
-    const [owner, repo] = currentRepo.full_name.split('/');
-    
-    try {
-      return await githubService.getFileContent(owner, repo, path, currentBranch);
-    } catch (error) {
-      console.error(`Error getting file content for ${path}:`, error);
-      throw error;
-    }
-  };
-
-  // Save file changes back to GitHub
-  const saveFileToRepo = async (path: string, content: string, commitMessage: string): Promise<boolean> => {
-    if (!currentRepo || !currentBranch || !authState.isAuthenticated) {
-      toast({
-        title: "Error",
-        description: "No repository selected or not authenticated",
-        variant: "destructive"
       });
-      return false;
+      if (!response.ok) {
+        throw new Error(`GitHub API Error: ${response.status}`);
+      }
+      const data: GitHubBranch[] = await response.json();
+      setBranches(data);
+    } catch (error: any) {
+      console.error('Error fetching branches:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to fetch branches: ${error.message}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
-    
-    const [owner, repo] = currentRepo.full_name.split('/');
-    
+  };
+
+  // Function to fetch files for a repository and branch
+  const fetchFiles = async (repoFullName: string, branchName: string, token: string) => {
     setIsLoading(true);
     try {
-      // Get the current file to get its SHA
-      let sha: string | undefined;
-      try {
-        const fileInfo = await githubService.getContents(owner, repo, path, currentBranch) as GitHubFile;
-        sha = fileInfo.sha;
-      } catch (error) {
-        // File might not exist yet, which is fine for creation
-        console.log('File does not exist yet, will create it:', path);
-      }
-      
-      // Create or update the file
-      await githubService.createOrUpdateFile(
-        owner,
-        repo,
-        path,
-        content,
-        commitMessage,
-        currentBranch,
-        sha
-      );
-      
-      toast({
-        title: "Changes Pushed",
-        description: `Successfully pushed changes to ${currentRepo.full_name}`,
+      const response = await fetch(`https://api.github.com/repos/${repoFullName}/contents?ref=${branchName}`, {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github.v3+json'
+        }
       });
+      if (!response.ok) {
+        throw new Error(`GitHub API Error: ${response.status}`);
+      }
+      const data: GitHubFile[] = await response.json();
+      setFiles(data);
+    } catch (error: any) {
+      console.error('Error fetching files:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to fetch files: ${error.message}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to select a repository
+  const selectRepo = async (repo: GitHubRepo) => {
+    setCurrentRepo(repo);
+    await fetchBranches(repo.full_name, authState.token || '');
+  };
+
+  // Function to select a branch
+  const selectBranch = async (branchName: string) => {
+    setCurrentBranch(branchName);
+    if (currentRepo) {
+      await fetchFiles(currentRepo.full_name, branchName, authState.token || '');
+    }
+  };
+
+  // Function to fetch file content
+  const fetchFileContent = async (filePath: string): Promise<string | null> => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`https://api.github.com/repos/${currentRepo?.full_name}/contents/${filePath}?ref=${currentBranch}`, {
+        headers: {
+          Authorization: `token ${authState.token}`,
+          Accept: 'application/vnd.github.v3+json'
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`GitHub API Error: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.content && data.encoding === 'base64') {
+        return atob(data.content);
+      }
+      return null;
+    } catch (error: any) {
+      console.error('Error fetching file content:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to fetch file content: ${error.message}`,
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Save token to Supabase
+  const saveToken = async (token: string, username: string) => {
+    if (!user) return;
+    
+    try {
+      const { error } = await supabase
+        .from('github_tokens')
+        .upsert({ 
+          user_id: user.id,
+          token,
+          username,
+          created_at: new Date().toISOString()
+        });
+      
+      if (error) throw error;
       
       return true;
-    } catch (error: any) {
-      console.error('Error saving file to GitHub:', error);
-      toast({
-        title: "Push Failed",
-        description: error.message || "Failed to push changes to GitHub",
-        variant: "destructive"
-      });
+    } catch (err) {
+      console.error('Error saving GitHub token:', err);
       return false;
+    }
+  };
+
+  const saveFileToRepo = async (filePath: string, content: string, commitMessage: string) => {
+    setIsLoading(true);
+    try {
+      // Get the SHA of the latest commit for the file
+      const getFileResponse = await fetch(`https://api.github.com/repos/${currentRepo?.full_name}/contents/${filePath}?ref=${currentBranch}`, {
+        headers: {
+          Authorization: `token ${authState.token}`,
+          Accept: 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (!getFileResponse.ok) {
+        throw new Error(`Failed to get file: ${getFileResponse.status}`);
+      }
+
+      const fileData = await getFileResponse.json();
+      const sha = fileData.sha;
+
+      // Prepare the data for the commit
+      const commitData = {
+        message: commitMessage,
+        content: btoa(content), // Base64 encode the content
+        sha: sha,
+        branch: currentBranch
+      };
+
+      // Commit the changes
+      const commitResponse = await fetch(`https://api.github.com/repos/${currentRepo?.full_name}/contents/${filePath}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `token ${authState.token}`,
+          Accept: 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(commitData)
+      });
+
+      if (!commitResponse.ok) {
+        const errorData = await commitResponse.json();
+        throw new Error(`Failed to commit: ${commitResponse.status} - ${errorData.message}`);
+      }
+
+      toast({
+        title: 'Success',
+        description: 'File committed successfully!',
+      });
+
+      // Refresh files in FileSystemContext
+      await refreshFiles();
+    } catch (error: any) {
+      console.error('Error saving file to repo:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to save file: ${error.message}`,
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const logout = () => {
+    setAuthState(initialAuthState);
+    setRepos([]);
+    setBranches([]);
+    setCurrentRepo(null);
+    setCurrentBranch(null);
+    setFiles([]);
+    setSelectedFile(null);
   };
 
   return (
     <GitHubContext.Provider value={{
       authState,
-      repositories,
+      authenticate,
+      repos,
+      branches,
       currentRepo,
       currentBranch,
-      availableBranches,
-      isLoading,
-      authenticate,
-      logout,
-      fetchRepositories,
-      selectRepository,
+      files,
+      selectedFile,
+      setSelectedFile,
+      selectRepo,
       selectBranch,
-      syncRepoToFileSystem,
-      getRepoFileContent,
-      saveFileToRepo
+      fetchFileContent,
+      isLoading,
+      saveFileToRepo,
+      logout
     }}>
       {children}
     </GitHubContext.Provider>
@@ -454,7 +403,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 export const useGitHub = () => {
   const context = useContext(GitHubContext);
-  if (context === null) {
+  if (!context) {
     throw new Error('useGitHub must be used within a GitHubProvider');
   }
   return context;

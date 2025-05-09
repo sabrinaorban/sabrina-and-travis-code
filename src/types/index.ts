@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   name: string;
@@ -21,4 +22,20 @@ export interface FileEntry {
 export interface FileSystemState {
   files: FileEntry[];
   selectedFile: FileEntry | null;
+}
+
+// Message types added
+export type MessageRole = 'user' | 'assistant' | 'system' | 'function';
+
+export interface Message {
+  id: string;
+  role: MessageRole;
+  content: string;
+  createdAt: string;
+  userId?: string;
+}
+
+export interface OpenAIMessage {
+  role: MessageRole;
+  content: string;
 }
