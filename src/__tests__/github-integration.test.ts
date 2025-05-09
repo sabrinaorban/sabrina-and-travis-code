@@ -52,9 +52,52 @@ export const runGitHubIntegrationTests = () => {
   }
   
   console.log('GitHub localStorage items:', githubItems);
+
+  // Test branch selection specifically
+  let branchSelectionSuccess = false;
+  const repoInfo = localStorage.getItem('githubRepoInfo');
+  if (repoInfo) {
+    try {
+      const { repoFullName, branchName } = JSON.parse(repoInfo);
+      branchSelectionSuccess = validateBranchSelection(repoFullName, branchName);
+    } catch (e) {
+      console.error('Error parsing repository info:', e);
+    }
+  }
+
+  console.log('Branch selection test result:', branchSelectionSuccess);
   console.log('GitHub integration tests complete');
   
   return Object.keys(githubItems).length > 0;
+};
+
+// Validate state handling
+export const validateStateHandling = () => {
+  console.log('Validating GitHub state handling...');
+  
+  try {
+    // Check for proper storage of repository and branch information
+    const repoInfo = localStorage.getItem('githubRepoInfo');
+    if (!repoInfo) {
+      console.log('No repository info stored in localStorage');
+      return false;
+    }
+    
+    const { repoFullName, branchName } = JSON.parse(repoInfo);
+    console.log(`Found stored repo info: ${repoFullName} (${branchName})`);
+    
+    // Check expected structure 
+    if (!repoFullName || !branchName) {
+      console.log('Repository info is incomplete');
+      return false;
+    }
+    
+    console.log('GitHub state handling validation successful');
+    return true;
+  } catch (error) {
+    console.error('GitHub state validation error:', error);
+    return false;
+  }
 };
 
 // Automatically run tests if this file is imported directly

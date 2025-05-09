@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useGitHub } from '@/contexts/github';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,8 +10,19 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export const GitHubRepoSelector: React.FC = () => {
-  const { authState, repositories, currentRepo, currentBranch, branches, 
-          isLoading, fetchRepositories, selectRepository, selectBranch, syncRepoToFileSystem } = useGitHub();
+  const { 
+    authState, 
+    repositories, 
+    currentRepo, 
+    currentBranch, 
+    branches, 
+    isLoading, 
+    fetchRepositories, 
+    selectRepository, 
+    selectBranch, 
+    syncRepoToFileSystem 
+  } = useGitHub();
+  
   const { refreshFiles, isLoading: fileSystemLoading, deleteAllFiles } = useFileSystem();
   
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
@@ -24,23 +35,29 @@ export const GitHubRepoSelector: React.FC = () => {
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const syncCooldownMs = 10000; // 10 seconds cooldown
   
+  // Track repo selection to prevent race conditions
+  const selectingRepoRef = useRef(false);
+  const branchSelectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Debug logs
   useEffect(() => {
-    console.log('GitHubRepoSelector - Auth state:', authState);
-    console.log('GitHubRepoSelector - Repos count:', repositories.length);
+    console.log('GitHubRepoSelector - Auth state:', authState?.isAuthenticated);
+    console.log('GitHubRepoSelector - Repos count:', repositories?.length);
     console.log('GitHubRepoSelector - Current repo:', currentRepo?.full_name);
     console.log('GitHubRepoSelector - Current branch:', currentBranch);
-    console.log('GitHubRepoSelector - Branches count:', branches.length);
+    console.log('GitHubRepoSelector - Branches count:', branches?.length);
     console.log('GitHubRepoSelector - Loading states:', { isLoading, fileSystemLoading, isSyncing, isFetchingBranches });
   }, [authState, repositories, currentRepo, currentBranch, branches, isLoading, fileSystemLoading, isSyncing, isFetchingBranches]);
   
   // Fetch repositories when authenticated
   useEffect(() => {
-    if (authState.isAuthenticated && authState.token && repositories.length === 0) {
+    if (authState?.isAuthenticated && authState.token && (!repositories || repositories.length === 0)) {
       console.log('GitHubRepoSelector - Fetching repositories...');
-      fetchRepositories();
+      fetchRepositories().catch(err => {
+        console.error('Error fetching repositories:', err);
+      });
     }
-  }, [authState.isAuthenticated, authState.token, repositories.length, fetchRepositories]);
+  }, [authState?.isAuthenticated, authState?.token, repositories, fetchRepositories]);
 
   // Clean up timeouts when component unmounts
   useEffect(() => {
@@ -48,69 +65,99 @@ export const GitHubRepoSelector: React.FC = () => {
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
       }
+      if (branchSelectionTimeoutRef.current) {
+        clearTimeout(branchSelectionTimeoutRef.current);
+      }
     };
   }, []);
 
-  if (!authState.isAuthenticated) {
+  // Safe check if authenticated
+  if (!authState?.isAuthenticated) {
     return null;
   }
 
+  // Handle repository selection with debounce for UI feedback
   const handleRepositoryChange = async (repoFullName: string) => {
-    // Reset sync error when changing repositories
-    setSyncError(null);
-    setIsFetchingBranches(true);
-    
-    console.log('GitHubRepoSelector - Repository selected:', repoFullName);
-    const repo = repositories.find(r => r.full_name === repoFullName);
-    if (repo) {
-      await selectRepository(repo);
-      
-      // Add a small delay to allow branches to load
-      setTimeout(() => {
-        setIsFetchingBranches(false);
-      }, 1500);
-    } else {
-      setIsFetchingBranches(false);
-    }
-  };
-
-  const handleBranchChange = async (branch: string) => {
-    // Reset sync error when changing branches
-    setSyncError(null);
-    
-    console.log('GitHubRepoSelector - Branch selected:', branch);
-    await selectBranch(branch);
-  };
-
-  const handleSync = async () => {
-    if (!currentRepo || !currentBranch) {
-      console.error('GitHubRepoSelector - Cannot sync: missing repo or branch');
-      setSyncError('No repository or branch selected');
-      return;
-    }
-    
-    // Prevent multiple rapid sync attempts with a cooldown
-    const now = Date.now();
-    if (now - lastSyncAttemptRef.current < syncCooldownMs) {
-      console.log('GitHubRepoSelector - Sync attempted too quickly, debouncing...');
-      setSyncError(`Please wait ${syncCooldownMs / 1000} seconds between sync attempts`);
-      return;
-    }
-    
-    // Don't allow if already syncing
-    if (isSyncing) {
-      console.log('GitHubRepoSelector - Already syncing, ignoring request');
-      return;
-    }
-    
-    // Reset error state
-    setSyncError(null);
-    lastSyncAttemptRef.current = now;
-    
-    // Set syncing state
-    setIsSyncing(true);
-    
     try {
+      if (selectingRepoRef.current) {
+        console.log('GitHubRepoSelector - Repository selection in progress, debouncing...');
+        return;
+      }
+      
+      // Reset sync error when changing repositories
+      setSyncError(null);
+      setIsFetchingBranches(true);
+      selectingRepoRef.current = true;
+      
+      console.log('GitHubRepoSelector - Repository selected:', repoFullName);
+      const repo = repositories?.find(r => r.full_name === repoFullName);
+      
+      if (repo) {
+        await selectRepository(repo);
+        
+        // Add a small delay to allow branches to load
+        if (branchSelectionTimeoutRef.current) {
+          clearTimeout(branchSelectionTimeoutRef.current);
+        }
+        
+        branchSelectionTimeoutRef.current = setTimeout(() => {
+          setIsFetchingBranches(false);
+          selectingRepoRef.current = false;
+        }, 1500);
+      } else {
+        setIsFetchingBranches(false);
+        selectingRepoRef.current = false;
+      }
+    } catch (error) {
+      console.error('GitHubRepoSelector - Error in handleRepositoryChange:', error);
+      setIsFetchingBranches(false);
+      selectingRepoRef.current = false;
+    }
+  };
+
+  // Handle branch selection with error handling
+  const handleBranchChange = async (branch: string) => {
+    try {
+      // Reset sync error when changing branches
+      setSyncError(null);
+      
+      console.log('GitHubRepoSelector - Branch selected:', branch);
+      await selectBranch(branch);
+    } catch (error) {
+      console.error('GitHubRepoSelector - Error in handleBranchChange:', error);
+    }
+  };
+
+  // Handle sync with robust error handling
+  const handleSync = async () => {
+    try {
+      if (!currentRepo || !currentBranch) {
+        console.error('GitHubRepoSelector - Cannot sync: missing repo or branch');
+        setSyncError('No repository or branch selected');
+        return;
+      }
+      
+      // Prevent multiple rapid sync attempts with a cooldown
+      const now = Date.now();
+      if (now - lastSyncAttemptRef.current < syncCooldownMs) {
+        console.log('GitHubRepoSelector - Sync attempted too quickly, debouncing...');
+        setSyncError(`Please wait ${syncCooldownMs / 1000} seconds between sync attempts`);
+        return;
+      }
+      
+      // Don't allow if already syncing
+      if (isSyncing) {
+        console.log('GitHubRepoSelector - Already syncing, ignoring request');
+        return;
+      }
+      
+      // Reset error state
+      setSyncError(null);
+      lastSyncAttemptRef.current = now;
+      
+      // Set syncing state
+      setIsSyncing(true);
+      
       // First delete all existing files
       console.log('GitHubRepoSelector - Deleting all existing files before syncing...');
       await deleteAllFiles();
@@ -188,18 +235,18 @@ export const GitHubRepoSelector: React.FC = () => {
               <Select 
                 onValueChange={handleRepositoryChange} 
                 value={currentRepo?.full_name || ''}
-                disabled={isLoading}
+                disabled={isLoading || selectingRepoRef.current}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a repository" />
                 </SelectTrigger>
                 <SelectContent>
-                  {repositories.length === 0 && !isLoading && (
+                  {(!repositories || repositories.length === 0) && !isLoading && (
                     <SelectItem value="no-repos" disabled>
                       No repositories found
                     </SelectItem>
                   )}
-                  {repositories.map((repo) => (
+                  {repositories && repositories.map((repo) => (
                     <SelectItem key={repo.id} value={repo.full_name}>
                       {repo.full_name} {repo.private ? '(Private)' : ''}
                     </SelectItem>
@@ -215,18 +262,20 @@ export const GitHubRepoSelector: React.FC = () => {
                     <GitBranch className="h-4 w-4" />
                     Branch
                   </label>
-                  {isFetchingBranches && <Loader2 size={16} className="animate-spin" />}
+                  {(isFetchingBranches || (isLoading && currentRepo)) && (
+                    <Loader2 size={16} className="animate-spin" />
+                  )}
                 </div>
                 <Select 
                   onValueChange={handleBranchChange} 
                   value={currentBranch || ''}
-                  disabled={isLoading || isFetchingBranches || branches.length === 0}
+                  disabled={isLoading || isFetchingBranches || !branches || branches.length === 0}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {branches.length === 0 && !isLoading && !isFetchingBranches && (
+                    {(!branches || branches.length === 0) && !isLoading && !isFetchingBranches && (
                       <SelectItem value="no-branches" disabled>
                         No branches found
                       </SelectItem>
@@ -236,7 +285,7 @@ export const GitHubRepoSelector: React.FC = () => {
                         Loading branches...
                       </SelectItem>
                     )}
-                    {branches.map((branch) => (
+                    {branches && branches.map((branch) => (
                       <SelectItem key={branch.name} value={branch.name}>
                         {branch.name}
                       </SelectItem>

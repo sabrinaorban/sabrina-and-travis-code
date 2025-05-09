@@ -1,28 +1,18 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { FileEntry } from '@/types';
-import { GitHubContextType, GitHubAuthState } from '@/types/github';
-import { useFileSystem } from '../FileSystemContext';
-import { useGithubAuth } from '@/hooks/useGithubAuth';
-import { useGithubRepos } from '@/hooks/useGithubRepos';
+import { FileSystemContext } from '../FileSystemContext';
 import { useAuth } from '../AuthContext';
 import { GithubTokenService } from '@/services/github/githubTokenService';
+import { useGithubRepos } from '@/hooks/useGithubRepos';
 import { useGitHubAuth } from './useGitHubAuth';
 import { useGitHubMemory } from './useGitHubMemory';
 import { useGitHubRepoSelection } from './useGitHubRepoSelection';
 import { useGitHubSync } from './useGitHubSync';
+import { GitHubContextType } from './githubContextTypes';
 
 // Create GitHub context with null check
 const GitHubContext = createContext<GitHubContextType | null>(null);
-
-// Default authentication state
-const defaultAuthState: GitHubAuthState = {
-  isAuthenticated: false,
-  token: null,
-  username: null,
-  loading: true,
-  error: null
-};
 
 export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
@@ -76,6 +66,11 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     selectBranch
   );
   const { syncRepoToFileSystem } = useGitHubSync(syncRepo, user?.id);
+
+  // Create a memoized value for the loading state to prevent unnecessary re-renders
+  const loadingState = useMemo(() => {
+    return isLoading || isInitializing || isRestoringRepo();
+  }, [isLoading, isInitializing, isRestoringRepo]);
 
   // Load saved GitHub token when user changes
   useEffect(() => {
@@ -137,26 +132,46 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return syncRepoToFileSystem(owner, repo, branch, createFile, createFolder, refreshFiles);
   };
 
-  const contextValue: GitHubContextType = {
+  // Memoize the context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => {
+    return {
+      authState,
+      authenticate,
+      repositories,
+      branches,
+      availableBranches: branches, // Ensure we pass branches here
+      currentRepo,
+      currentBranch,
+      files,
+      selectedFile,
+      setSelectedFile,
+      selectRepository,
+      selectBranch,
+      fetchRepositories,
+      fetchFileContent,
+      isLoading: loadingState,
+      saveFileToRepo,
+      syncRepoToFileSystem: handleSyncRepoToFileSystem,
+      logout: handleLogout
+    };
+  }, [
     authState,
     authenticate,
     repositories,
     branches,
-    availableBranches: branches, // Ensure we pass branches here
     currentRepo,
     currentBranch,
     files,
     selectedFile,
-    setSelectedFile,
     selectRepository,
     selectBranch,
     fetchRepositories,
     fetchFileContent,
-    isLoading: isLoading || isInitializing || isRestoringRepo(),
+    loadingState,
     saveFileToRepo,
-    syncRepoToFileSystem: handleSyncRepoToFileSystem,
-    logout: handleLogout
-  };
+    handleSyncRepoToFileSystem,
+    handleLogout
+  ]);
 
   return (
     <GitHubContext.Provider value={contextValue}>
@@ -164,6 +179,15 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     </GitHubContext.Provider>
   );
 };
+
+// Function to use the FileSystem context
+function useFileSystem() {
+  const context = useContext(FileSystemContext);
+  if (!context) {
+    throw new Error('useFileSystem must be used within a FileSystemProvider');
+  }
+  return context;
+}
 
 export const useGitHub = () => {
   const context = useContext(GitHubContext);

@@ -1,6 +1,6 @@
 
 import { FileEntry } from '@/types';
-import { GitHubAuthState, GitHubContextType, GitHubRepo, GitHubBranch, GitHubFile } from '@/types/github';
+import { GitHubAuthState, GitHubRepo, GitHubBranch, GitHubFile } from '@/types/github';
 
 // Additional types specific to the GitHub context implementation
 export interface GitHubMemoryData {
@@ -27,5 +27,27 @@ export interface RepoInfo {
   branchName: string;
 }
 
-// Use export type to re-export types
+// Use export type for re-exporting types to fix TS1205 errors
 export type { GitHubAuthState, GitHubContextType, GitHubRepo, GitHubBranch, GitHubFile };
+
+// Define the GitHubContextType interface here since we're re-exporting it
+export interface GitHubContextType {
+  authState: GitHubAuthState;
+  authenticate: (code: string) => Promise<void>;
+  repositories: GitHubRepo[];
+  branches: GitHubBranch[];
+  availableBranches: GitHubBranch[];
+  currentRepo: GitHubRepo | null;
+  currentBranch: string | null;
+  files: GitHubFile[];
+  selectedFile: FileEntry | null;
+  setSelectedFile: (file: FileEntry | null) => void;
+  selectRepository: (repo: GitHubRepo) => Promise<void>;
+  selectBranch: (branchName: string) => Promise<void>;
+  fetchRepositories: () => Promise<GitHubRepo[]>;
+  fetchFileContent: (filePath: string) => Promise<string | null>;
+  isLoading: boolean;
+  saveFileToRepo: (filePath: string, content: string, commitMessage: string) => Promise<boolean>; 
+  syncRepoToFileSystem: (owner: string, repo: string, branch: string) => Promise<boolean>;
+  logout: () => void;
+}

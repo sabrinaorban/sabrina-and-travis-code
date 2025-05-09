@@ -1,5 +1,4 @@
-
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { GitHubRepo, GitHubBranch, GitHubFile } from '@/types/github';
 import { GithubApiService } from '@/services/github/githubApiService';
 import { GithubRepositoryService } from '@/services/github/githubRepositoryService';
@@ -35,10 +34,10 @@ export const useGithubRepos = (token: string | null) => {
   const syncService = useMemo(() => new GithubSyncService(apiService, toast), [apiService, toast]);
 
   // Helper to check if we should throttle operations
-  const shouldThrottle = () => {
+  const shouldThrottle = useCallback(() => {
     const now = Date.now();
     return now - lastOperationTimeRef.current < COOLDOWN_MS;
-  };
+  }, [COOLDOWN_MS]);
 
   const fetchRepositories = useCallback(async () => {
     if (!token) {
@@ -80,7 +79,7 @@ export const useGithubRepos = (token: string | null) => {
       setIsLoading(false);
       isFetchingRef.current = false;
     }
-  }, [token, repositories, repositoryService, toast]);
+  }, [token, repositories, repositoryService, toast, shouldThrottle]);
 
   const fetchBranches = useCallback(async (repoFullName: string) => {
     if (!token) {
@@ -122,8 +121,96 @@ export const useGithubRepos = (token: string | null) => {
       setIsLoading(false);
       isFetchingRef.current = false;
     }
-  }, [token, branches, repositoryService, toast]);
+  }, [token, branches, repositoryService, toast, shouldThrottle]);
 
+  const selectRepository = useCallback(async (repo: GitHubRepo) => {
+    try {
+      console.log(`useGithubRepos - Selecting repository: ${repo.full_name}`);
+      
+      // Set the current repository first
+      setCurrentRepo(repo);
+      
+      // Clear branches when selecting a new repo to prevent stale data
+      setBranches([]);
+      setCurrentBranch(null);
+      setFiles([]);
+      
+      // Fetch branches (use a small timeout to ensure state updates first)
+      const branchesFetched = await fetchBranches(repo.full_name);
+      
+      // If we have a default branch, select it automatically
+      if (branchesFetched.length > 0) {
+        const defaultBranch = branchesFetched.find(b => b.name === repo.default_branch) || branchesFetched[0];
+        if (defaultBranch) {
+          console.log(`useGithubRepos - Auto-selecting default branch: ${defaultBranch.name}`);
+          // Allow state to update before selecting branch
+          setTimeout(() => {
+            setCurrentBranch(defaultBranch.name);
+          }, 100);
+        }
+      }
+    } catch (error) {
+      console.error('useGithubRepos - Error selecting repository:', error);
+      toast({
+        title: "Error selecting repository",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
+  }, [fetchBranches, toast]);
+
+  const selectBranch = useCallback(async (branchName: string) => {
+    try {
+      console.log(`useGithubRepos - Selecting branch: ${branchName}`);
+      
+      // Set the current branch
+      setCurrentBranch(branchName);
+      
+      // Clear files when selecting a new branch to prevent stale data
+      setFiles([]);
+      
+      if (currentRepo) {
+        // Fetch files for the selected branch
+        await fetchFiles(currentRepo.full_name, branchName);
+      }
+    } catch (error) {
+      console.error('useGithubRepos - Error selecting branch:', error);
+      toast({
+        title: "Error selecting branch",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
+  }, [currentRepo, fetchFiles, toast]);
+
+  const reset = useCallback(() => {
+    console.log('useGithubRepos - Resetting state');
+    setRepositories([]);
+    setBranches([]);
+    setCurrentRepo(null);
+    setCurrentBranch(null);
+    setFiles([]);
+    isFetchingRef.current = false;
+  }, []);
+
+  // Add more robust error handling for the hook
+  useEffect(() => {
+    // Add event listeners for unhandled errors
+    const handleError = (event: ErrorEvent) => {
+      console.error('useGithubRepos - Unhandled error:', event.error);
+      // Reset the fetching state to prevent getting stuck
+      isFetchingRef.current = false;
+      setIsLoading(false);
+    };
+    
+    window.addEventListener('error', handleError);
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+    };
+  }, []);
+
+  // Add missing declaration for fetchFiles
   const fetchFiles = useCallback(async (repoFullName: string, branchName: string) => {
     if (!token) {
       console.log('useGithubRepos - Cannot fetch files: no token');
@@ -164,37 +251,7 @@ export const useGithubRepos = (token: string | null) => {
       setIsLoading(false);
       isFetchingRef.current = false;
     }
-  }, [token, files, repositoryService, toast]);
-
-  const selectRepository = useCallback(async (repo: GitHubRepo) => {
-    console.log(`useGithubRepos - Selecting repository: ${repo.full_name}`);
-    
-    // Set the current repository first
-    setCurrentRepo(repo);
-    
-    // Clear branches when selecting a new repo to prevent stale data
-    setBranches([]);
-    setCurrentBranch(null);
-    setFiles([]);
-    
-    // Don't wait - immediately fetch branches
-    fetchBranches(repo.full_name);
-  }, [fetchBranches]);
-
-  const selectBranch = useCallback(async (branchName: string) => {
-    console.log(`useGithubRepos - Selecting branch: ${branchName}`);
-    
-    // Set the current branch
-    setCurrentBranch(branchName);
-    
-    // Clear files when selecting a new branch to prevent stale data
-    setFiles([]);
-    
-    if (currentRepo) {
-      // Fetch files for the selected branch
-      fetchFiles(currentRepo.full_name, branchName);
-    }
-  }, [currentRepo, fetchFiles]);
+  }, [token, files, repositoryService, toast, shouldThrottle]);
 
   const fetchFileContent = useCallback(async (filePath: string): Promise<string | null> => {
     if (!token || !currentRepo || !currentBranch) {
@@ -231,7 +288,7 @@ export const useGithubRepos = (token: string | null) => {
     } finally {
       setIsLoading(false);
     }
-  }, [token, currentRepo, currentBranch, repositoryService, toast]);
+  }, [token, currentRepo, currentBranch, repositoryService, toast, shouldThrottle]);
 
   const saveFileToRepo = useCallback(async (filePath: string, content: string, commitMessage: string) => {
     if (!token || !currentRepo || !currentBranch) {
@@ -274,7 +331,7 @@ export const useGithubRepos = (token: string | null) => {
     } finally {
       setIsLoading(false);
     }
-  }, [token, currentRepo, currentBranch, repositoryService, toast]);
+  }, [token, currentRepo, currentBranch, repositoryService, toast, shouldThrottle]);
 
   const syncRepoToFileSystem = useCallback(async (
     owner: string, 
@@ -340,34 +397,7 @@ export const useGithubRepos = (token: string | null) => {
         console.log('useGithubRepos - Sync cooldown complete');
       }, COOLDOWN_MS * 2);
     }
-  }, [token, syncService, toast]);
-
-  const reset = useCallback(() => {
-    console.log('useGithubRepos - Resetting state');
-    setRepositories([]);
-    setBranches([]);
-    setCurrentRepo(null);
-    setCurrentBranch(null);
-    setFiles([]);
-    isFetchingRef.current = false;
-  }, []);
-
-  // Add more robust error handling for the hook
-  useEffect(() => {
-    // Add event listeners for unhandled errors
-    const handleError = (event: ErrorEvent) => {
-      console.error('useGithubRepos - Unhandled error:', event.error);
-      // Reset the fetching state to prevent getting stuck
-      isFetchingRef.current = false;
-      setIsLoading(false);
-    };
-    
-    window.addEventListener('error', handleError);
-    
-    return () => {
-      window.removeEventListener('error', handleError);
-    };
-  }, []);
+  }, [token, syncService, toast, shouldThrottle]);
 
   return {
     repositories,
@@ -385,6 +415,3 @@ export const useGithubRepos = (token: string | null) => {
     reset
   };
 };
-
-// Add missing import
-import { useMemo } from 'react';
