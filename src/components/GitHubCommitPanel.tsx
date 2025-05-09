@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useGitHub } from '@/contexts/github';
 import { useFileSystem } from '@/contexts/FileSystemContext';
@@ -134,6 +133,7 @@ export const GitHubCommitPanel: React.FC = () => {
             continue;
           }
           
+          // Updated to match the new signature (no need to pass repo or branch)
           const result = await saveFileToRepo(
             githubPath,
             file.content || '',

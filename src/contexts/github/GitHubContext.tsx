@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { FileEntry } from '@/types';
 import { useFileSystem } from '../FileSystemContext';
@@ -134,6 +133,19 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return syncRepoToFileSystem(owner, repo, branch, createFile, createFolder, refreshFiles);
   };
 
+  // Create a wrapper for saveFileToRepo to match the expected interface
+  const handleSaveFileToRepo = async (
+    filePath: string,
+    content: string,
+    commitMessage: string
+  ): Promise<boolean> => {
+    if (!currentRepo || !currentBranch) {
+      console.error("Cannot save file: No repository or branch selected");
+      return false;
+    }
+    return saveFileToRepo(currentRepo.full_name, filePath, content, commitMessage, currentBranch);
+  };
+
   // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo<GitHubContextType>(() => {
     return {
@@ -158,7 +170,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return fetchFileContent(currentRepo.full_name, filePath, currentBranch);
       },
       isLoading: loadingState,
-      saveFileToRepo,
+      saveFileToRepo: handleSaveFileToRepo,
       syncRepoToFileSystem: handleSyncRepoToFileSystem,
       logout: handleLogout
     };
@@ -177,6 +189,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     fetchFileContent,
     loadingState,
     saveFileToRepo,
+    handleSaveFileToRepo,
     handleSyncRepoToFileSystem,
     handleLogout
   ]);
