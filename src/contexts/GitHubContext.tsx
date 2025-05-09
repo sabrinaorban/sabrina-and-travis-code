@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { GitHubRepo, GitHubBranch, GitHubFile, GitHubAuthState, GitHubContextType } from '../types/github';
@@ -34,6 +35,38 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
   const { refreshFiles, createFile, createFolder } = useFileSystem();
+
+  // Function to fetch user repositories
+  const fetchUserRepos = async (token: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('https://api.github.com/user/repos', {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github.v3+json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`GitHub API Error: ${response.status}`);
+      }
+      
+      const data: GitHubRepo[] = await response.json();
+      setRepositories(data);
+      
+      return data;
+    } catch (error: any) {
+      console.error('Error fetching user repositories:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to fetch repositories: ${error.message}`,
+        variant: 'destructive',
+      });
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Load stored token on component mount
   useEffect(() => {
