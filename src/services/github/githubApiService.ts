@@ -209,8 +209,26 @@ export class GithubApiService {
       for (const item of Array.isArray(items) ? items : [items]) {
         if (item.type === 'file') {
           // Fetch file content
-          const contentResponse = await fetch(item.download_url);
-          const content = await contentResponse.text();
+          let content = '';
+          try {
+            if (item.download_url) {
+              const contentResponse = await fetch(item.download_url);
+              if (contentResponse.ok) {
+                content = await contentResponse.text();
+              } else {
+                console.warn(`Failed to fetch content for ${item.path}: ${contentResponse.status}`);
+              }
+            } else {
+              console.warn(`No download_url for ${item.path}`);
+              // Try to get content from base64 if available
+              if (item.content && item.encoding === 'base64') {
+                content = atob(item.content.replace(/\n/g, ''));
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching content for ${item.path}:`, error);
+          }
+          
           results.push({
             path: item.path,
             type: 'file',

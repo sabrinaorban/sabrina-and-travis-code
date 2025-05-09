@@ -20,7 +20,7 @@ const FileNode: React.FC<FileNodeProps> = ({
   onSelect,
   selectedFileId,
 }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(depth < 2); // Auto-expand top-level folders
   const { deleteFile } = useFileSystem();
   const isSelected = selectedFileId === file.id;
   const { toast } = useToast();
@@ -33,6 +33,9 @@ const FileNode: React.FC<FileNodeProps> = ({
   const handleSelect = () => {
     if (file.type === 'file') {
       onSelect(file);
+    } else {
+      // Toggle open state when clicking on folder
+      setIsOpen(!isOpen);
     }
   };
 
@@ -86,10 +89,7 @@ const FileNode: React.FC<FileNodeProps> = ({
           <File size={16} className="mr-1.5 text-blue-500" />
         )}
         
-        <span 
-          className="flex-grow truncate"
-          onClick={file.type === 'folder' ? handleToggle : undefined}
-        >
+        <span className="flex-grow truncate">
           {file.name}
         </span>
         
@@ -124,6 +124,13 @@ const FileNode: React.FC<FileNodeProps> = ({
 export const FileExplorer: React.FC = () => {
   const { fileSystem, selectFile, refreshFiles, isLoading } = useFileSystem();
   const { toast } = useToast();
+  
+  useEffect(() => {
+    // Ensure files are loaded when component mounts
+    if (fileSystem.files.length === 0 && !isLoading) {
+      refreshFiles();
+    }
+  }, []);
   
   const handleSelectFile = (file: FileEntry) => {
     selectFile(file);

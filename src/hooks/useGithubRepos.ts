@@ -103,52 +103,94 @@ export const useGithubRepos = (token: string | null) => {
     if (!token) return false;
     
     setIsLoading(true);
+    let createdFolders = 0;
+    let createdFiles = 0;
+    let errors = 0;
+    
     try {
+      console.log(`Starting sync of ${owner}/${repo} (${branch}) to file system...`);
+      
       // Fetch all repository contents recursively
       const allContents = await apiService.fetchDirectoryContents(owner, repo, '', branch);
+      console.log(`Fetched ${allContents.length} items from repository`);
       
-      // First create all folders
-      const folders = allContents.filter(item => item.type === 'folder');
+      // Create a map to track folder creation status
+      const folderCreationStatus = new Map<string, boolean>();
+      folderCreationStatus.set('/', true); // Root folder always exists
+      
+      // First create all folders in depth order
+      const folders = allContents
+        .filter(item => item.type === 'folder')
+        .sort((a, b) => {
+          // Sort by path depth (number of slashes)
+          return (a.path.match(/\//g) || []).length - (b.path.match(/\//g) || []).length;
+        });
+        
+      console.log(`Creating ${folders.length} folders in order of depth`);
+      
       for (const folder of folders) {
         const folderPath = '/' + folder.path;
         const lastSlashIndex = folderPath.lastIndexOf('/');
         const parentPath = lastSlashIndex > 0 ? folderPath.substring(0, lastSlashIndex) : '/';
         const folderName = folderPath.substring(lastSlashIndex + 1);
         
-        try {
-          await createFolder(parentPath, folderName);
-        } catch (error) {
-          console.log(`Folder ${folderName} might already exist, continuing...`);
+        // Only proceed if parent folder was successfully created
+        if (folderCreationStatus.get(parentPath)) {
+          try {
+            await createFolder(parentPath, folderName);
+            folderCreationStatus.set(folderPath, true);
+            createdFolders++;
+            console.log(`Created folder: ${folderPath}`);
+          } catch (error) {
+            console.warn(`Folder ${folderName} at ${parentPath} might already exist, continuing...`);
+            folderCreationStatus.set(folderPath, true); // Assume it exists if creation fails
+          }
+        } else {
+          console.warn(`Skipping folder ${folderName} because parent ${parentPath} wasn't created`);
+          errors++;
         }
       }
       
       // Then create all files
       const files = allContents.filter(item => item.type === 'file');
+      console.log(`Creating ${files.length} files`);
+      
       for (const file of files) {
         const filePath = '/' + file.path;
         const lastSlashIndex = filePath.lastIndexOf('/');
         const parentPath = lastSlashIndex > 0 ? filePath.substring(0, lastSlashIndex) : '/';
         const fileName = filePath.substring(lastSlashIndex + 1);
         
-        try {
-          await createFile(parentPath, fileName, file.content || '');
-        } catch (error) {
-          console.log(`Error creating file ${fileName}:`, error);
+        // Only proceed if parent folder was successfully created
+        if (folderCreationStatus.get(parentPath)) {
+          try {
+            // Make sure we have content, even if it's empty
+            const content = file.content !== undefined ? file.content : '';
+            await createFile(parentPath, fileName, content);
+            createdFiles++;
+            console.log(`Created file: ${filePath}`);
+          } catch (error: any) {
+            console.error(`Error creating file ${fileName} at ${parentPath}:`, error);
+            errors++;
+          }
+        } else {
+          console.warn(`Skipping file ${fileName} because parent ${parentPath} wasn't created`);
+          errors++;
         }
       }
       
-      console.log(`Synced ${folders.length} folders and ${files.length} files from ${owner}/${repo} (${branch}) to file system`);
+      console.log(`Synced ${createdFolders} folders and ${createdFiles} files from ${owner}/${repo} (${branch}) to file system. ${errors} errors.`);
       
       toast({
-        title: 'Success',
-        description: `Repository ${owner}/${repo} (${branch}) synced to file system`,
+        title: 'Repository Synced',
+        description: `Imported ${createdFiles} files and ${createdFolders} folders${errors > 0 ? ` (${errors} errors)` : ''}`,
       });
       
       return true;
     } catch (error: any) {
       console.error('Error syncing repo:', error);
       toast({
-        title: 'Error',
+        title: 'Sync Failed',
         description: `Failed to sync repository: ${error.message}`,
         variant: 'destructive',
       });

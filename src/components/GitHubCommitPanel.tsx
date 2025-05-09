@@ -13,6 +13,7 @@ export const GitHubCommitPanel: React.FC = () => {
   const { fileSystem } = useFileSystem();
   const [commitMessage, setCommitMessage] = useState('');
 
+  // Don't render if user is not authenticated with GitHub or no repo/branch selected
   if (!authState.isAuthenticated || !currentRepo || !currentBranch) {
     return null;
   }
@@ -27,6 +28,8 @@ export const GitHubCommitPanel: React.FC = () => {
       const githubPath = selectedFile.path.startsWith('/') 
         ? selectedFile.path.substring(1) 
         : selectedFile.path;
+      
+      console.log(`Committing file: ${githubPath}`);
       
       const result = await saveFileToRepo(
         githubPath,
