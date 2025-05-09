@@ -5,7 +5,7 @@ import { useFileSystem } from '../FileSystemContext';
 import { useAuth } from '../AuthContext';
 import { GithubTokenService } from '@/services/github/githubTokenService';
 import { useGithubOperations } from '@/hooks/github/useGithubOperations';
-import { useGitHubAuth } from './useGitHubAuth';
+import { useGitHubAuth, GitHubAuthResult } from './useGitHubAuth';
 import { useGitHubMemory } from './useGitHubMemory';
 import { useGitHubRepoSelection } from './useGitHubRepoSelection';
 import { useGitHubSync } from './useGitHubSync';
@@ -135,7 +135,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Memoize the context value to prevent unnecessary re-renders
-  const contextValue = useMemo(() => {
+  const contextValue = useMemo<GitHubContextType>(() => {
     return {
       authState,
       authenticate,
@@ -150,7 +150,13 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       selectRepository,
       selectBranch,
       fetchRepositories,
-      fetchFileContent,
+      fetchFileContent: async (filePath: string): Promise<string | null> => {
+        if (!currentRepo || !currentBranch) {
+          console.error("Cannot fetch file content: No repository or branch selected");
+          return null;
+        }
+        return fetchFileContent(currentRepo.full_name, filePath, currentBranch);
+      },
       isLoading: loadingState,
       saveFileToRepo,
       syncRepoToFileSystem: handleSyncRepoToFileSystem,

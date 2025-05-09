@@ -5,11 +5,20 @@ import { GitHubAuthState } from '@/types/github';
 import { useToast } from '@/hooks/use-toast';
 import { useGithubAuth } from '@/hooks/useGithubAuth';
 
+export interface GitHubAuthResult {
+  authState: GitHubAuthState;
+  authenticate: (token: string) => Promise<void>;
+  logout: () => void;
+  handleLogout?: () => Promise<void>;
+  isAuthInitialized?: boolean;
+  setAuthInitialized?: (value: boolean) => void;
+}
+
 export const useGitHubAuth = (
   user?: { id: string } | null,
   authState?: GitHubAuthState,
   logoutFn?: () => void
-) => {
+): GitHubAuthResult => {
   const { toast } = useToast();
   const tokenSavedRef = useRef(false);
   const authInitializedRef = useRef(false);
@@ -92,7 +101,21 @@ export const useGitHubAuth = (
     }
   };
 
+  // Return a consistent object shape regardless of how the hook is used
   return {
+    authState: authState || {
+      isAuthenticated: false,
+      token: null,
+      username: null,
+      loading: false,
+      error: null
+    },
+    authenticate: async () => {
+      console.warn('authenticate not implemented in this context');
+    },
+    logout: logoutFn || (() => {
+      console.warn('logout not implemented in this context');
+    }),
     handleLogout,
     isAuthInitialized: authInitializedRef.current,
     setAuthInitialized: (value: boolean) => {
