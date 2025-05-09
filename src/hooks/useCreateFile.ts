@@ -1,7 +1,7 @@
 
 import { FileEntry } from '../types';
 import { supabase, generateUUID } from '../lib/supabase';
-import { findNode } from '../utils/fileSystemUtils';
+import { findNode } from '../services/utils/FileTreeUtils';
 
 export const useCreateFile = (user: any, refreshFiles: () => Promise<void>, toast: any) => {
   // Create a new file

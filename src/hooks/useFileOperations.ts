@@ -41,11 +41,11 @@ export const useFileOperations = (user: any, refreshFiles: () => Promise<void>) 
 
   return {
     getFileByPath,
-    createFile: (path: string, name: string, content: string = '') => createFile(path, name, content),
-    createFolder: (path: string, name: string) => createFolder(path, name),
-    updateFile: (id: string, content: string, files: FileEntry[]) => updateFile(id, content, files),
-    deleteFile: (id: string, files: FileEntry[]) => deleteFile(id, files),
-    getFileContentByPath: (path: string, files: FileEntry[]) => getFileContentByPath(path, files),
-    updateFileByPath: (path: string, content: string, files: FileEntry[]) => updateFileByPath(path, content, files)
+    createFile,
+    createFolder,
+    updateFile,
+    deleteFile,
+    getFileContentByPath,
+    updateFileByPath
   };
 };
