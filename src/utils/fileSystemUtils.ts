@@ -1,3 +1,4 @@
+
 import { FileEntry } from "../types";
 
 // Function to build a file tree from a flat list of files
@@ -127,5 +128,5 @@ export const findFileByPath = (files: FileEntry[], targetPath: string): FileEntr
   return null;
 };
 
-// Export the findNode and findNodeById functions from services/utils/FileSystemUtils.ts
-export { findNode, findNodeById } from '../services/utils/FileSystemUtils';
+// Export the findNode and findNodeById functions from services/utils/FileTreeUtils.ts
+export { findNode, findNodeById } from '../services/utils/FileTreeUtils';
