@@ -12,6 +12,7 @@ import {
 } from '../services/ChatService';
 import { MemoryService } from '../services/MemoryService';
 import { useGitHub } from './GitHubContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ChatOperationsContextType {
   sendMessage: (content: string) => Promise<void>;
@@ -31,6 +32,18 @@ export const ChatOperationsProvider: React.FC<{ children: React.ReactNode }> = (
   const { toast } = useToast();
   const { user } = useAuth();
   const github = useGitHub();
+
+  // Function to delete all messages
+  const deleteAllMessages = async (userId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('user_id', userId);
+
+    if (error) {
+      throw error;
+    }
+  };
 
   // Function to clear all messages
   const clearMessages = async () => {
@@ -133,18 +146,3 @@ export const useChatOperations = () => {
   }
   return context;
 };
-
-// This function is imported in ChatOperationsContext but not directly exported from MessageApiService
-// We're adding it here to avoid circular dependencies
-const deleteAllMessages = async (userId: string): Promise<void> => {
-  const { error } = await supabase
-    .from('messages')
-    .delete()
-    .eq('user_id', userId);
-
-  if (error) {
-    throw error;
-  }
-};
-
-import { supabase } from '@/integrations/supabase/client';

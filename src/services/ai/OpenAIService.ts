@@ -124,7 +124,9 @@ export const isFileOperationRequest = (message: string): boolean => {
     'create folder',
     'add folder',
     'make directory',
-    'make folder'
+    'make folder',
+    'next.js',
+    'nextjs'
   ];
   
   // Check for exact matches of keywords

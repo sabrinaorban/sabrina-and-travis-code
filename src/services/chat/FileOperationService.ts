@@ -87,7 +87,8 @@ export const processFileOperations = async (
         case 'create':
           if (cleanPath.endsWith('/') || !cleanPath.includes('.')) {
             // It's a folder
-            const pathParts = cleanPath.split('/').filter(Boolean);
+            const pathWithoutTrailingSlash = cleanPath.replace(/\/$/, '');
+            const pathParts = pathWithoutTrailingSlash.split('/').filter(Boolean);
             const folderName = pathParts.pop() || '';
             const parentPath = pathParts.length === 0 ? '/' : `/${pathParts.join('/')}`;
             
