@@ -28,8 +28,23 @@ serve(async (req) => {
   // GET method for fetching messages
   if (req.method === 'GET') {
     try {
+      let userId: string | null = null;
+      
+      // Updated to handle both URL query parameters and request body
       const url = new URL(req.url);
-      const userId = url.searchParams.get('userId');
+      
+      // Try to get userId from URL query parameters
+      userId = url.searchParams.get('userId');
+      
+      // If not found in URL, try to get from request body
+      if (!userId) {
+        try {
+          const body = await req.json();
+          userId = body.userId;
+        } catch (e) {
+          // Failed to parse JSON or no body provided
+        }
+      }
       
       if (!userId) {
         return new Response(
