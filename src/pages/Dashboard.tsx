@@ -1,17 +1,22 @@
-
 import React, { useState, useEffect } from 'react';
 import { ChatHistory } from '@/components/ChatHistory';
 import { ChatInput } from '@/components/ChatInput';
 import { FileExplorer } from '@/components/FileExplorer';
 import { CodeEditor } from '@/components/CodeEditor';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { FileSystemProvider } from '@/contexts/FileSystemContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Menu, X, Upload, Download, Trash2, RefreshCw, FolderPlus, FilePlus } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { GitHubAuth } from '@/components/GitHubAuth';
+import { GitHubRepoSelector } from '@/components/GitHubRepoSelector';
+import { GitHubCommitPanel } from '@/components/GitHubCommitPanel';
+import { 
+  Loader2, Menu, X, Upload, Download, Trash2, RefreshCw, 
+  FolderPlus, FilePlus, Github 
+} from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const [showFiles, setShowFiles] = useState(true);
@@ -19,6 +24,7 @@ const Dashboard: React.FC = () => {
   const { toast } = useToast();
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
   const [isNewFolderDialogOpen, setIsNewFolderDialogOpen] = useState(false);
+  const [isGitHubDialogOpen, setIsGitHubDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [currentPath, setCurrentPath] = useState('/');
@@ -44,6 +50,10 @@ const Dashboard: React.FC = () => {
   const handleCreateFolder = () => {
     setNewFolderName('');
     setIsNewFolderDialogOpen(true);
+  };
+  
+  const handleOpenGitHubDialog = () => {
+    setIsGitHubDialogOpen(true);
   };
   
   if (authLoading) {
@@ -76,6 +86,15 @@ const Dashboard: React.FC = () => {
               <h1 className="text-xl font-bold text-travis">Travis AI Assistant</h1>
             </div>
             <div className="flex items-center gap-4">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center gap-1"
+                onClick={handleOpenGitHubDialog}
+              >
+                <Github size={16} />
+                GitHub
+              </Button>
               <span className="font-medium">Welcome, {user.name}</span>
               <Button variant="outline" onClick={handleLogout}>Logout</Button>
             </div>
@@ -116,6 +135,7 @@ const Dashboard: React.FC = () => {
                 </div>
                 <FileSystemControls currentPath={currentPath} setCurrentPath={setCurrentPath} />
                 <FileExplorer />
+                <GitHubCommitPanel />
               </div>
             )}
             
@@ -175,6 +195,22 @@ const Dashboard: React.FC = () => {
                   path={currentPath} 
                   onSuccess={() => setIsNewFolderDialogOpen(false)} 
                 />
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          
+          {/* GitHub Dialog */}
+          <Dialog open={isGitHubDialogOpen} onOpenChange={setIsGitHubDialogOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>GitHub Integration</DialogTitle>
+              </DialogHeader>
+              <div className="py-4 space-y-6">
+                <GitHubAuth />
+                <GitHubRepoSelector />
+              </div>
+              <DialogFooter>
+                <Button onClick={() => setIsGitHubDialogOpen(false)}>Close</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
