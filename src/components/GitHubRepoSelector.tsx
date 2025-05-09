@@ -49,9 +49,10 @@ export const GitHubRepoSelector: React.FC = () => {
       // Then sync the new repository
       const [owner, repo] = currentRepo.full_name.split('/');
       console.log(`Syncing repository ${owner}/${repo} (${currentBranch})...`);
-      const synced = await syncRepoToFileSystem(owner, repo, currentBranch);
+      const result = await syncRepoToFileSystem(owner, repo, currentBranch);
       
-      if (synced) {
+      // Fixed: Check boolean result instead of treating void as a condition
+      if (result === true) {
         // Force refresh files with a delay to ensure database operations complete
         console.log('Sync successful, refreshing files...');
         setTimeout(async () => {

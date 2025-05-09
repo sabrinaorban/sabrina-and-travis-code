@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { FileEntry } from '../types';
 import { GitHubContextType } from '../types/github';
@@ -15,7 +16,8 @@ const GitHubContext = createContext<GitHubContextType | null>(null);
 export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
-  const { refreshFiles, createFile, createFolder } = useFileSystem();
+  const fileSystemContext = useFileSystem();
+  const { refreshFiles, createFile, createFolder } = fileSystemContext;
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -44,7 +46,6 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     saveFileToRepo,
     syncRepoToFileSystem: syncRepo,
     reset
-  // Here's the fix: remove the second argument (user?.id) as the hook only expects the token
   } = useGithubRepos(authState.token);
 
   // Load GitHub contextual memory
@@ -147,8 +148,8 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [authState.isAuthenticated, authState.token, authState.username, user, toast, loadGitHubMemory]);
 
   // Sync repository to file system
-  const syncRepoToFileSystem = async (owner: string, repo: string, branch: string) => {
-    await syncRepo(owner, repo, branch, createFile, createFolder);
+  const syncRepoToFileSystem = async (owner: string, repo: string, branch: string): Promise<boolean> => {
+    const result = await syncRepo(owner, repo, branch, createFile, createFolder);
     await refreshFiles();
     
     // Store sync operation in memory
@@ -160,6 +161,8 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         timestamp: new Date().toISOString()
       });
     }
+    
+    return result;
   };
 
   // Handle logout with reset
