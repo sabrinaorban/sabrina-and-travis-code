@@ -42,7 +42,12 @@ const formatCode = (content: string): React.ReactNode => {
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const isUser = message.role === 'user';
-  const formattedDate = new Date(message.timestamp).toLocaleTimeString();
+  // Use createdAt if available, otherwise fallback to timestamp
+  const formattedDate = message.createdAt 
+    ? new Date(message.createdAt).toLocaleTimeString() 
+    : message.timestamp 
+      ? new Date(message.timestamp).toLocaleTimeString()
+      : '';
   
   return (
     <div

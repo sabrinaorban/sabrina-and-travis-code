@@ -167,7 +167,7 @@ export const MemoryService = {
           id: msg.id,
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
-          timestamp: new Date(msg.timestamp).getTime()
+          createdAt: msg.timestamp, // Map timestamp to createdAt
         })) || [],
         recentFiles: filesData?.map(file => ({
           path: file.path,

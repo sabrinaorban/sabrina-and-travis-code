@@ -128,7 +128,7 @@ export const fetchMessages = async (userId: string) => {
       id: msg.id,
       role: msg.role as MessageRole,
       content: msg.content,
-      timestamp: new Date(msg.timestamp).getTime(),
+      createdAt: msg.timestamp, // Map timestamp from DB to createdAt
     }));
     
     return formattedMessages;
@@ -137,11 +137,12 @@ export const fetchMessages = async (userId: string) => {
 };
 
 export const storeUserMessage = async (userId: string, content: string): Promise<Message> => {
+  const now = new Date();
   const newUserMessage: Message = {
     id: generateUUID(),
     role: 'user',
     content,
-    timestamp: Date.now(),
+    createdAt: now.toISOString(),
   };
   
   console.log('Sending message with ID:', newUserMessage.id, 'for user:', userId);
@@ -154,7 +155,7 @@ export const storeUserMessage = async (userId: string, content: string): Promise
       user_id: userId,
       role: newUserMessage.role,
       content: newUserMessage.content,
-      timestamp: new Date(newUserMessage.timestamp).toISOString(),
+      timestamp: newUserMessage.createdAt,
     });
     
   if (insertError) {
@@ -166,11 +167,12 @@ export const storeUserMessage = async (userId: string, content: string): Promise
 };
 
 export const storeAssistantMessage = async (userId: string, content: string): Promise<Message> => {
+  const now = new Date();
   const newAssistantMessage: Message = {
     id: generateUUID(),
     role: 'assistant',
     content: content,
-    timestamp: Date.now(),
+    createdAt: now.toISOString(),
   };
 
   console.log('Storing assistant response with ID:', newAssistantMessage.id);
@@ -183,7 +185,7 @@ export const storeAssistantMessage = async (userId: string, content: string): Pr
       user_id: userId,
       role: newAssistantMessage.role,
       content: newAssistantMessage.content,
-      timestamp: new Date(newAssistantMessage.timestamp).toISOString(),
+      timestamp: newAssistantMessage.createdAt,
     });
     
   if (assistantInsertError) {

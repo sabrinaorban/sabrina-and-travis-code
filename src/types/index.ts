@@ -24,7 +24,7 @@ export interface FileSystemState {
   selectedFile: FileEntry | null;
 }
 
-// Message types added
+// Message types updated to resolve errors
 export type MessageRole = 'user' | 'assistant' | 'system' | 'function';
 
 export interface Message {
@@ -32,6 +32,7 @@ export interface Message {
   role: MessageRole;
   content: string;
   createdAt: string;
+  timestamp?: number; // Added timestamp as optional to support existing code
   userId?: string;
 }
 

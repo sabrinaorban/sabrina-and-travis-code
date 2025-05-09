@@ -48,3 +48,25 @@ export interface GitHubAuthState {
   loading: boolean;
   error: string | null;
 }
+
+// Updated to fix type errors with GitHubRepoSelector.tsx
+export interface GitHubContextType {
+  authState: GitHubAuthState;
+  authenticate: (code: string) => Promise<void>;
+  repositories: GitHubRepo[]; // Changed from repos
+  branches: GitHubBranch[]; // Changed from branches
+  availableBranches: GitHubBranch[]; // Added
+  currentRepo: GitHubRepo | null;
+  currentBranch: string | null;
+  files: GitHubFile[];
+  selectedFile: FileEntry | null;
+  setSelectedFile: (file: FileEntry | null) => void;
+  selectRepository: (repo: GitHubRepo) => Promise<void>; // Changed from selectRepo
+  selectBranch: (branchName: string) => Promise<void>;
+  fetchRepositories: () => Promise<void>; // Added
+  fetchFileContent: (filePath: string) => Promise<string | null>;
+  isLoading: boolean;
+  saveFileToRepo: (filePath: string, content: string, commitMessage: string) => Promise<void>;
+  syncRepoToFileSystem: (owner: string, repo: string, branch: string) => Promise<void>; // Added
+  logout: () => void;
+}

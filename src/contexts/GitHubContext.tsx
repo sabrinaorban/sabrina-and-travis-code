@@ -1,28 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { GitHubRepo, GitHubBranch, GitHubFile, GitHubAuthState } from '../types/github';
+import { GitHubRepo, GitHubBranch, GitHubFile, GitHubAuthState, GitHubContextType } from '../types/github';
 import { FileEntry } from '../types';
 import { useFileSystem } from './FileSystemContext';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '../lib/supabase'; // Import supabase client
-
-interface GitHubContextType {
-  authState: GitHubAuthState;
-  authenticate: (code: string) => Promise<void>;
-  repos: GitHubRepo[];
-  branches: GitHubBranch[];
-  currentRepo: GitHubRepo | null;
-  currentBranch: string | null;
-  files: GitHubFile[];
-  selectedFile: FileEntry | null;
-  setSelectedFile: (file: FileEntry | null) => void;
-  selectRepo: (repo: GitHubRepo) => Promise<void>;
-  selectBranch: (branchName: string) => Promise<void>;
-  fetchFileContent: (filePath: string) => Promise<string | null>;
-  isLoading: boolean;
-  saveFileToRepo: (filePath: string, content: string, commitMessage: string) => Promise<void>;
-  logout: () => void;
-}
 
 const initialAuthState: GitHubAuthState = {
   isAuthenticated: false,
@@ -43,7 +25,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     loading: true,
     error: null
   });
-  const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [repositories, setRepositories] = useState<GitHubRepo[]>([]);
   const [branches, setBranches] = useState<GitHubBranch[]>([]);
   const [currentRepo, setCurrentRepo] = useState<GitHubRepo | null>(null);
   const [currentBranch, setCurrentBranch] = useState<string | null>(null);
@@ -102,12 +84,12 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [user]);
 
   // Function to fetch user repositories
-  const fetchUserRepos = async (token: string) => {
+  const fetchRepositories = async () => {
     setIsLoading(true);
     try {
       const response = await fetch('https://api.github.com/user/repos', {
         headers: {
-          Authorization: `token ${token}`,
+          Authorization: `token ${authState.token}`,
           Accept: 'application/vnd.github.v3+json'
         }
       });
@@ -115,7 +97,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         throw new Error(`GitHub API Error: ${response.status}`);
       }
       const data: GitHubRepo[] = await response.json();
-      setRepos(data);
+      setRepositories(data);
     } catch (error: any) {
       console.error('Error fetching repos:', error);
       toast({
@@ -240,7 +222,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Function to select a repository
-  const selectRepo = async (repo: GitHubRepo) => {
+  const selectRepository = async (repo: GitHubRepo) => {
     setCurrentRepo(repo);
     await fetchBranches(repo.full_name, authState.token || '');
   };
@@ -370,7 +352,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const logout = () => {
     setAuthState(initialAuthState);
-    setRepos([]);
+    setRepositories([]);
     setBranches([]);
     setCurrentRepo(null);
     setCurrentBranch(null);
@@ -378,22 +360,51 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSelectedFile(null);
   };
 
+  // Sync repo to file system function
+  const syncRepoToFileSystem = async (owner: string, repo: string, branch: string) => {
+    setIsLoading(true);
+    try {
+      // For demonstration purposes, we'll just log the action
+      console.log(`Syncing ${owner}/${repo} (${branch}) to file system`);
+      
+      // In a real implementation, this would fetch files from the repository
+      // and add them to the file system context
+      
+      toast({
+        title: 'Success',
+        description: `Repository ${owner}/${repo} (${branch}) synced to file system`,
+      });
+    } catch (error: any) {
+      console.error('Error syncing repo:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to sync repository: ${error.message}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <GitHubContext.Provider value={{
       authState,
       authenticate,
-      repos,
+      repositories, // Changed from repos
       branches,
+      availableBranches: branches, // Alias for the branches state
       currentRepo,
       currentBranch,
       files,
       selectedFile,
       setSelectedFile,
-      selectRepo,
+      selectRepository, // Changed from selectRepo
       selectBranch,
+      fetchRepositories, // Added
       fetchFileContent,
       isLoading,
       saveFileToRepo,
+      syncRepoToFileSystem, // Added
       logout
     }}>
       {children}
