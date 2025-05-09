@@ -92,7 +92,7 @@ export const handleFileOperation = async (
   }
 };
 
-// Helper function to ensure a folder exists, creating parent folders as needed
+// Enhanced implementation of ensuring a folder exists, creating parent folders as needed
 export const ensureFolderExists = async (fileSystem: any, folderPath: string): Promise<void> => {
   if (folderPath === '/' || folderPath === '') return;
   
@@ -103,7 +103,7 @@ export const ensureFolderExists = async (fileSystem: any, folderPath: string): P
   const folder = fileSystem.getFileByPath(cleanPath);
   if (folder) return;
   
-  console.log(`Creating folder: ${cleanPath}`);
+  console.log(`Creating folder structure for: ${cleanPath}`);
   
   // Need to create folder - ensure parent folders exist first
   const segments = cleanPath.split('/').filter(Boolean);
@@ -118,7 +118,7 @@ export const ensureFolderExists = async (fileSystem: any, folderPath: string): P
       // Create this folder - path is parent, name is segment
       const parentPath = currentPath === '' ? '/' : currentPath;
       await fileSystem.createFolder(parentPath, segment);
-      console.log(`Created folder ${nextPath}`);
+      console.log(`Created folder ${segment} at ${parentPath}`);
     }
     
     currentPath = nextPath;

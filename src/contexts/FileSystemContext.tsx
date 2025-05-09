@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { FileEntry, FileSystemState } from '../types';
 import { FileSystemContextType } from '../types/fileSystem';
@@ -44,10 +45,8 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }));
       
       console.log('Files refreshed:', updatedFiles.length);
-      // Return files for use in other functions but maintain Promise<void> return type for this function
       return;
     } catch (error) {
-      // Error handling is done in fetchFiles
       // Initialize with empty file system on error
       setFileSystem({
         files: [],
@@ -59,10 +58,15 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
   
-  const { getFileByPath, createFile: createFileOp, createFolder: createFolderOp, 
-          updateFile: updateFileOp, deleteFile: deleteFileOp } = useFileOperations(user, refreshFiles);
+  const { 
+    getFileByPath, 
+    createFile: createFileOp, 
+    createFolder: createFolderOp, 
+    updateFile: updateFileOp, 
+    deleteFile: deleteFileOp 
+  } = useFileOperations(user, refreshFiles);
 
-  // Load files from Supabase when user is authenticated
+  // Load files when user is authenticated
   useEffect(() => {
     if (user) {
       refreshFiles();
@@ -78,7 +82,6 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Create a file wrapper
   const createFile = async (path: string, name: string, content: string = '') => {
     await createFileOp(path, name, content, fileSystem.files);
-    // Mark the file as modified to ensure it appears in the GitHub commit panel
     await refreshFiles();
     const fullPath = `${path === '/' ? '' : path}/${name}`;
     const newFile = fileSystem.files.find(f => f.path === fullPath);
@@ -169,11 +172,6 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }));
   };
 
-  // Get file by path wrapper
-  const getFileByPathWrapper = (path: string): FileEntry | null => {
-    return getFileByPath(path, fileSystem.files);
-  };
-  
   // Get file content by path
   const getFileContentByPath = (path: string): string | null => {
     const file = getFileByPath(path, fileSystem.files);
@@ -220,7 +218,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updateFile,
         deleteFile,
         selectFile,
-        getFileByPath: getFileByPathWrapper,
+        getFileByPath: (path) => getFileByPath(path, fileSystem.files),
         getFileContentByPath,
         updateFileByPath,
         isLoading,

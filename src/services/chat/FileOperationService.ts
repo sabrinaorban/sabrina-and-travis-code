@@ -17,7 +17,7 @@ export const getProjectStructure = async (fileSystem: any): Promise<string> => {
     
     let structure = '';
     files.forEach((file) => {
-      structure += `${indent}${file.name}\n`;
+      structure += `${indent}${file.name} (${file.type})\n`;
       if (file.type === 'folder' && file.children) {
         structure += formatStructure(file.children, `${indent}  `);
       }
@@ -26,7 +26,7 @@ export const getProjectStructure = async (fileSystem: any): Promise<string> => {
   };
   
   // Safely access files
-  const files = fileSystem.files || [];
+  const files = fileSystem.fileSystem.files || [];
   return formatStructure(files);
 };
 
@@ -52,7 +52,10 @@ export const processFileOperations = async (
       // Ensure parent directories exist for any file operation
       if (op.operation === 'create' || op.operation === 'write') {
         // Skip folder creation step if this operation itself is creating a folder
-        if (!(op.operation === 'create' && (op.content === null || op.path.endsWith('/') || !op.path.includes('.')))) {
+        const isCreateFolder = op.operation === 'create' && 
+                              (op.content === null || op.path.endsWith('/') || !op.path.includes('.'));
+                              
+        if (!isCreateFolder) {
           const pathParts = cleanPath.split('/');
           pathParts.pop(); // Remove file name
           const dirPath = pathParts.join('/');

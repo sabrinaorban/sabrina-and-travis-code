@@ -1,10 +1,10 @@
 
-import { useState } from 'react';
 import { FileEntry } from '../types';
 import { supabase, generateUUID } from '../lib/supabase';
 import { useToast } from './use-toast';
 import { findNode, findNodeById } from '../utils/fileSystemUtils';
 
+// Handles all file system operations
 export const useFileOperations = (user: any, refreshFiles: () => Promise<void>) => {
   const { toast } = useToast();
   
@@ -25,34 +25,56 @@ export const useFileOperations = (user: any, refreshFiles: () => Promise<void>) 
       return;
     }
     
-    const { node } = findNode(path, files);
-    
-    if (!node || node.type !== 'folder') {
-      toast({
-        title: 'Error',
-        description: `Cannot create file. Path ${path} does not exist or is not a folder.`,
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    // Check if file with same name already exists
-    if (node.children?.some(child => child.name === name)) {
-      toast({
-        title: 'Error',
-        description: `A file or folder named '${name}' already exists at this location.`,
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    const filePath = `${path === '/' ? '' : path}/${name}`;
-    const fileId = generateUUID();
+    // For root path
+    const parentPath = path === '/' ? '' : path;
+    const filePath = `${parentPath}/${name}`;
+    console.log(`Creating file at path: ${filePath}`);
     
     try {
+      // Check if parent folder exists
+      const { node } = findNode(path, files);
+      
+      if (!node || node.type !== 'folder') {
+        console.log(`Parent folder not found at path: ${path}, creating it...`);
+        // Create parent folders recursively
+        const pathParts = path.split('/').filter(Boolean);
+        let currentPath = '';
+        
+        for (const part of pathParts) {
+          const nextPath = currentPath ? `${currentPath}/${part}` : `/${part}`;
+          const { node: existingFolder } = findNode(nextPath, files);
+          
+          if (!existingFolder) {
+            const folderParentPath = currentPath || '/';
+            console.log(`Creating parent folder: ${part} at ${folderParentPath}`);
+            
+            const folderId = generateUUID();
+            const { error } = await supabase
+              .from('files')
+              .insert({
+                id: folderId,
+                user_id: user.id,
+                name: part,
+                path: nextPath,
+                type: 'folder',
+                content: null,
+                last_modified: new Date().toISOString(),
+              });
+              
+            if (error) throw error;
+          }
+          
+          currentPath = nextPath;
+        }
+        
+        // Refresh files to get the newly created folders
+        await refreshFiles();
+      }
+      
+      // Now create the file
+      const fileId = generateUUID();
       console.log('Creating file with ID:', fileId);
       
-      // Create file in Supabase
       const { error } = await supabase
         .from('files')
         .insert({
@@ -68,9 +90,6 @@ export const useFileOperations = (user: any, refreshFiles: () => Promise<void>) 
       if (error) {
         throw error;
       }
-      
-      // Refresh files after creation
-      await refreshFiles();
       
       toast({
         title: 'Success',
@@ -97,34 +116,67 @@ export const useFileOperations = (user: any, refreshFiles: () => Promise<void>) 
       return;
     }
     
-    const { node } = findNode(path, files);
-    
-    if (!node || node.type !== 'folder') {
-      toast({
-        title: 'Error',
-        description: `Cannot create folder. Path ${path} does not exist or is not a folder.`,
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    // Check if folder with same name already exists
-    if (node.children?.some(child => child.name === name)) {
-      toast({
-        title: 'Error',
-        description: `A file or folder named '${name}' already exists at this location.`,
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    const folderPath = `${path === '/' ? '' : path}/${name}`;
-    const folderId = generateUUID();
+    // For root path
+    const parentPath = path === '/' ? '' : path;
+    const folderPath = `${parentPath}/${name}`;
+    console.log(`Creating folder at path: ${folderPath}`);
     
     try {
+      // Check if parent folder exists
+      const { node } = findNode(path, files);
+      
+      if (!node || node.type !== 'folder') {
+        console.log(`Parent folder not found at path: ${path}, creating it...`);
+        // Create parent folders recursively
+        const pathParts = path.split('/').filter(Boolean);
+        let currentPath = '';
+        
+        for (const part of pathParts) {
+          const nextPath = currentPath ? `${currentPath}/${part}` : `/${part}`;
+          const { node: existingFolder } = findNode(nextPath, files);
+          
+          if (!existingFolder) {
+            const folderParentPath = currentPath || '/';
+            console.log(`Creating parent folder: ${part} at ${folderParentPath}`);
+            
+            const folderId = generateUUID();
+            const { error } = await supabase
+              .from('files')
+              .insert({
+                id: folderId,
+                user_id: user.id,
+                name: part,
+                path: nextPath,
+                type: 'folder',
+                content: null,
+                last_modified: new Date().toISOString(),
+              });
+              
+            if (error) throw error;
+          }
+          
+          currentPath = nextPath;
+        }
+        
+        // Refresh files to get the newly created folders
+        await refreshFiles();
+      }
+      
+      // Check if folder with same name already exists
+      const { node: parentNode } = findNode(path, files);
+      if (parentNode && parentNode.children?.some(child => child.name === name)) {
+        toast({
+          title: 'Error',
+          description: `A file or folder named '${name}' already exists at this location.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Now create the folder
+      const folderId = generateUUID();
       console.log('Creating folder with ID:', folderId);
       
-      // Create folder in Supabase
       const { error } = await supabase
         .from('files')
         .insert({
@@ -140,9 +192,6 @@ export const useFileOperations = (user: any, refreshFiles: () => Promise<void>) 
       if (error) {
         throw error;
       }
-      
-      // Refresh files after creation
-      await refreshFiles();
       
       toast({
         title: 'Success',
@@ -239,7 +288,7 @@ export const useFileOperations = (user: any, refreshFiles: () => Promise<void>) 
       return Promise.reject(new Error('Not logged in'));
     }
     
-    const { parent, node, index } = findNodeById(id, files);
+    const { node } = findNodeById(id, files);
     
     if (!node) {
       toast({
