@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useGitHub } from '@/contexts/GitHubContext';
+import { useGitHub } from '@/contexts/github';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';

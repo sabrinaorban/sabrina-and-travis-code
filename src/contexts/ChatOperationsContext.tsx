@@ -11,7 +11,7 @@ import {
   simulateAssistantResponse
 } from '../services/ChatService';
 import { MemoryService } from '../services/MemoryService';
-import { useGitHub } from './GitHubContext';
+import { useGitHub } from './github';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ChatOperationsContextType {

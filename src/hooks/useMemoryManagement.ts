@@ -1,7 +1,7 @@
 
 import { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useGitHub } from '../contexts/GitHubContext';
+import { useGitHub } from '../contexts/github';
 import { MemoryService, MemoryContext as MemoryContextType } from '../services/MemoryService';
 import { useToast } from './use-toast';
 import { Message } from '../types';

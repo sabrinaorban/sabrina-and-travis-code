@@ -1,9 +1,10 @@
+
 import { useState } from 'react';
 import { Message } from '../types';
 import { useToast } from './use-toast';
 import { FileOperation } from '../types/chat';
 import { useAuth } from '../contexts/AuthContext';
-import { useGitHub } from '../contexts/GitHubContext';
+import { useGitHub } from '../contexts/github';
 import { useFileSystem } from '../contexts/FileSystemContext';
 import { MemoryService } from '../services/MemoryService';
 import { 

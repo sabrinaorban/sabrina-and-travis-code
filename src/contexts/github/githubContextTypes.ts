@@ -27,10 +27,5 @@ export interface RepoInfo {
   branchName: string;
 }
 
-export {
-  GitHubAuthState,
-  GitHubContextType,
-  GitHubRepo,
-  GitHubBranch,
-  GitHubFile
-};
+// Use export type to re-export types
+export type { GitHubAuthState, GitHubContextType, GitHubRepo, GitHubBranch, GitHubFile };

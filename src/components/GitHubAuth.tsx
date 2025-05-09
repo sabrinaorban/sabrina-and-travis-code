@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { useGitHub } from '@/contexts/GitHubContext';
+import { useGitHub } from '@/contexts/github';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
