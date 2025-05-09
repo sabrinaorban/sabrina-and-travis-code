@@ -5,7 +5,7 @@ import { findNodeById } from '../utils/fileSystemUtils';
 
 export const useFileUpdate = (user: any, toast: any) => {
   // Update a file's content
-  const updateFile = async (id: string, content: string, files: FileEntry[], setFileSystem?: any) => {
+  const updateFile = async (id: string, content: string, files: FileEntry[] = [], setFileSystem?: any) => {
     if (!user) {
       toast({
         title: 'Error',

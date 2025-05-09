@@ -14,6 +14,8 @@ export const useFileSelection = (
   
   // Get all modified files for GitHub commits
   const getModifiedFiles = (): FileEntry[] => {
+    // Here we would implement logic to track and return modified files
+    // For now returning an empty array as placeholder
     return [];
   };
 
