@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { nanoid } from 'nanoid';
 import { Message, MessageRole, OpenAIMessage } from '../types';
@@ -81,7 +80,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const createOpenAIMessages = async (messageHistory: Message[], newMessage: Message): Promise<OpenAIMessage[]> {
+  const createOpenAIMessages = async (messageHistory: Message[], newMessage: Message) => {
     // Start with system prompt that defines Travis and context
     const systemPrompt = {
       role: 'system' as const,
