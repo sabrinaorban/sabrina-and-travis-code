@@ -1,6 +1,7 @@
 import { Message, MessageRole, OpenAIMessage } from '../types';
 import { supabase, generateUUID } from '../lib/supabase';
 import { MemoryService, MemoryContext } from './MemoryService';
+import { FileSystemContextType } from '../types/fileSystem';
 
 /**
  * GitHub context interface for chat
@@ -42,13 +43,14 @@ export const extractTopicFromMessages = (msgs: Message[]): string => {
 };
 
 /**
- * Create OpenAI messages including memory context and GitHub information
+ * Create OpenAI messages including memory context, GitHub information, and file system access
  */
 export const createOpenAIMessages = async (
   messageHistory: Message[], 
   newMessage: Message, 
   memoryContext: MemoryContext | null,
-  githubContext?: GitHubContext
+  githubContext?: GitHubContext,
+  fileSystemContext?: FileSystemContextType | null
 ) => {
   // Start with system prompt that defines Travis as a versatile assistant
   const systemPrompt = {
@@ -57,6 +59,18 @@ export const createOpenAIMessages = async (
     
     You can respond to any queries whether they're about programming, general knowledge, philosophical questions, or just friendly conversation. When discussing code or responding to technical questions, be precise and helpful. For general conversation, be engaging, friendly, and personable.`
   };
+
+  // Add file system capabilities if available
+  if (fileSystemContext) {
+    systemPrompt.content += `\n\nYou have direct access to the user's file system and can read, edit, and manipulate files. If the user asks you to edit a specific file or create new files, you can do so directly. For example, if they ask you to add a div to index.html, you should:
+    1. Check if the file exists
+    2. Read its contents
+    3. Make the requested changes
+    4. Update the file with the new content
+    5. Inform the user of the changes you made
+
+    When making file changes, always show the user what you did by including relevant file snippets in your response.`;
+  }
 
   // Add GitHub context if available
   if (githubContext) {
@@ -255,6 +269,60 @@ export const deleteAllMessages = async (userId: string) => {
     
   if (error) {
     throw error;
+  }
+};
+
+/**
+ * Handle file operations from the assistant
+ */
+export const handleFileOperation = async (
+  fileSystem: FileSystemContextType,
+  operation: 'read' | 'write' | 'create' | 'delete',
+  filePath: string,
+  content?: string
+): Promise<{ success: boolean; message: string; content?: string }> => {
+  try {
+    switch (operation) {
+      case 'read':
+        const fileContent = fileSystem.getFileContentByPath(filePath);
+        if (fileContent === null) {
+          return { success: false, message: `File not found: ${filePath}` };
+        }
+        return { success: true, message: `File read successfully: ${filePath}`, content: fileContent };
+        
+      case 'write':
+        if (!content) {
+          return { success: false, message: 'No content provided for write operation' };
+        }
+        await fileSystem.updateFileByPath(filePath, content);
+        return { success: true, message: `File updated successfully: ${filePath}` };
+        
+      case 'create':
+        if (!content) {
+          content = '';
+        }
+        // Extract path and filename
+        const lastSlashIndex = filePath.lastIndexOf('/');
+        const path = lastSlashIndex > 0 ? filePath.substring(0, lastSlashIndex) : '/';
+        const name = lastSlashIndex > 0 ? filePath.substring(lastSlashIndex + 1) : filePath;
+        
+        await fileSystem.createFile(path, name, content);
+        return { success: true, message: `File created successfully: ${filePath}` };
+        
+      case 'delete':
+        const file = fileSystem.getFileByPath(filePath);
+        if (!file) {
+          return { success: false, message: `File not found: ${filePath}` };
+        }
+        await fileSystem.deleteFile(file.id);
+        return { success: true, message: `File deleted successfully: ${filePath}` };
+        
+      default:
+        return { success: false, message: `Unsupported operation: ${operation}` };
+    }
+  } catch (error: any) {
+    console.error(`Error in file operation (${operation}) on ${filePath}:`, error);
+    return { success: false, message: error.message || `Error during file ${operation} operation` };
   }
 };
 

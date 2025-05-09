@@ -120,6 +120,23 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const getFileByPathWrapper = (path: string): FileEntry | null => {
     return getFileByPath(path, fileSystem.files);
   };
+  
+  // Get file content by path
+  const getFileContentByPath = (path: string): string | null => {
+    const file = getFileByPath(path, fileSystem.files);
+    return file && file.type === 'file' ? file.content || null : null;
+  };
+  
+  // Update file by path
+  const updateFileByPath = async (path: string, content: string): Promise<void> => {
+    const file = getFileByPath(path, fileSystem.files);
+    
+    if (!file || file.type !== 'file') {
+      throw new Error(`File not found at path: ${path}`);
+    }
+    
+    await updateFileOp(file.id, content, fileSystem.files, setFileSystem);
+  };
 
   return (
     <FileSystemContext.Provider
@@ -131,6 +148,8 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteFile,
         selectFile,
         getFileByPath: getFileByPathWrapper,
+        getFileContentByPath,
+        updateFileByPath,
         isLoading,
         refreshFiles,
         deleteAllFiles

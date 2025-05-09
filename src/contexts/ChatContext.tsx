@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { Message } from '../types';
 import { useToast } from '@/hooks/use-toast';
@@ -6,6 +5,7 @@ import { supabase, getOrCreateUserProfile } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { MemoryService, MemoryContext as MemoryContextType } from '../services/MemoryService';
 import { useGitHub } from './GitHubContext';
+import { useFileSystem } from './FileSystemContext';
 import { 
   fetchMessages, 
   storeUserMessage, 
@@ -14,7 +14,8 @@ import {
   createOpenAIMessages,
   extractTopicFromMessages,
   simulateAssistantResponse,
-  generateConversationSummary
+  generateConversationSummary,
+  handleFileOperation
 } from '../services/ChatService';
 import { ChatContextType } from '../types/chat';
 
@@ -27,6 +28,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { toast } = useToast();
   const { user } = useAuth();
   const github = useGitHub();
+  const fileSystem = useFileSystem();
 
   // Enhanced memory refresh function to include GitHub context
   const refreshMemoryContext = useCallback(async () => {
@@ -121,14 +123,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             username: github.authState.username,
             currentRepo: github.currentRepo?.full_name,
             currentBranch: github.currentBranch
-          } : undefined
+          } : undefined,
+          fileSystem
         );
         
         // Call OpenAI API through Supabase Edge Function
         const { data: response, error: apiError } = await supabase.functions.invoke('openai-chat', {
           body: { 
             messages: openAIMessages,
-            memoryContext: context || memoryContext
+            memoryContext: context || memoryContext,
+            fileSystemEnabled: true
           }
         });
 
@@ -138,6 +142,30 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Process the assistant's response
         const assistantResponse = response.choices[0].message.content;
+        const fileOperations = response.choices[0].message.file_operations || [];
+        
+        // Process any file operations requested by the assistant
+        if (fileOperations && fileOperations.length > 0) {
+          for (const op of fileOperations) {
+            const result = await handleFileOperation(
+              fileSystem,
+              op.operation,
+              op.path,
+              op.content
+            );
+            console.log(`File operation result:`, result);
+            if (!result.success) {
+              toast({
+                title: 'File Operation Error',
+                description: result.message,
+                variant: 'destructive',
+              });
+            }
+          }
+          
+          // Refresh files after operations
+          await fileSystem.refreshFiles();
+        }
         
         // Store the response
         const newAssistantMessage = await storeAssistantMessage(user.id, assistantResponse);

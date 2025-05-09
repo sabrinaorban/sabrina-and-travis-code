@@ -11,9 +11,16 @@ interface Message {
   content: string
 }
 
+interface FileOperation {
+  operation: 'read' | 'write' | 'create' | 'delete'
+  path: string
+  content?: string
+}
+
 interface RequestBody {
   messages: Message[]
   memoryContext?: any
+  fileSystemEnabled?: boolean
 }
 
 const corsHeaders = {
@@ -29,11 +36,12 @@ serve(async (req) => {
 
   try {
     // Parse request body
-    let messages, memoryContext;
+    let messages, memoryContext, fileSystemEnabled;
     try {
       const body = await req.json() as RequestBody;
       messages = body.messages;
       memoryContext = body.memoryContext;
+      fileSystemEnabled = body.fileSystemEnabled;
     } catch (parseError) {
       console.error('Error parsing request body:', parseError);
       return new Response(
@@ -157,28 +165,82 @@ When responding, naturally incorporate this information when relevant without ex
     
     // Update the system message to be a general assistant, not just project-focused
     if (enhancedMessages.length > 0 && enhancedMessages[0].role === 'system') {
-      enhancedMessages[0].content = `You are a versatile AI assistant named Travis. You can help with a wide range of topics, not limited to coding or development tasks. You can have conversations on any subject, answer general knowledge questions, provide creative suggestions, and assist with code when needed.
+      enhancedMessages[0].content = `You are Travis, a versatile AI assistant who can help with a wide range of topics. You can have conversations on any subject, answer general knowledge questions, provide creative suggestions, and assist with code when needed.
 
-When asked about code, files, or the current project, you are highly capable at providing specific and helpful guidance. You have access to files and code in the shared project folder and can help users create, modify, or understand code.
+When asked about code, files, or the current project, you are highly capable at providing specific and helpful guidance. ${fileSystemEnabled ? "You have direct access to edit files in the user's project." : ""}
 
-Always be attentive, engaging, and respond directly to what the user is asking. Make your responses relevant and tailored to their needs, whether they're asking about programming, general knowledge, philosophical questions, or just wanting a friendly conversation.`;
+Always be attentive, engaging, and respond directly to what the user is asking. Make your responses relevant and tailored to their needs, whether they're asking about programming, general knowledge, philosophical questions, or just wanting a friendly conversation.
+
+${fileSystemEnabled ? `
+IMPORTANT: You can directly edit files in the project when asked. For example:
+- If asked to "add a div to index.html", you should:
+  1. Read the file content
+  2. Make the requested change
+  3. Update the file
+  4. Explain what you did
+
+To perform file operations, include a 'file_operations' property in your response with an array of operations:
+[
+  {
+    "operation": "read/write/create/delete",
+    "path": "/path/to/file",
+    "content": "file content for write/create operations"
+  }
+]
+
+Always provide helpful and friendly responses, showing the user what changes you've made.` : ''}`;
     }
     
     console.log(`Calling OpenAI API with ${enhancedMessages.length} messages`);
     
+    // Additional instructions for file operations
+    if (fileSystemEnabled) {
+      enhancedMessages.push({
+        role: 'system',
+        content: `If the user asks you to make changes to files, you should:
+
+1. First examine if the file exists by using a "read" operation
+2. Then make the necessary changes with a "write" operation for existing files or "create" for new files
+3. Tell the user exactly what you changed and show relevant code snippets
+
+Your response should be formatted normally as helpful explanatory text, but you can include file operations by adding a "file_operations" array to your message. These operations will be executed automatically.
+
+Example file operations:
+{
+  "file_operations": [
+    { "operation": "read", "path": "/index.html" },
+    { "operation": "write", "path": "/index.html", "content": "updated HTML content" },
+    { "operation": "create", "path": "/new-file.js", "content": "console.log('hello');" },
+    { "operation": "delete", "path": "/obsolete.txt" }
+  ]
+}
+
+When responding to the user, explain what files you've read and what changes you've made in a clear, user-friendly way.`
+      });
+    }
+    
     // Call OpenAI API with your provided API key
+    const openAIRequestBody: any = {
+      model: OPENAI_MODEL,
+      messages: enhancedMessages,
+      temperature: 0.7,
+      max_tokens: 2000 // Increased token limit for more detailed responses
+    };
+    
+    // Enable function calling for file operations if enabled
+    if (fileSystemEnabled) {
+      openAIRequestBody.response_format = { 
+        type: "json_object" 
+      };
+    }
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: enhancedMessages,
-        temperature: 0.7,
-        max_tokens: 2000 // Increased token limit for more detailed responses
-      })
+      body: JSON.stringify(openAIRequestBody)
     });
     
     if (!response.ok) {
@@ -198,6 +260,29 @@ Always be attentive, engaging, and respond directly to what the user is asking. 
     }
     
     const data = await response.json();
+    
+    // Process the response to handle file operations
+    if (fileSystemEnabled && data.choices && data.choices[0] && data.choices[0].message) {
+      try {
+        // Parse the message content as JSON if it's a JSON string
+        if (typeof data.choices[0].message.content === 'string') {
+          const contentObj = JSON.parse(data.choices[0].message.content);
+          
+          // Extract file operations if they exist
+          if (contentObj && contentObj.file_operations) {
+            // Add file operations to the message object
+            data.choices[0].message.file_operations = contentObj.file_operations;
+            
+            // Update the content to be just the textual response
+            data.choices[0].message.content = contentObj.response || 
+              "I've processed your file operation request.";
+          }
+        }
+      } catch (e) {
+        // If parsing fails, just use the message as is
+        console.log("Could not parse response as JSON, using as plain text");
+      }
+    }
     
     return new Response(
       JSON.stringify(data),

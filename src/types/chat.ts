@@ -2,6 +2,12 @@
 import { MemoryContext } from '../services/MemoryService';
 import { Message, MessageRole, OpenAIMessage } from './index';
 
+export interface FileOperation {
+  operation: 'read' | 'write' | 'create' | 'delete';
+  path: string;
+  content?: string;
+}
+
 export interface ChatContextType {
   messages: Message[];
   isTyping: boolean;
