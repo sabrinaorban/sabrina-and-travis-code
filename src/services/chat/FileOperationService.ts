@@ -1,4 +1,3 @@
-
 import { FileSystemContextType } from '../../types/fileSystem';
 import { FileOperation } from '../../types/chat';
 
@@ -24,7 +23,7 @@ export const processFileOperations = async (
   
   // First, create any directories needed
   const dirOperations = fileOperations.filter(op => 
-    (op.operation === 'create' || op.operation === 'mkdir' || op.operation === 'write') && 
+    (op.operation === 'create' || op.operation === 'write') && 
     (!op.content || op.content === null)
   );
   

@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { Message } from '../types';
 import { useToast } from '@/hooks/use-toast';
@@ -256,7 +255,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('File operations enabled:', shouldEnableFileOps);
         
         // Get project structure for better context
-        const projectStructure = await getProjectStructure(fileSystem);
+        const projectStructure = await getProjectFileStructure(fileSystem);
         
         // Create the OpenAI messages from chat history
         const openAIMessages = await createOpenAIMessages(
@@ -286,7 +285,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Process any file operations requested by the assistant
         if (fileOperations.length > 0) {
           console.log('Processing file operations:', fileOperations.length);
-          const processedOperations = await processFileOperations(fileSystem, fileOperations);
+          const processedOperations = await processFileOps(fileSystem, fileOperations);
           
           // Update file operation results for UI feedback
           if (processedOperations.length > 0) {
