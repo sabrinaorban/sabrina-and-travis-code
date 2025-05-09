@@ -1,10 +1,10 @@
-
 import { useState } from 'react';
 import { GitHubRepo, GitHubBranch, GitHubFile } from '@/types/github';
 import { GithubApiService } from '@/services/github/githubApiService';
 import { GithubRepositoryService } from '@/services/github/githubRepositoryService';
 import { GithubSyncService } from '@/services/github/githubSyncService';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const useGithubRepos = (token: string | null) => {
   const [repositories, setRepositories] = useState<GitHubRepo[]>([]);
@@ -14,8 +14,15 @@ export const useGithubRepos = (token: string | null) => {
   const [files, setFiles] = useState<GitHubFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
+  const { user } = useAuth();
   const { toast } = useToast();
-  const apiService = new GithubApiService({ token });
+  
+  // Create API service with both token and userId if available
+  const apiService = new GithubApiService({ 
+    token,
+    userId: user?.id 
+  });
+  
   const repositoryService = new GithubRepositoryService(apiService, toast);
   const syncService = new GithubSyncService(apiService, toast);
 

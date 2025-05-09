@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { FileEntry } from '../types';
 import { GitHubContextType } from '../types/github';
@@ -45,7 +44,8 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     saveFileToRepo,
     syncRepoToFileSystem: syncRepo,
     reset
-  } = useGithubRepos(authState.token, user?.id);
+  // Here's the fix: remove the second argument (user?.id) as the hook only expects the token
+  } = useGithubRepos(authState.token);
 
   // Load GitHub contextual memory
   const loadGitHubMemory = useCallback(async () => {
