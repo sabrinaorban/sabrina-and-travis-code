@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { FileEntry } from '../types';
 import { useFileSystem } from '../contexts/FileSystemContext';
