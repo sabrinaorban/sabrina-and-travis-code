@@ -7,7 +7,6 @@ import { useGithubAuth } from '@/hooks/useGithubAuth';
 import { useGithubRepos } from '@/hooks/useGithubRepos';
 import { useAuth } from '../AuthContext';
 import { GithubTokenService } from '@/services/github/githubTokenService';
-import { useToast } from '@/hooks/use-toast';
 import { useGitHubAuth } from './useGitHubAuth';
 import { useGitHubMemory } from './useGitHubMemory';
 import { useGitHubRepoSelection } from './useGitHubRepoSelection';
@@ -143,7 +142,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     authenticate,
     repositories,
     branches,
-    availableBranches: branches,
+    availableBranches: branches, // Ensure we pass branches here
     currentRepo,
     currentBranch,
     files,

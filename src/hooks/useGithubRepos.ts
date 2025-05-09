@@ -1,5 +1,4 @@
-
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { GitHubRepo, GitHubBranch, GitHubFile } from '@/types/github';
 import { GithubApiService } from '@/services/github/githubApiService';
 import { GithubRepositoryService } from '@/services/github/githubRepositoryService';
@@ -82,7 +81,7 @@ export const useGithubRepos = (token: string | null) => {
     }
   };
 
-  const fetchBranches = async (repoFullName: string) => {
+  const fetchBranches = useCallback(async (repoFullName: string) => {
     if (!token) {
       console.log('useGithubRepos - Cannot fetch branches: no token');
       return [];
@@ -122,7 +121,7 @@ export const useGithubRepos = (token: string | null) => {
       setIsLoading(false);
       isFetchingRef.current = false;
     }
-  };
+  }, [token, branches, repositoryService, toast]);
 
   const fetchFiles = async (repoFullName: string, branchName: string) => {
     if (!token) {
@@ -169,32 +168,30 @@ export const useGithubRepos = (token: string | null) => {
   const selectRepository = async (repo: GitHubRepo) => {
     console.log(`useGithubRepos - Selecting repository: ${repo.full_name}`);
     
+    // Set the current repository first
+    setCurrentRepo(repo);
+    
     // Clear branches when selecting a new repo to prevent stale data
     setBranches([]);
     setCurrentBranch(null);
     setFiles([]);
     
-    setCurrentRepo(repo);
-    
-    // Add a small delay before fetching branches to prevent race conditions
-    setTimeout(async () => {
-      await fetchBranches(repo.full_name);
-    }, 500);
+    // Don't wait - immediately fetch branches
+    fetchBranches(repo.full_name);
   };
 
   const selectBranch = async (branchName: string) => {
     console.log(`useGithubRepos - Selecting branch: ${branchName}`);
     
+    // Set the current branch
+    setCurrentBranch(branchName);
+    
     // Clear files when selecting a new branch to prevent stale data
     setFiles([]);
     
-    setCurrentBranch(branchName);
-    
     if (currentRepo) {
-      // Add a small delay before fetching files to prevent race conditions
-      setTimeout(async () => {
-        await fetchFiles(currentRepo.full_name, branchName);
-      }, 500);
+      // Fetch files for the selected branch
+      fetchFiles(currentRepo.full_name, branchName);
     }
   };
 

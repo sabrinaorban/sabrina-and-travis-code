@@ -17,6 +17,7 @@ export const GitHubRepoSelector: React.FC = () => {
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [isFetchingBranches, setIsFetchingBranches] = useState(false);
   
   // Track the last sync attempt time to prevent rapid clicking
   const lastSyncAttemptRef = useRef(0);
@@ -30,8 +31,8 @@ export const GitHubRepoSelector: React.FC = () => {
     console.log('GitHubRepoSelector - Current repo:', currentRepo?.full_name);
     console.log('GitHubRepoSelector - Current branch:', currentBranch);
     console.log('GitHubRepoSelector - Branches count:', availableBranches.length);
-    console.log('GitHubRepoSelector - Loading states:', { isLoading, fileSystemLoading, isSyncing });
-  }, [authState, repositories, currentRepo, currentBranch, availableBranches, isLoading, fileSystemLoading, isSyncing]);
+    console.log('GitHubRepoSelector - Loading states:', { isLoading, fileSystemLoading, isSyncing, isFetchingBranches });
+  }, [authState, repositories, currentRepo, currentBranch, availableBranches, isLoading, fileSystemLoading, isSyncing, isFetchingBranches]);
   
   // Fetch repositories when authenticated
   useEffect(() => {
@@ -57,11 +58,19 @@ export const GitHubRepoSelector: React.FC = () => {
   const handleRepositoryChange = async (repoFullName: string) => {
     // Reset sync error when changing repositories
     setSyncError(null);
+    setIsFetchingBranches(true);
     
     console.log('GitHubRepoSelector - Repository selected:', repoFullName);
     const repo = repositories.find(r => r.full_name === repoFullName);
     if (repo) {
       await selectRepository(repo);
+      
+      // Add a small delay to allow branches to load
+      setTimeout(() => {
+        setIsFetchingBranches(false);
+      }, 1500);
+    } else {
+      setIsFetchingBranches(false);
     }
   };
 
@@ -201,22 +210,30 @@ export const GitHubRepoSelector: React.FC = () => {
 
             {currentRepo && (
               <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <GitBranch className="h-4 w-4" />
-                  Branch
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <GitBranch className="h-4 w-4" />
+                    Branch
+                  </label>
+                  {isFetchingBranches && <Loader2 size={16} className="animate-spin" />}
+                </div>
                 <Select 
                   onValueChange={handleBranchChange} 
                   value={currentBranch || ''}
-                  disabled={isLoading || !availableBranches.length}
+                  disabled={isLoading || isFetchingBranches || availableBranches.length === 0}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableBranches.length === 0 && !isLoading && (
+                    {availableBranches.length === 0 && !isLoading && !isFetchingBranches && (
                       <SelectItem value="no-branches" disabled>
                         No branches found
+                      </SelectItem>
+                    )}
+                    {isFetchingBranches && (
+                      <SelectItem value="loading-branches" disabled>
+                        Loading branches...
                       </SelectItem>
                     )}
                     {availableBranches.map((branch) => (
