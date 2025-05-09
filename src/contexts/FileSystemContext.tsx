@@ -29,6 +29,8 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         files,
         selectedFile: null
       });
+      
+      console.log('Files refreshed:', files.length);
     } catch (error) {
       // Error handling is done in fetchFiles
       // Initialize with empty file system on error

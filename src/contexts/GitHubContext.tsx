@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { GitHubRepo, GitHubBranch, GitHubFile, GitHubAuthState, GitHubContextType } from '../types/github';
@@ -34,7 +33,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
-  const { refreshFiles } = useFileSystem();
+  const { refreshFiles, createFile, createFolder } = useFileSystem();
 
   // Load stored token on component mount
   useEffect(() => {
@@ -91,33 +90,6 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const response = await fetch('https://api.github.com/user/repos', {
         headers: {
           Authorization: `token ${authState.token}`,
-          Accept: 'application/vnd.github.v3+json'
-        }
-      });
-      if (!response.ok) {
-        throw new Error(`GitHub API Error: ${response.status}`);
-      }
-      const data: GitHubRepo[] = await response.json();
-      setRepositories(data);
-    } catch (error: any) {
-      console.error('Error fetching repos:', error);
-      toast({
-        title: 'Error',
-        description: `Failed to fetch repositories: ${error.message}`,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Function to fetch user repositories with a specific token
-  const fetchUserRepos = async (token: string) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('https://api.github.com/user/repos', {
-        headers: {
-          Authorization: `token ${token}`,
           Accept: 'application/vnd.github.v3+json'
         }
       });
@@ -388,15 +360,96 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSelectedFile(null);
   };
 
-  // Sync repo to file system function
+  // Recursive function to fetch directory contents
+  const fetchDirectoryContents = async (owner: string, repo: string, path: string, branch: string): Promise<{path: string, type: string, content?: string}[]> => {
+    const results: {path: string, type: string, content?: string}[] = [];
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`, {
+        headers: {
+          Authorization: `token ${authState.token}`,
+          Accept: 'application/vnd.github.v3+json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`GitHub API Error: ${response.status}`);
+      }
+      
+      const items = await response.json();
+      
+      // Process each item in the directory
+      for (const item of Array.isArray(items) ? items : [items]) {
+        if (item.type === 'file') {
+          // Fetch file content
+          const contentResponse = await fetch(item.download_url);
+          const content = await contentResponse.text();
+          results.push({
+            path: item.path,
+            type: 'file',
+            content
+          });
+        } else if (item.type === 'dir') {
+          // Add the directory itself
+          results.push({
+            path: item.path,
+            type: 'folder'
+          });
+          
+          // Recursively fetch contents of subdirectory
+          const subItems = await fetchDirectoryContents(owner, repo, item.path, branch);
+          results.push(...subItems);
+        }
+      }
+      
+      return results;
+    } catch (error) {
+      console.error('Error fetching directory contents:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Sync repo to file system function - completely rewritten
   const syncRepoToFileSystem = async (owner: string, repo: string, branch: string) => {
     setIsLoading(true);
     try {
-      // For demonstration purposes, we'll just log the action
-      console.log(`Syncing ${owner}/${repo} (${branch}) to file system`);
+      // Fetch all repository contents recursively
+      const allContents = await fetchDirectoryContents(owner, repo, '', branch);
       
-      // In a real implementation, this would fetch files from the repository
-      // and add them to the file system context
+      // First create all folders
+      const folders = allContents.filter(item => item.type === 'folder');
+      for (const folder of folders) {
+        const folderPath = '/' + folder.path;
+        const lastSlashIndex = folderPath.lastIndexOf('/');
+        const parentPath = lastSlashIndex > 0 ? folderPath.substring(0, lastSlashIndex) : '/';
+        const folderName = folderPath.substring(lastSlashIndex + 1);
+        
+        try {
+          await createFolder(parentPath, folderName);
+        } catch (error) {
+          console.log(`Folder ${folderName} might already exist, continuing...`);
+        }
+      }
+      
+      // Then create all files
+      const files = allContents.filter(item => item.type === 'file');
+      for (const file of files) {
+        const filePath = '/' + file.path;
+        const lastSlashIndex = filePath.lastIndexOf('/');
+        const parentPath = lastSlashIndex > 0 ? filePath.substring(0, lastSlashIndex) : '/';
+        const fileName = filePath.substring(lastSlashIndex + 1);
+        
+        try {
+          await createFile(parentPath, fileName, file.content || '');
+        } catch (error) {
+          console.log(`Error creating file ${fileName}:`, error);
+        }
+      }
+      
+      console.log(`Synced ${folders.length} folders and ${files.length} files from ${owner}/${repo} (${branch}) to file system`);
       
       toast({
         title: 'Success',

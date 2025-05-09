@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 export const GitHubRepoSelector: React.FC = () => {
   const { authState, repositories, currentRepo, currentBranch, availableBranches, 
           isLoading, fetchRepositories, selectRepository, selectBranch, syncRepoToFileSystem } = useGitHub();
-  const { refreshFiles } = useFileSystem();
+  const { refreshFiles, isLoading: fileSystemLoading } = useFileSystem();
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   if (!authState.isAuthenticated) {
     return null;
@@ -32,10 +33,15 @@ export const GitHubRepoSelector: React.FC = () => {
   const handleSync = async () => {
     if (!currentRepo || !currentBranch) return;
     
-    const [owner, repo] = currentRepo.full_name.split('/');
-    await syncRepoToFileSystem(owner, repo, currentBranch);
-    await refreshFiles();
-    setIsSyncDialogOpen(false);
+    setIsSyncing(true);
+    try {
+      const [owner, repo] = currentRepo.full_name.split('/');
+      await syncRepoToFileSystem(owner, repo, currentBranch);
+      await refreshFiles();
+    } finally {
+      setIsSyncing(false);
+      setIsSyncDialogOpen(false);
+    }
   };
 
   return (
@@ -112,10 +118,17 @@ export const GitHubRepoSelector: React.FC = () => {
         <CardFooter>
           <Button 
             className="w-full"
-            disabled={isLoading || !currentRepo || !currentBranch}
+            disabled={isLoading || isSyncing || fileSystemLoading || !currentRepo || !currentBranch}
             onClick={() => setIsSyncDialogOpen(true)}
           >
-            Import Repository Files
+            {(isLoading || isSyncing || fileSystemLoading) ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Working...
+              </>
+            ) : (
+              'Import Repository Files'
+            )}
           </Button>
         </CardFooter>
       </Card>
@@ -129,12 +142,12 @@ export const GitHubRepoSelector: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSyncDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsSyncDialogOpen(false)} disabled={isSyncing}>Cancel</Button>
             <Button 
               onClick={handleSync}
-              disabled={isLoading}
+              disabled={isSyncing || isLoading || fileSystemLoading}
             >
-              {isLoading ? (
+              {isSyncing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Syncing...
