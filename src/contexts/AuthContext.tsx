@@ -1,7 +1,7 @@
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { User } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, getOrCreateUserProfile } from '../lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
@@ -31,24 +31,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Use setTimeout to avoid potential deadlocks with Supabase client
           setTimeout(async () => {
             try {
-              const { data: userData, error: userError } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', session.user.id)
-                .single();
+              const email = session.user.email;
+              const userData = await getOrCreateUserProfile(session.user.id, email);
                 
-              if (userError) {
-                console.error('Error fetching user data:', userError);
-                setIsLoading(false);
-                return;
-              }
-              
               if (userData) {
                 setUser({
                   id: userData.id,
                   name: userData.name,
                   isAuthenticated: true,
                 });
+                console.log('User authenticated successfully:', userData);
               }
               
               setIsLoading(false);
@@ -84,27 +76,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         console.log('Found existing session, fetching user data');
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+        try {
+          const email = session.user.email;
+          const userData = await getOrCreateUserProfile(session.user.id, email);
           
-        if (userError) {
-          console.error('Error fetching user data:', userError);
+          if (userData) {
+            setUser({
+              id: userData.id,
+              name: userData.name,
+              isAuthenticated: true,
+            });
+            console.log('User authenticated from existing session:', userData);
+          }
+        } catch (userError) {
+          console.error('Error processing user data:', userError);
+        } finally {
           setIsLoading(false);
-          return;
         }
-        
-        if (userData) {
-          setUser({
-            id: userData.id,
-            name: userData.name,
-            isAuthenticated: true,
-          });
-        }
-        
-        setIsLoading(false);
       } catch (err) {
         console.error('Unexpected error during auth check:', err);
         setIsLoading(false);

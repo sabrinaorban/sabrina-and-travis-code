@@ -19,3 +19,54 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 supabase.auth.onAuthStateChange((event, session) => {
   console.log('Global auth state change:', event, session?.user?.id);
 });
+
+// Helper function to create or get a user profile
+export const getOrCreateUserProfile = async (userId: string, email?: string): Promise<any> => {
+  try {
+    // First, check if a user profile exists
+    const { data: existingUser, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+      
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('Error checking for existing user:', fetchError);
+      throw fetchError;
+    }
+    
+    // If user exists, return it
+    if (existingUser) {
+      console.log('Found existing user profile:', existingUser);
+      return existingUser;
+    }
+    
+    // If no user exists, create one
+    console.log('Creating new user profile for:', userId, email);
+    const name = email ? email.split('@')[0] : 'User';
+    
+    const { data: newUser, error: insertError } = await supabase
+      .from('users')
+      .insert([
+        { 
+          id: userId, 
+          name: name,
+          created_at: new Date().toISOString()
+        }
+      ])
+      .select()
+      .single();
+      
+    if (insertError) {
+      console.error('Error creating user profile:', insertError);
+      throw insertError;
+    }
+    
+    console.log('Created new user profile:', newUser);
+    return newUser;
+  } catch (err) {
+    console.error('Error in getOrCreateUserProfile:', err);
+    // Return a default user object to prevent app from breaking
+    return { id: userId, name: 'Guest', isAuthenticated: true };
+  }
+};
