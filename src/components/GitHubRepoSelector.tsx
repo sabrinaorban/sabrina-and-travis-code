@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGitHub } from '@/contexts/GitHubContext';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +14,13 @@ export const GitHubRepoSelector: React.FC = () => {
   const { refreshFiles, isLoading: fileSystemLoading } = useFileSystem();
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  
+  // Fetch repositories when authenticated
+  useEffect(() => {
+    if (authState.isAuthenticated && authState.token && repositories.length === 0) {
+      fetchRepositories();
+    }
+  }, [authState.isAuthenticated, authState.token, repositories.length]);
 
   if (!authState.isAuthenticated) {
     return null;
