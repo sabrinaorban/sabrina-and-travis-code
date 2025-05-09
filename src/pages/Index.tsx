@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Login from './Login';
 import Dashboard from './Dashboard';
@@ -7,6 +7,11 @@ import { Loader2 } from 'lucide-react';
 
 const Index = () => {
   const { user, isLoading } = useAuth();
+  
+  // Add debugging
+  useEffect(() => {
+    console.log('Auth state:', { user, isLoading });
+  }, [user, isLoading]);
   
   if (isLoading) {
     return (

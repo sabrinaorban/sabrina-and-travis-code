@@ -1,1 +1,5 @@
+
 project_id = "vdtogebrtoqnbbpjntgg"
+
+[functions.memory-context]
+verify_jwt = true

@@ -5,12 +5,15 @@ import { Message, MessageRole, OpenAIMessage } from '../types';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { MemoryService, MemoryContext as MemoryContextType } from '../services/MemoryService';
 
 interface ChatContextType {
   messages: Message[];
   isTyping: boolean;
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => Promise<void>;
+  memoryContext: MemoryContextType | null;
+  refreshMemoryContext: () => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -18,15 +21,17 @@ const ChatContext = createContext<ChatContextType | null>(null);
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [memoryContext, setMemoryContext] = useState<MemoryContextType | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
   // Load messages from Supabase when user is authenticated
   useEffect(() => {
-    const fetchMessages = async () => {
+    const fetchMessagesAndMemory = async () => {
       if (!user) return;
       
       try {
+        // Fetch messages
         const { data, error } = await supabase
           .from('messages')
           .select('*')
@@ -47,20 +52,36 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           setMessages(formattedMessages);
         }
+
+        // Fetch memory context
+        await refreshMemoryContext();
       } catch (error: any) {
-        console.error('Error fetching messages:', error);
+        console.error('Error fetching messages and memory:', error);
         toast({
           title: 'Error',
-          description: 'Failed to load chat history',
+          description: 'Failed to load chat history and memory context',
           variant: 'destructive',
         });
       }
     };
     
-    fetchMessages();
+    fetchMessagesAndMemory();
   }, [user, toast]);
 
-  const createOpenAIMessages = (messageHistory: Message[], newMessage: Message): OpenAIMessage[] => {
+  const refreshMemoryContext = async () => {
+    if (!user) return;
+
+    try {
+      const context = await MemoryService.getMemoryContext(user.id);
+      setMemoryContext(context);
+      return context;
+    } catch (error) {
+      console.error('Error refreshing memory context:', error);
+      return null;
+    }
+  };
+
+  const createOpenAIMessages = async (messageHistory: Message[], newMessage: Message): Promise<OpenAIMessage[]> {
     // Start with system prompt that defines Travis and context
     const systemPrompt = {
       role: 'system' as const,
@@ -71,7 +92,35 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       Be helpful, friendly, and provide detailed responses when discussing code.`,
     };
 
-    // Convert all chat history to OpenAI message format
+    // If we have memory context, add it to the system prompt
+    if (memoryContext) {
+      const contextPrompt = {
+        role: 'system' as const,
+        content: `Memory context: 
+        - User: ${memoryContext.userProfile.name}
+        - Recent files: ${memoryContext.recentFiles.map(f => f.name).join(', ')}
+        - Recent documents: ${memoryContext.documents.map(d => d.title).join(', ')}
+        - Preferences: ${JSON.stringify(memoryContext.userProfile.preferences || {})}
+        
+        Remember these details when responding to the user.`
+      };
+      
+      // Convert all chat history to OpenAI message format
+      const previousMessages = messageHistory.map((msg) => ({
+        role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
+        content: msg.content,
+      }));
+
+      // Add the new user message
+      const userMessage = {
+        role: 'user' as const,
+        content: newMessage.content,
+      };
+
+      return [systemPrompt, contextPrompt, ...previousMessages, userMessage];
+    }
+
+    // Without memory context, just use the basic messages
     const previousMessages = messageHistory.map((msg) => ({
       role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
       content: msg.content,
@@ -130,12 +179,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsTyping(true);
 
       try {
+        // Refresh memory context before sending to OpenAI
+        const context = await refreshMemoryContext();
+        
         // Create the OpenAI messages from chat history
-        const openAIMessages = createOpenAIMessages(messages, newUserMessage);
+        const openAIMessages = await createOpenAIMessages(messages, newUserMessage);
         
         // Call OpenAI API through Supabase Edge Function
         const { data: response, error: apiError } = await supabase.functions.invoke('openai-chat', {
-          body: { messages: openAIMessages }
+          body: { 
+            messages: openAIMessages,
+            memoryContext: context || memoryContext
+          }
         });
 
         if (apiError) {
@@ -168,6 +223,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
         if (assistantInsertError) {
           throw assistantInsertError;
+        }
+        
+        // Store this interaction in memory
+        if (user) {
+          await MemoryService.storeMemory(user.id, 'last_conversation', {
+            topic: extractTopicFromMessages([...messages, newUserMessage, newAssistantMessage]),
+            timestamp: Date.now(),
+            messageCount: messages.length + 2
+          });
         }
       } catch (error) {
         // If the OpenAI call fails, fall back to simulated responses
@@ -263,8 +327,38 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const extractTopicFromMessages = (msgs: Message[]): string => {
+    // Simple algorithm to extract a topic from recent messages
+    if (msgs.length === 0) return 'General conversation';
+    
+    // Look at the first few user messages
+    const userMessages = msgs.filter(m => m.role === 'user').slice(0, 3);
+    
+    if (userMessages.length === 0) return 'General conversation';
+    
+    // Get the first message as a fallback topic
+    let topic = userMessages[0].content.slice(0, 30) + (userMessages[0].content.length > 30 ? '...' : '');
+    
+    // Find common keywords
+    const keywords = ['code', 'file', 'project', 'update', 'create', 'help', 'fix', 'bug', 'feature'];
+    for (const keyword of keywords) {
+      if (userMessages.some(m => m.content.toLowerCase().includes(keyword))) {
+        return `Discussion about ${keyword}`;
+      }
+    }
+    
+    return topic;
+  };
+
   return (
-    <ChatContext.Provider value={{ messages, isTyping, sendMessage, clearMessages }}>
+    <ChatContext.Provider value={{ 
+      messages, 
+      isTyping, 
+      sendMessage, 
+      clearMessages,
+      memoryContext,
+      refreshMemoryContext
+    }}>
       {children}
     </ChatContext.Provider>
   );

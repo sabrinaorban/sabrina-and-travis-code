@@ -23,60 +23,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const checkSession = async () => {
       setIsLoading(true);
       
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error('Error checking auth session:', error);
-        setIsLoading(false);
-        return;
-      }
-      
-      if (session) {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-          
-        if (userError || !userData) {
-          console.error('Error fetching user data:', userError);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error checking auth session:', error);
           setIsLoading(false);
           return;
         }
         
-        setUser({
-          id: userData.id,
-          name: userData.name,
-          isAuthenticated: true,
-        });
+        if (session) {
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (userError || !userData) {
+            console.error('Error fetching user data:', userError);
+            setIsLoading(false);
+            return;
+          }
+          
+          setUser({
+            id: userData.id,
+            name: userData.name,
+            isAuthenticated: true,
+          });
+        }
+        
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Unexpected error during auth check:', err);
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     };
     
     checkSession();
     
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id);
+      
       if (event === 'SIGNED_IN' && session) {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+        try {
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (userError || !userData) {
+            console.error('Error fetching user data:', userError);
+            return;
+          }
           
-        if (userError || !userData) {
-          console.error('Error fetching user data:', userError);
-          return;
+          setUser({
+            id: userData.id,
+            name: userData.name,
+            isAuthenticated: true,
+          });
+          
+          // Make sure loading is set to false after login
+          setIsLoading(false);
+        } catch (err) {
+          console.error('Error in auth state change handler:', err);
+          setIsLoading(false);
         }
-        
-        setUser({
-          id: userData.id,
-          name: userData.name,
-          isAuthenticated: true,
-        });
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
+        setIsLoading(false);
       }
     });
     
@@ -108,8 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: error.message || 'Failed to login',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Make sure to set loading to false on error
     }
   };
 

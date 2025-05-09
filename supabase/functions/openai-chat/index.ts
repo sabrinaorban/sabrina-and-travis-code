@@ -4,7 +4,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
-const OPENAI_MODEL = 'gpt-4o'
+const OPENAI_MODEL = 'gpt-4o' // Using the latest available model
 
 interface Message {
   role: 'system' | 'user' | 'assistant'
@@ -13,9 +13,20 @@ interface Message {
 
 interface RequestBody {
   messages: Message[]
+  memoryContext?: any
 }
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   try {
     // Check if OpenAI API key is set
     if (!OPENAI_API_KEY) {
@@ -25,13 +36,13 @@ serve(async (req) => {
         }),
         { 
           status: 500,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
     }
     
     // Parse request body
-    const { messages } = await req.json() as RequestBody
+    const { messages, memoryContext } = await req.json() as RequestBody
     
     if (!messages || !Array.isArray(messages)) {
       return new Response(
@@ -40,9 +51,28 @@ serve(async (req) => {
         }),
         { 
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
+    }
+    
+    // Enhance with memory context if available
+    let enhancedMessages = [...messages];
+    if (memoryContext) {
+      // Add memory context as a system message
+      const memoryMsg: Message = {
+        role: 'system',
+        content: `Memory context information:
+          - User name: ${memoryContext.userProfile?.name || 'Sabrina'}
+          - User preferences: ${JSON.stringify(memoryContext.userProfile?.preferences || {})}
+          - Recent files: ${(memoryContext.recentFiles || []).map((f: any) => f.name).join(', ')}
+          - Recent documents: ${(memoryContext.documents || []).map((d: any) => d.title).join(', ')}
+          
+          When responding, naturally incorporate this information when relevant without explicitly mentioning that you're using "memory context".`
+      };
+      
+      // Insert memory context as the second message (after the initial system message)
+      enhancedMessages.splice(1, 0, memoryMsg);
     }
     
     // Call OpenAI API
@@ -54,9 +84,9 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: OPENAI_MODEL,
-        messages: messages,
+        messages: enhancedMessages,
         temperature: 0.7,
-        max_tokens: 1000
+        max_tokens: 1500
       })
     })
     
@@ -69,7 +99,7 @@ serve(async (req) => {
         }),
         { 
           status: response.status,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
     }
@@ -80,7 +110,7 @@ serve(async (req) => {
       JSON.stringify(data),
       { 
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
   } catch (error) {
@@ -91,7 +121,7 @@ serve(async (req) => {
       }),
       { 
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
   }
