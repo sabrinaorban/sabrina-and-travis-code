@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { FileEntry } from '@/types';
-import { FileSystemContext } from '../FileSystemContext';
+import { useFileSystem } from '../FileSystemContext';
 import { useAuth } from '../AuthContext';
 import { GithubTokenService } from '@/services/github/githubTokenService';
 import { useGithubRepos } from '@/hooks/useGithubRepos';
@@ -24,7 +24,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   console.log('GitHubProvider - Initializing with user:', user?.id);
   
   // Use our custom hooks for GitHub functionality
-  const { authState, authenticate, logout } = useGithubAuth();
+  const { authState, authenticate, logout } = useGitHubAuth();
   
   useEffect(() => {
     console.log('GitHubProvider - Auth state update:', authState);
@@ -179,15 +179,6 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     </GitHubContext.Provider>
   );
 };
-
-// Function to use the FileSystem context
-function useFileSystem() {
-  const context = useContext(FileSystemContext);
-  if (!context) {
-    throw new Error('useFileSystem must be used within a FileSystemProvider');
-  }
-  return context;
-}
 
 export const useGitHub = () => {
   const context = useContext(GitHubContext);

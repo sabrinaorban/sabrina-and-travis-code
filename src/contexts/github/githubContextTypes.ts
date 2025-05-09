@@ -27,10 +27,7 @@ export interface RepoInfo {
   branchName: string;
 }
 
-// Use export type for re-exporting types to fix TS1205 errors
-export type { GitHubAuthState, GitHubContextType, GitHubRepo, GitHubBranch, GitHubFile };
-
-// Define the GitHubContextType interface here since we're re-exporting it
+// Define the GitHubContextType interface
 export interface GitHubContextType {
   authState: GitHubAuthState;
   authenticate: (code: string) => Promise<void>;
@@ -51,3 +48,6 @@ export interface GitHubContextType {
   syncRepoToFileSystem: (owner: string, repo: string, branch: string) => Promise<boolean>;
   logout: () => void;
 }
+
+// Re-export types from '@/types/github' to be used elsewhere
+export type { GitHubAuthState, GitHubRepo, GitHubBranch, GitHubFile };

@@ -1,3 +1,4 @@
+
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { GitHubRepo, GitHubBranch, GitHubFile } from '@/types/github';
 import { GithubApiService } from '@/services/github/githubApiService';
@@ -38,6 +39,49 @@ export const useGithubRepos = (token: string | null) => {
     const now = Date.now();
     return now - lastOperationTimeRef.current < COOLDOWN_MS;
   }, [COOLDOWN_MS]);
+
+  // Define fetchFiles early in the file to resolve "used before declaration" error
+  const fetchFiles = useCallback(async (repoFullName: string, branchName: string) => {
+    if (!token) {
+      console.log('useGithubRepos - Cannot fetch files: no token');
+      return [];
+    }
+    
+    // Prevent concurrent operations
+    if (isFetchingRef.current) {
+      console.log('useGithubRepos - Already fetching files, aborting');
+      return files;
+    }
+    
+    // Apply throttling
+    if (shouldThrottle()) {
+      console.log('useGithubRepos - Operation throttled, please wait');
+      return files;
+    }
+    
+    console.log(`useGithubRepos - Fetching files for ${repoFullName} (${branchName})`);
+    setIsLoading(true);
+    isFetchingRef.current = true;
+    lastOperationTimeRef.current = Date.now();
+    
+    try {
+      const filesList = await repositoryService.fetchFiles(repoFullName, branchName);
+      console.log(`useGithubRepos - Fetched ${filesList.length} files`);
+      setFiles(filesList);
+      return filesList;
+    } catch (error) {
+      console.error('useGithubRepos - Error fetching files:', error);
+      toast({
+        title: "Failed to load files",
+        description: "Please check branch access and try again",
+        variant: "destructive",
+      });
+      return [];
+    } finally {
+      setIsLoading(false);
+      isFetchingRef.current = false;
+    }
+  }, [token, files, repositoryService, toast, shouldThrottle]);
 
   const fetchRepositories = useCallback(async () => {
     if (!token) {
@@ -209,49 +253,6 @@ export const useGithubRepos = (token: string | null) => {
       window.removeEventListener('error', handleError);
     };
   }, []);
-
-  // Add missing declaration for fetchFiles
-  const fetchFiles = useCallback(async (repoFullName: string, branchName: string) => {
-    if (!token) {
-      console.log('useGithubRepos - Cannot fetch files: no token');
-      return [];
-    }
-    
-    // Prevent concurrent operations
-    if (isFetchingRef.current) {
-      console.log('useGithubRepos - Already fetching files, aborting');
-      return files;
-    }
-    
-    // Apply throttling
-    if (shouldThrottle()) {
-      console.log('useGithubRepos - Operation throttled, please wait');
-      return files;
-    }
-    
-    console.log(`useGithubRepos - Fetching files for ${repoFullName} (${branchName})`);
-    setIsLoading(true);
-    isFetchingRef.current = true;
-    lastOperationTimeRef.current = Date.now();
-    
-    try {
-      const filesList = await repositoryService.fetchFiles(repoFullName, branchName);
-      console.log(`useGithubRepos - Fetched ${filesList.length} files`);
-      setFiles(filesList);
-      return filesList;
-    } catch (error) {
-      console.error('useGithubRepos - Error fetching files:', error);
-      toast({
-        title: "Failed to load files",
-        description: "Please check branch access and try again",
-        variant: "destructive",
-      });
-      return [];
-    } finally {
-      setIsLoading(false);
-      isFetchingRef.current = false;
-    }
-  }, [token, files, repositoryService, toast, shouldThrottle]);
 
   const fetchFileContent = useCallback(async (filePath: string): Promise<string | null> => {
     if (!token || !currentRepo || !currentBranch) {
