@@ -15,6 +15,10 @@ import { useToast } from '@/hooks/use-toast';
 // Create GitHub context with null check
 const GitHubContext = createContext<GitHubContextType | null>(null);
 
+// Storage keys for session persistence
+const STORAGE_KEY_REPO = 'github_current_repo';
+const STORAGE_KEY_BRANCH = 'github_current_branch';
+
 export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
@@ -51,7 +55,9 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     fetchFileContent,
     saveFileToRepo,
     syncRepoToFileSystem: syncRepo,
-    reset
+    reset,
+    setCurrentRepo,  // Make sure this is exposed from useGithubOperations
+    setCurrentBranch // Make sure this is exposed from useGithubOperations
   } = useGithubOperations(authState.token);
 
   // Debug logs for current state
@@ -121,16 +127,56 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [authState.isAuthenticated, authState.token, authState, user, loadGitHubMemory]);
 
-  // Store repository and branch selection in localStorage
+  // Enhanced persistence: Store repository and branch selection in sessionStorage
+  // This is more reliable for session persistence than localStorage
   useEffect(() => {
     if (currentRepo && currentBranch) {
-      console.log(`GitHubProvider - Saving repo info to localStorage: ${currentRepo.full_name} (${currentBranch})`);
+      console.log(`GitHubProvider - Saving repo info to storage: ${currentRepo.full_name} (${currentBranch})`);
+      
+      // Store in localStorage for long-term persistence
       localStorage.setItem('githubRepoInfo', JSON.stringify({
         repoFullName: currentRepo.full_name,
         branchName: currentBranch
       }));
+      
+      // Store in sessionStorage for current session persistence
+      sessionStorage.setItem(STORAGE_KEY_REPO, JSON.stringify(currentRepo));
+      sessionStorage.setItem(STORAGE_KEY_BRANCH, currentBranch);
     }
   }, [currentRepo, currentBranch]);
+
+  // Restore repository and branch from sessionStorage on page refresh
+  useEffect(() => {
+    // Only attempt restoration when authenticated and repos are loaded
+    if (authState.isAuthenticated && repositories.length > 0 && !currentRepo && !isLoading) {
+      try {
+        // Try to restore from sessionStorage first
+        const storedRepoJSON = sessionStorage.getItem(STORAGE_KEY_REPO);
+        const storedBranch = sessionStorage.getItem(STORAGE_KEY_BRANCH);
+        
+        if (storedRepoJSON && storedBranch) {
+          const storedRepo = JSON.parse(storedRepoJSON);
+          console.log(`GitHubProvider - Restoring repo from session: ${storedRepo.full_name} (${storedBranch})`);
+          
+          // Find matching repo in loaded repositories
+          const matchingRepo = repositories.find(r => r.id === storedRepo.id);
+          
+          if (matchingRepo) {
+            // Set current repo and branch directly
+            setCurrentRepo(matchingRepo);
+            setCurrentBranch(storedBranch);
+            
+            // Fetch branches for this repo to ensure they're available
+            fetchBranches(matchingRepo.full_name).catch(console.error);
+          } else {
+            console.log('GitHubProvider - Could not find matching repo in loaded repositories');
+          }
+        }
+      } catch (error) {
+        console.error('GitHubProvider - Error restoring repo from session storage:', error);
+      }
+    }
+  }, [authState.isAuthenticated, repositories, currentRepo, isLoading, setCurrentRepo, setCurrentBranch]);
 
   // Get last sync state
   const getLastSyncState = () => {

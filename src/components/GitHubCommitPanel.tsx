@@ -63,7 +63,7 @@ export const GitHubCommitPanel: React.FC = () => {
       }
     };
     
-    // Refresh immediately when component mounts
+    // Refresh immediately when component mounts or when repo/branch changes
     refreshModifiedFiles();
     
     // Set up an interval to periodically check for modified files
@@ -71,7 +71,7 @@ export const GitHubCommitPanel: React.FC = () => {
     
     // Clean up when component unmounts
     return () => clearInterval(intervalId);
-  }, [getModifiedFiles]);
+  }, [getModifiedFiles, currentRepo, currentBranch]);
 
   // Only render when all required data is available
   // This ensures the panel only appears when GitHub is authenticated AND repo is selected
@@ -84,7 +84,8 @@ export const GitHubCommitPanel: React.FC = () => {
     return null;
   }
 
-  const handleCommit = async () => {
+  // Define the commit handler
+  function handleCommit() {
     if (!commitMessage.trim() || editedFiles.length === 0) {
       console.log('GitHubCommitPanel - Cannot commit: empty message or no files');
       setCommitError('Please provide a commit message and ensure you have modified files');
@@ -111,12 +112,24 @@ export const GitHubCommitPanel: React.FC = () => {
     setIsCommitting(true);
     lastCommitTimeRef.current = now;
     
+    processCommit().catch(console.error).finally(() => {
+      setIsCommitting(false);
+      
+      // Set a timeout to allow committing again after the cooldown
+      commitTimeoutRef.current = setTimeout(() => {
+        console.log('GitHubCommitPanel - Commit cooldown complete');
+      }, COMMIT_COOLDOWN_MS);
+    });
+  }
+  
+  // Async function to process the commit
+  async function processCommit() {
+    let successCount = 0;
+    let failCount = 0;
+    
+    console.log(`GitHubCommitPanel - Starting commit of ${editedFiles.length} files`);
+    
     try {
-      let successCount = 0;
-      let failCount = 0;
-      
-      console.log(`GitHubCommitPanel - Starting commit of ${editedFiles.length} files`);
-      
       // Process each edited file
       for (const file of editedFiles) {
         // Get the GitHub path for this file (strip the leading slash)
@@ -203,15 +216,8 @@ export const GitHubCommitPanel: React.FC = () => {
         description: "Failed to push changes",
         variant: "destructive"
       });
-    } finally {
-      setIsCommitting(false);
-      
-      // Set a timeout to allow committing again after the cooldown
-      commitTimeoutRef.current = setTimeout(() => {
-        console.log('GitHubCommitPanel - Commit cooldown complete');
-      }, COMMIT_COOLDOWN_MS);
     }
-  };
+  }
 
   return (
     <Card className="mt-4">

@@ -81,6 +81,10 @@ export const useGithubOperations = (token: string | null) => {
     setBranches([]);
     setFiles([]);
     isFetchingRef.current = false;
+    
+    // Clear session storage
+    sessionStorage.removeItem('github_current_repo');
+    sessionStorage.removeItem('github_current_branch');
   }, [setBranches, setFiles]);
 
   // Add error handling for unhandled errors
@@ -171,6 +175,9 @@ export const useGithubOperations = (token: string | null) => {
     fetchFileContent,
     saveFileToRepo,
     syncRepoToFileSystem,
-    reset
+    reset,
+    // Expose these setters for direct state management when needed
+    setCurrentRepo,
+    setCurrentBranch
   };
 };

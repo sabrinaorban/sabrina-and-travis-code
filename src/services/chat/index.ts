@@ -17,3 +17,9 @@ export const testFileSystem = async (fileSystem: any): Promise<{
   const testInstance = FileOperationTest.getInstance();
   return await testInstance.runOperationTests(fileSystem);
 };
+
+// New helper function to log file system actions with a timestamp
+export const logFileOperation = (operation: string, path: string, success: boolean = true): void => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] File operation: ${operation} - Path: ${path} - ${success ? 'Success' : 'Failed'}`);
+};

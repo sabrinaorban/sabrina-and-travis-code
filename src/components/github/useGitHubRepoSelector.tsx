@@ -39,6 +39,18 @@ export const useGitHubRepoSelector = () => {
   // Flag to prevent multiple repository fetches
   const hasInitializedRef = useRef(false);
 
+  // Debug logging
+  useEffect(() => {
+    console.log('GitHubRepoSelector Hook - Current state:', {
+      isAuthenticated: authState?.isAuthenticated,
+      hasRepos: repositories?.length > 0,
+      currentRepo: currentRepo?.full_name,
+      currentBranch,
+      isLoading,
+      isSyncing,
+    });
+  }, [authState?.isAuthenticated, repositories, currentRepo, currentBranch, isLoading, isSyncing]);
+
   // Synchronize internal isSyncing state with context state
   useEffect(() => {
     setIsSyncing(contextIsSyncing);

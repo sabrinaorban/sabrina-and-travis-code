@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ChatHistory } from '@/components/ChatHistory';
 import { ChatInput } from '@/components/ChatInput';
@@ -14,6 +15,7 @@ import { GitHubAuth } from '@/components/GitHubAuth';
 import { GitHubRepoSelector } from '@/components/GitHubRepoSelector';
 import { GitHubCommitPanel } from '@/components/GitHubCommitPanel';
 import { GitHubProvider, useGitHub } from '@/contexts/github/GitHubContext';
+import { TestButton } from '@/components/TestButton'; // Import the TestButton
 import { 
   Loader2, Menu, X, Upload, Download, Trash2, RefreshCw, 
   FolderPlus, FilePlus, Github 
@@ -213,6 +215,9 @@ const DashboardContent = () => {
           <h1 className="text-xl font-bold text-travis">Travis AI Assistant</h1>
         </div>
         <div className="flex items-center gap-4">
+          {/* Add TestButton next to GitHub button */}
+          <TestButton />
+          
           <Button 
             variant="outline" 
             size="sm" 
