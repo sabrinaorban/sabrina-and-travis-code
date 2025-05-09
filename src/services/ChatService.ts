@@ -20,6 +20,6 @@ export {
 
 // Export file operation services
 export { 
-  processFileOperations,
-  getProjectStructure
+  processFileOperations as processFileOps,
+  getProjectStructure as getProjectFileStructure
 } from './chat/FileOperationService';

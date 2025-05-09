@@ -1,4 +1,6 @@
 
+import { Message } from '.';
+
 export interface FileOperation {
   operation: 'read' | 'write' | 'create' | 'delete';
   path: string;
