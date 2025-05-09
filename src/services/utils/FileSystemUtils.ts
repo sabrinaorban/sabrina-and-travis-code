@@ -96,14 +96,17 @@ export const handleFileOperation = async (
 export const ensureFolderExists = async (fileSystem: any, folderPath: string): Promise<void> => {
   if (folderPath === '/' || folderPath === '') return;
   
+  // Clean up the path (remove trailing slashes)
+  const cleanPath = folderPath.replace(/\/+$/, '');
+  
   // Check if folder exists
-  const folder = fileSystem.getFileByPath(folderPath);
+  const folder = fileSystem.getFileByPath(cleanPath);
   if (folder) return;
   
-  console.log(`Creating folder: ${folderPath}`);
+  console.log(`Creating folder: ${cleanPath}`);
   
   // Need to create folder - ensure parent folders exist first
-  const segments = folderPath.split('/').filter(Boolean);
+  const segments = cleanPath.split('/').filter(Boolean);
   let currentPath = '';
   
   for (let i = 0; i < segments.length; i++) {

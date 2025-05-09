@@ -126,7 +126,9 @@ export const isFileOperationRequest = (message: string): boolean => {
     'make directory',
     'make folder',
     'next.js',
-    'nextjs'
+    'nextjs',
+    'simple app',
+    'simple project'
   ];
   
   // Check for exact matches of keywords

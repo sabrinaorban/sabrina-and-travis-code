@@ -52,7 +52,7 @@ export const processFileOperations = async (
       // Ensure parent directories exist for any file operation
       if (op.operation === 'create' || op.operation === 'write') {
         // Skip folder creation step if this operation itself is creating a folder
-        if (!(op.operation === 'create' && (cleanPath.endsWith('/') || !cleanPath.includes('.')))) {
+        if (!(op.operation === 'create' && (op.content === null || op.path.endsWith('/') || !op.path.includes('.')))) {
           const pathParts = cleanPath.split('/');
           pathParts.pop(); // Remove file name
           const dirPath = pathParts.join('/');
@@ -85,7 +85,7 @@ export const processFileOperations = async (
           break;
         
         case 'create':
-          if (cleanPath.endsWith('/') || !cleanPath.includes('.')) {
+          if (op.content === null || cleanPath.endsWith('/') || !cleanPath.includes('.')) {
             // It's a folder
             const pathWithoutTrailingSlash = cleanPath.replace(/\/$/, '');
             const pathParts = pathWithoutTrailingSlash.split('/').filter(Boolean);
