@@ -1,8 +1,8 @@
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { GitHubRepo, GitHubBranch, GitHubFile } from '@/types/github';
 import { GithubApiService } from '@/services/github/githubApiService';
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 export const useGithubRepos = (token: string | null) => {
   const [repositories, setRepositories] = useState<GitHubRepo[]>([]);
@@ -11,7 +11,9 @@ export const useGithubRepos = (token: string | null) => {
   const [currentBranch, setCurrentBranch] = useState<string | null>(null);
   const [files, setFiles] = useState<GitHubFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-
+  const syncInProgressRef = useRef(false);
+  
+  const { toast } = useToast();
   const apiService = new GithubApiService({ token });
 
   const fetchRepositories = async () => {
@@ -102,6 +104,17 @@ export const useGithubRepos = (token: string | null) => {
   ) => {
     if (!token) return false;
     
+    // Prevent multiple syncs from running simultaneously
+    if (syncInProgressRef.current) {
+      console.log('Sync already in progress, skipping new request');
+      toast({
+        title: 'Sync in progress',
+        description: 'Please wait for the current sync to complete',
+      });
+      return false;
+    }
+    
+    syncInProgressRef.current = true;
     setIsLoading(true);
     let createdFolders = 0;
     let createdFiles = 0;
@@ -208,14 +221,25 @@ export const useGithubRepos = (token: string | null) => {
           }
         }
         
+        // Fetch file content before creating the file
+        let content = '';
+        try {
+          content = await apiService.fetchFileContent(
+            `${owner}/${repo}`, 
+            file.path, 
+            branch
+          ) || '';
+        } catch (error) {
+          console.error(`Error fetching content for file ${file.path}:`, error);
+          // Continue with empty content
+        }
+        
         // Now create the file
         if (folderCreationStatus.get(parentPath)) {
           try {
-            // Make sure we have content, even if it's empty
-            const content = file.content !== undefined ? file.content : '';
             await createFile(parentPath, fileName, content);
             createdFiles++;
-            console.log(`Created file: ${filePath}`);
+            console.log(`Created file: ${filePath} with content length: ${content.length}`);
           } catch (error: any) {
             console.error(`Error creating file ${fileName} at ${parentPath}:`, error);
             errors++;
@@ -244,6 +268,7 @@ export const useGithubRepos = (token: string | null) => {
       return false;
     } finally {
       setIsLoading(false);
+      syncInProgressRef.current = false;
     }
   };
 

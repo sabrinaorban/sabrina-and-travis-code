@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { FileEntry } from '../types';
 import { GitHubContextType } from '../types/github';
 import { useFileSystem } from './FileSystemContext';
@@ -15,6 +15,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
   const { refreshFiles, createFile, createFolder } = useFileSystem();
   const { user } = useAuth();
+  const tokenSavedRef = useRef(false);
   
   // Use our custom hooks for GitHub functionality
   const { authState, authenticate, logout } = useGithubAuth();
@@ -53,13 +54,14 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     loadSavedToken();
   }, [user, authenticate]);
 
-  // Save token when authentication state changes
+  // Save token when authentication state changes - with protection against multiple saves
   useEffect(() => {
     const saveToken = async () => {
-      if (user && user.id && authState.isAuthenticated && authState.token) {
+      if (user && user.id && authState.isAuthenticated && authState.token && !tokenSavedRef.current) {
         try {
           await GithubTokenService.saveToken(user.id, authState.token, authState.username || '');
           console.log('GitHub token saved to database');
+          tokenSavedRef.current = true; // Mark as saved to prevent repeated saves
         } catch (error) {
           console.error('Error saving GitHub token:', error);
         }
@@ -68,6 +70,9 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     if (authState.isAuthenticated && authState.token) {
       saveToken();
+    } else {
+      // Reset the flag when logged out
+      tokenSavedRef.current = false;
     }
   }, [authState.isAuthenticated, authState.token, authState.username, user]);
 
@@ -82,6 +87,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (user && user.id) {
       try {
         await GithubTokenService.deleteToken(user.id);
+        tokenSavedRef.current = false; // Reset the token saved flag
       } catch (error) {
         console.error('Error deleting GitHub token:', error);
       }
