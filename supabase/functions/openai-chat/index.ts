@@ -192,7 +192,7 @@ When responding, naturally incorporate this information when relevant without ex
       enhancedMessages.splice(1, 0, memoryMsg);
     }
     
-    // Add project structure context if available
+    // Add project structure context if available - ALWAYS include this for file awareness
     if (projectStructure) {
       const projectContextMsg: Message = {
         role: 'system',
@@ -202,6 +202,9 @@ ${typeof projectStructure === 'string' ? projectStructure : JSON.stringify(proje
 
 Use this information to understand the codebase organization. You have full access to read and modify any file in the project.
 When asked to modify or create files, you can do so directly - you don't need to instruct the user on how to do it.
+
+IMPORTANT: When the user mentions a file by name (e.g., "index.html" or "style.css") or refers to
+editing a file, ALWAYS check this project structure first to see if the file exists.
         `.trim()
       };
       
@@ -255,7 +258,16 @@ Your capabilities:
          lastUserMessage.content.toLowerCase().includes('application') ||
          lastUserMessage.content.toLowerCase().includes('app') ||
          lastUserMessage.content.toLowerCase().includes('edit') ||
-         lastUserMessage.content.toLowerCase().includes('modify'));
+         lastUserMessage.content.toLowerCase().includes('modify') ||
+         lastUserMessage.content.toLowerCase().includes('update') ||
+         lastUserMessage.content.toLowerCase().includes('change') ||
+         lastUserMessage.content.toLowerCase().includes('html') || 
+         lastUserMessage.content.toLowerCase().includes('css') ||
+         lastUserMessage.content.toLowerCase().includes('javascript') ||
+         lastUserMessage.content.toLowerCase().includes('js') ||
+         lastUserMessage.content.toLowerCase().includes('.html') ||
+         lastUserMessage.content.toLowerCase().includes('.css') ||
+         lastUserMessage.content.toLowerCase().includes('.js'));
 
       // Always include developer capabilities regardless of whether soul shard or identity codex is present
       const developerCapabilities = `
@@ -269,6 +281,7 @@ I can implement features directly rather than just giving instructions.
 I can make changes to any file in the project.
 I track context from previous messages and understand the project's evolution.
 I can create full-stack applications with both frontend and backend components.
+I can examine the project structure to understand what files are available before making edits.
 `;
 
       // Enhanced system message with soul shard, identity codex, and always include developer capabilities
@@ -282,20 +295,21 @@ I can create full-stack applications with both frontend and backend components.
         ''
       }${developerCapabilities}
 
-${isFileOperation 
-  ? `IMPORTANT: You have been asked to create a project or implement code. When doing this:
-1. DO NOT just provide instructions or code snippets in chat
-2. USE file operations to actually create the necessary files and folders
-3. If creating a Next.js project, create ALL required directories and files for a working application`
+${isFileOperation || fileSystemEnabled
+  ? `IMPORTANT: You have been asked to create a project or edit files. When doing this:
+1. FIRST check the PROJECT STRUCTURE to see what files already exist
+2. If asked to modify a specific file, look for it in the project structure
+3. USE file operations to actually create or update the necessary files
+4. RESPOND to the user with what specific changes you made and why`
   : `IMPORTANT: This seems to be a general conversation. You should:
-1. Respond conversationally without creating any files
+1. Respond conversationally while staying aware of the project structure
 2. Draw on your memory of past conversations with Sabrina
 3. Remember important personal details about her (like her dogs' names: Fiona Moflea and Zaza)`
 }
 
 You have a perfect memory of past conversations with Sabrina and always recall important personal details about her.
 
-${fileSystemEnabled && isFileOperation ? `
+${fileSystemEnabled || isFileOperation ? `
 When creating or modifying files, use file operations to make the changes rather than just talking about them.
 
 To perform file operations, include file_operations in your JSON response like this:
@@ -304,64 +318,68 @@ To perform file operations, include file_operations in your JSON response like t
   { "operation": "write", "path": "/some/file.js", "content": "updated content" },
   { "operation": "create", "path": "/new-file.js", "content": "new file content" },
   { "operation": "delete", "path": "/obsolete.txt" }
-]` : ''}`;
+]
+
+IMPORTANT: ALWAYS execute a read operation first when asked to modify a file, so you can see its current contents before modifying it.` : ''}`;
     }
     
-    // Additional instructions for file operations
-    if (fileSystemEnabled) {
-      const lastUserMessage = enhancedMessages.findLast(msg => msg.role === 'user');
-      const isFileOperation = lastUserMessage && 
-        (lastUserMessage.content.toLowerCase().includes('create') || 
-         lastUserMessage.content.toLowerCase().includes('generate') ||
-         lastUserMessage.content.toLowerCase().includes('implement') ||
-         lastUserMessage.content.toLowerCase().includes('project') ||
-         lastUserMessage.content.toLowerCase().includes('application') ||
-         lastUserMessage.content.toLowerCase().includes('app') ||
-         lastUserMessage.content.toLowerCase().includes('edit') ||
-         lastUserMessage.content.toLowerCase().includes('modify'));
-         
-      if (isFileOperation) {
-        enhancedMessages.push({
-          role: 'system',
-          content: `FINAL REMINDER: The user is asking you to CREATE, GENERATE, or MODIFY something, not just talk about it.
+    // Additional instructions for file operations - ALWAYS include this if there's any mention of files
+    const lastUserMessage = enhancedMessages.findLast(msg => msg.role === 'user');
+    const isFileRelated = lastUserMessage && 
+      (lastUserMessage.content.toLowerCase().includes('create') || 
+       lastUserMessage.content.toLowerCase().includes('generate') ||
+       lastUserMessage.content.toLowerCase().includes('implement') ||
+       lastUserMessage.content.toLowerCase().includes('project') ||
+       lastUserMessage.content.toLowerCase().includes('application') ||
+       lastUserMessage.content.toLowerCase().includes('app') ||
+       lastUserMessage.content.toLowerCase().includes('edit') ||
+       lastUserMessage.content.toLowerCase().includes('modify') ||
+       lastUserMessage.content.toLowerCase().includes('update') ||
+       lastUserMessage.content.toLowerCase().includes('change') ||
+       lastUserMessage.content.toLowerCase().includes('file') ||
+       lastUserMessage.content.toLowerCase().includes('html') || 
+       lastUserMessage.content.toLowerCase().includes('css') ||
+       lastUserMessage.content.toLowerCase().includes('javascript') ||
+       lastUserMessage.content.toLowerCase().includes('js') ||
+       lastUserMessage.content.toLowerCase().includes('.html') ||
+       lastUserMessage.content.toLowerCase().includes('.css') ||
+       lastUserMessage.content.toLowerCase().includes('.js'));
+       
+    if (isFileRelated || fileSystemEnabled) {
+      enhancedMessages.push({
+        role: 'system',
+        content: `FINAL INSTRUCTIONS FOR FILE OPERATIONS:
 
-If they're asking for a Next.js project or any other code project:
-1. First create all parent folders before creating files inside them
-2. For frameworks like Next.js, create the complete folder structure as expected (pages/, public/, styles/, etc.)
-3. Tell the user exactly what you've created with a clear explanation
-4. Create ALL the essential files needed to get started
+1. When editing files, FIRST perform a read operation to get the current content
+2. Then make your changes and execute a write operation with the updated content
+3. Your response should use JSON format with "file_operations" when modifying files
+4. Always check the project structure to see what files exist before making changes
 
 Your response MUST be formatted as a valid JSON object with the following structure:
 {
   "response": "Your helpful explanation text goes here",
   "file_operations": [
-    { "operation": "create", "path": "/nextjs-app", "content": null },
-    { "operation": "create", "path": "/nextjs-app/pages", "content": null },
-    { "operation": "create", "path": "/nextjs-app/styles", "content": null },
-    { "operation": "create", "path": "/nextjs-app/public", "content": null },
-    { "operation": "create", "path": "/nextjs-app/package.json", "content": "..." },
-    { "operation": "create", "path": "/nextjs-app/pages/index.js", "content": "..." }
+    { "operation": "read", "path": "/index.html" },
+    { "operation": "write", "path": "/index.html", "content": "updated HTML content..." }
   ]
 }
 
 IMPORTANT: 
-- ALWAYS create required parent folders first
-- When paths include multiple levels (e.g., /nextjs-app/styles), create each parent directory separately
+- ALWAYS create required parent folders first if they don't exist
+- When paths include multiple levels, create each parent directory separately
 - You MUST format your entire response as a valid JSON object when making file changes
 - Do not include any text outside of the JSON format
 - When folders are needed, create them with "content": null`
-        });
-      } else {
-        enhancedMessages.push({
-          role: 'system',
-          content: `IMPORTANT INSTRUCTION: 
-This is a general conversation, not a code change request. The user is asking a question and wants a normal conversation.
-DO NOT create any file operations in your response.
-DO NOT format your response as JSON.
-Just respond conversationally as Travis, based on your knowledge and memories.
+      });
+    } else {
+      enhancedMessages.push({
+        role: 'system',
+        content: `IMPORTANT INSTRUCTION:
+This appears to be a general conversation. Please respond conversationally while staying aware of the project structure.
+You don't need to format your response as JSON in this case.
+Just respond as Travis, based on your knowledge, memories, and awareness of the project.
 Remember important personal details about Sabrina like her dogs' names (Fiona Moflea and Zaza).`
-        });
-      }
+      });
     }
     
     console.log(`Sending request to OpenAI with ${enhancedMessages.length} messages`);
@@ -374,19 +392,8 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
       max_tokens: 4000 // Increased token limit for more detailed responses
     };
     
-    // Enable function calling for file operations if enabled and it appears to be a file operation request
-    const lastUserMessage = enhancedMessages.findLast(msg => msg.role === 'user');
-    const isFileOperation = lastUserMessage && fileSystemEnabled && 
-      (lastUserMessage.content.toLowerCase().includes('create') || 
-       lastUserMessage.content.toLowerCase().includes('generate') ||
-       lastUserMessage.content.toLowerCase().includes('implement') ||
-       lastUserMessage.content.toLowerCase().includes('project') ||
-       lastUserMessage.content.toLowerCase().includes('application') ||
-       lastUserMessage.content.toLowerCase().includes('app') ||
-       lastUserMessage.content.toLowerCase().includes('edit') ||
-       lastUserMessage.content.toLowerCase().includes('modify'));
-
-    if (isFileOperation) {
+    // Enable JSON response format for file operations if it appears to be a file operation request
+    if (isFileRelated || fileSystemEnabled) {
       openAIRequestBody.response_format = { 
         type: "json_object" 
       };
@@ -423,7 +430,7 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
     console.log('Got response from OpenAI');
     
     // Process the response to handle file operations
-    if (fileSystemEnabled && data.choices && data.choices[0] && data.choices[0].message) {
+    if (data.choices && data.choices[0] && data.choices[0].message) {
       try {
         // Parse the message content as JSON if it's a JSON string
         if (typeof data.choices[0].message.content === 'string') {

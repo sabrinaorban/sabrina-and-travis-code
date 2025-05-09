@@ -28,8 +28,8 @@ Your capabilities:
 - You can create full-stack applications with both frontend and backend components`;
 
   const conversationalPrompt = `
-VERY IMPORTANT: This is a GENERAL CONVERSATION. The user is asking a question and wants a normal conversation.
-You MUST NOT attempt to create or modify files - just respond conversationally as Travis based on your memories.
+VERY IMPORTANT: Even during general conversation, you have access to all project files.
+When a user mentions a file or asks you to edit something, always check if the file exists in the project structure.
 Remember important personal details about Sabrina like her dogs' names (Fiona Moflea and Zaza) and other personal information.
 `;
 
@@ -55,10 +55,20 @@ WHEN CREATING A PROJECT LIKE NEXT.JS:
 4. DO NOT just describe how to create the project - actually create it using file operations
 `;
 
+  // Get the complete project structure to include in the messages
+  const projectStructure = await getProjectStructure(fileSystem);
+
   const openAIMessages: OpenAIMessage[] = [
     {
       role: 'system',
       content: baseSystemPrompt + (isFileOperation ? fileOperationsPrompt : conversationalPrompt)
+    },
+    {
+      role: 'system',
+      content: `CURRENT PROJECT STRUCTURE:
+${projectStructure}
+
+You can see and edit any of these files. When the user mentions a file, check this list to find it and read its content before making changes.`
     },
     ...messages.map(msg => ({
       role: msg.role,
@@ -96,7 +106,7 @@ export const callOpenAI = async (
   return response;
 };
 
-// Enhanced detection of file operation requests
+// Enhanced detection of file operation requests - make it more sensitive to file editing requests
 export const isFileOperationRequest = (message: string): boolean => {
   // Convert to lowercase for case-insensitive matching
   const lowerMessage = message.toLowerCase();
@@ -128,7 +138,24 @@ export const isFileOperationRequest = (message: string): boolean => {
     'next.js',
     'nextjs',
     'simple app',
-    'simple project'
+    'simple project',
+    'edit the',
+    'edit file',
+    'change the',
+    'update the',
+    'modify the',
+    'add to the',
+    'add code',
+    'insert code',
+    'add a div',
+    'add css',
+    'link css',
+    'add javascript',
+    'add js',
+    'add html',
+    'edit html',
+    'update html',
+    'modify html'
   ];
   
   // Check for exact matches of keywords
@@ -139,23 +166,28 @@ export const isFileOperationRequest = (message: string): boolean => {
   }
   
   // Check for combinations of actions and targets
-  const actions = ['create', 'make', 'generate', 'build', 'implement', 'add', 'setup', 'develop'];
-  const targets = ['nextjs', 'next.js', 'react', 'app', 'application', 'project', 'component', 'website'];
+  const actions = ['create', 'make', 'generate', 'build', 'implement', 'add', 'setup', 'develop', 'edit', 'change', 'update', 'modify', 'insert'];
+  const targets = ['nextjs', 'next.js', 'react', 'app', 'application', 'project', 'component', 'website', 'file', 'code', 'html', 'css', 'javascript', 'js', 'index', 'div', 'section', 'page'];
   
   for (const action of actions) {
     for (const target of targets) {
-      const pattern = `${action}\\s+(?:a|an)?\\s*${target}`;
+      const pattern = `${action}\\s+(?:a|an|the)?\\s*${target}`;
       if (new RegExp(pattern, 'i').test(lowerMessage)) {
         return true;
       }
     }
   }
   
-  // Check for common framework-specific commands
+  // Check for common framework-specific commands or file references
   if (lowerMessage.includes('next.js') || 
       lowerMessage.includes('nextjs') || 
       lowerMessage.includes('react app') ||
-      lowerMessage.includes('create-react-app')) {
+      lowerMessage.includes('create-react-app') ||
+      lowerMessage.includes('.html') ||
+      lowerMessage.includes('.js') ||
+      lowerMessage.includes('.css') ||
+      lowerMessage.includes('.tsx') ||
+      lowerMessage.includes('.jsx')) {
     return true;
   }
   

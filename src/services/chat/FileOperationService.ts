@@ -3,13 +3,13 @@ import { FileSystemState, FileEntry } from '../../types';
 import { FileOperation } from '../../types/chat';
 import { ensureFolderExists } from '../utils/FileSystemUtils';
 
-// Get project structure as a formatted string
+// Get project structure as a formatted string with file paths and content hints
 export const getProjectStructure = async (fileSystem: any): Promise<string> => {
   if (!fileSystem || !fileSystem.fileSystem) {
     return 'No files available';
   }
   
-  // Format project structure as a string
+  // Format project structure as a string with file paths
   const formatStructure = (files: FileEntry[] | undefined, indent = '') => {
     if (!files || files.length === 0) {
       return '';
@@ -17,7 +17,8 @@ export const getProjectStructure = async (fileSystem: any): Promise<string> => {
     
     let structure = '';
     files.forEach((file) => {
-      structure += `${indent}${file.name} (${file.type})\n`;
+      // Include path explicitly for easier reference
+      structure += `${indent}${file.path} (${file.type})\n`;
       if (file.type === 'folder' && file.children) {
         structure += formatStructure(file.children, `${indent}  `);
       }
@@ -30,7 +31,7 @@ export const getProjectStructure = async (fileSystem: any): Promise<string> => {
   return formatStructure(files);
 };
 
-// Process file operations
+// Process file operations with improved handling of file reads
 export const processFileOperations = async (
   fileSystem: any,
   operations: FileOperation[]
@@ -95,9 +96,19 @@ export const processFileOperations = async (
           console.log(`[FileOperationService] Reading file: ${cleanPath}`);
           const readResult = await fileSystem.getFileContentByPath(cleanPath);
           console.log(`[FileOperationService] Read result:`, readResult ? 'Content received' : 'No content');
+          
+          // Get the file object to include metadata
+          const fileInfo = fileSystem.getFileByPath(cleanPath);
+          
           results.push({
             ...op,
             content: readResult,
+            fileInfo: fileInfo ? {
+              name: fileInfo.name,
+              path: fileInfo.path,
+              type: fileInfo.type,
+              lastModified: fileInfo.lastModified
+            } : undefined,
             success: readResult !== null,
             message: readResult !== null ? 'File read successfully' : 'File not found or empty'
           });
@@ -175,12 +186,6 @@ export const processFileOperations = async (
           });
       }
       
-      // After each operation, refresh files to update UI
-      if (fileSystem.refreshFiles) {
-        console.log(`[FileOperationService] Refreshing files after operation`);
-        await fileSystem.refreshFiles();
-      }
-      
     } catch (error: any) {
       console.error(`[FileOperationService] Error in file operation ${op.operation} for path ${op.path}:`, error);
       results.push({
@@ -189,6 +194,16 @@ export const processFileOperations = async (
         message: error.message || 'Operation failed'
       });
     }
+  }
+  
+  // Refresh files once at the end for better performance
+  try {
+    if (fileSystem.refreshFiles && results.some(r => r.success)) {
+      console.log(`[FileOperationService] Refreshing files after all operations`);
+      await fileSystem.refreshFiles();
+    }
+  } catch (refreshError) {
+    console.error('[FileOperationService] Error refreshing files:', refreshError);
   }
   
   console.log('[FileOperationService] Finished processing operations. Results:', results);

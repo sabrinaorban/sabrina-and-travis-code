@@ -60,12 +60,13 @@ export const useMessageHandling = () => {
       setIsTyping(true);
 
       try {
+        // Always get project structure for context - important for file editing
+        const projectStructure = await getProjectStructure(fileSystem);
+        console.log('Project structure for Travis:', projectStructure ? 'Available' : 'Not available');
+        
         // Determine if this is likely a file operation request - with improved detection
         const shouldEnableFileOps = isFileOperationRequest(content);
         console.log('File operations enabled:', shouldEnableFileOps);
-        
-        // Get project structure for better context
-        const projectStructure = await getProjectStructure(fileSystem);
         
         // Create the OpenAI messages from chat history
         const openAIMessages = await createOpenAIMessages(
@@ -84,7 +85,7 @@ export const useMessageHandling = () => {
         const response = await callOpenAI(
           openAIMessages,
           memoryContext,
-          shouldEnableFileOps,
+          true, // Always enable file system access for Travis
           projectStructure
         );
 
@@ -103,6 +104,7 @@ export const useMessageHandling = () => {
             
             // Refresh files after operations
             await fileSystem.refreshFiles();
+            console.log('Files refreshed after operations');
           }
         } else {
           console.log('No file operations to process');
