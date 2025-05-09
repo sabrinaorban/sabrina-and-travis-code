@@ -38,6 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setUser({
                   id: userData.id,
                   name: userData.name,
+                  email: email, // Store email in the user state
                   isAuthenticated: true,
                 });
                 console.log('User authenticated successfully:', userData);
@@ -84,6 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser({
               id: userData.id,
               name: userData.name,
+              email: email, // Store email in the user state
               isAuthenticated: true,
             });
             console.log('User authenticated from existing session:', userData);

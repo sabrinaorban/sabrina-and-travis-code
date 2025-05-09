@@ -72,5 +72,6 @@ export interface Memory {
 export interface User {
   id: string;
   name: string;
+  email?: string; // Adding email as an optional property
   isAuthenticated: boolean;
 }
