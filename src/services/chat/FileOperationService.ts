@@ -10,7 +10,11 @@ export const getProjectStructure = async (fileSystem: any): Promise<string> => {
   }
   
   // Format project structure as a string
-  const formatStructure = (files: FileEntry[], indent = '') => {
+  const formatStructure = (files: FileEntry[] | undefined, indent = '') => {
+    if (!files || files.length === 0) {
+      return '';
+    }
+    
     let structure = '';
     files.forEach((file) => {
       structure += `${indent}${file.name}\n`;
@@ -21,7 +25,9 @@ export const getProjectStructure = async (fileSystem: any): Promise<string> => {
     return structure;
   };
   
-  return formatStructure(fileSystem.files);
+  // Safely access files
+  const files = fileSystem.files || [];
+  return formatStructure(files);
 };
 
 // Process file operations
