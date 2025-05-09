@@ -3,6 +3,7 @@ import { OpenAIMessage, Message } from '../../types';
 import { MemoryContext } from '../MemoryService';
 import { supabase } from '@/integrations/supabase/client';
 import { FileSystemContextType } from '../../types/fileSystem';
+import { getProjectStructure } from '../chat/FileOperationService';
 
 // Function to create OpenAI messages from chat history
 export const createOpenAIMessages = async (
