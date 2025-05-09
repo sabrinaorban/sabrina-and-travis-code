@@ -31,7 +31,7 @@ export const getProjectStructure = async (fileSystem: any): Promise<string> => {
   return formatStructure(files);
 };
 
-// Process file operations with improved handling of file reads
+// Process file operations with improved handling of file moves and copies
 export const processFileOperations = async (
   fileSystem: any,
   operations: FileOperation[]
@@ -50,7 +50,20 @@ export const processFileOperations = async (
   
   const results: FileOperation[] = [];
   
-  for (const op of operations) {
+  // First, sort operations to ensure folders are created before files are written to them
+  const sortedOperations = [...operations].sort((a, b) => {
+    // Prioritize read operations
+    if (a.operation === 'read' && b.operation !== 'read') return -1;
+    if (b.operation === 'read' && a.operation !== 'read') return 1;
+    
+    // Then prioritize folder creations
+    if (a.operation === 'create' && !a.path.includes('.') && b.operation === 'create' && b.path.includes('.')) return -1;
+    if (b.operation === 'create' && !b.path.includes('.') && a.operation === 'create' && a.path.includes('.')) return 1;
+    
+    return 0;
+  });
+  
+  for (const op of sortedOperations) {
     try {
       console.log(`[FileOperationService] Processing ${op.operation} operation on path: ${op.path}`);
       
@@ -116,12 +129,26 @@ export const processFileOperations = async (
         
         case 'write':
           console.log(`[FileOperationService] Writing file: ${cleanPath}, content length: ${(op.content || '').length}`);
-          await fileSystem.updateFileByPath(cleanPath, op.content || '');
-          console.log(`[FileOperationService] Write completed`);
+          const fileExists = fileSystem.getFileByPath(cleanPath);
+          
+          if (fileExists) {
+            await fileSystem.updateFileByPath(cleanPath, op.content || '');
+            console.log(`[FileOperationService] File updated: ${cleanPath}`);
+          } else {
+            // Handle case where file doesn't exist - create it
+            const pathParts = cleanPath.split('/');
+            const fileName = pathParts.pop() || '';
+            const parentPath = pathParts.length === 0 ? '/' : `/${pathParts.join('/')}`;
+            
+            console.log(`[FileOperationService] Creating file: ${fileName} in ${parentPath}`);
+            await fileSystem.createFile(parentPath, fileName, op.content || '');
+            console.log(`[FileOperationService] New file created: ${cleanPath}`);
+          }
+          
           results.push({
             ...op,
             success: true,
-            message: `File ${cleanPath} updated`
+            message: fileExists ? `File ${cleanPath} updated` : `File ${cleanPath} created`
           });
           break;
         
@@ -173,7 +200,11 @@ export const processFileOperations = async (
             });
           } else {
             console.error(`[FileOperationService] File not found for deletion: ${cleanPath}`);
-            throw new Error(`File not found at path: ${cleanPath}`);
+            results.push({
+              ...op,
+              success: false,
+              message: `File not found at path: ${cleanPath}`
+            });
           }
           break;
         

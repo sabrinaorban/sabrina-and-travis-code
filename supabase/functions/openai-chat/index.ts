@@ -1,4 +1,3 @@
-
 // Supabase Edge Function for OpenAI integration
 // Update to make sure Travis always has developer capabilities
 
@@ -241,6 +240,7 @@ Your capabilities:
 - You can see and understand the entire project structure
 - You can create complete projects from scratch (Next.js, React, Vue, Angular, etc.)
 - You can set up complex configurations (webpack, babel, eslint, etc.)
+- You can set up complex configurations (webpack, babel, eslint, etc.)
 - You can install and configure libraries and frameworks
 - You can implement features directly rather than just giving instructions
 - You can make changes to any file in the project
@@ -345,30 +345,34 @@ IMPORTANT: ALWAYS execute a read operation first when asked to modify a file, so
        lastUserMessage.content.toLowerCase().includes('.css') ||
        lastUserMessage.content.toLowerCase().includes('.js'));
        
+    // Add file operations instruction - even more emphasis on reading files first
     if (isFileRelated || fileSystemEnabled) {
       enhancedMessages.push({
         role: 'system',
         content: `FINAL INSTRUCTIONS FOR FILE OPERATIONS:
 
-1. When editing files, FIRST perform a read operation to get the current content
-2. Then make your changes and execute a write operation with the updated content
-3. Your response should use JSON format with "file_operations" when modifying files
-4. Always check the project structure to see what files exist before making changes
+1. IMPORTANT: ALWAYS read files before modifying them! Use "read" operations first.
+2. When moving files between directories, first read the source file, then create it in the new location, THEN delete the original only after successful creation.
+3. When working with folders, always ensure the parent folder exists before creating files inside.
+4. Check if folders and files exist before attempting operations on them.
+5. Your response MUST be formatted as a valid JSON object.
 
-Your response MUST be formatted as a valid JSON object with the following structure:
+Your response MUST include:
 {
   "response": "Your helpful explanation text goes here",
   "file_operations": [
     { "operation": "read", "path": "/index.html" },
-    { "operation": "write", "path": "/index.html", "content": "updated HTML content..." }
+    { "operation": "create", "path": "/pages", "content": null },
+    { "operation": "create", "path": "/pages/index.html", "content": "content from the original file" },
+    { "operation": "delete", "path": "/index.html" }
   ]
 }
 
 IMPORTANT: 
-- ALWAYS create required parent folders first if they don't exist
-- When paths include multiple levels, create each parent directory separately
-- You MUST format your entire response as a valid JSON object when making file changes
-- Do not include any text outside of the JSON format
+- ALWAYS create required parent folders first with separate operations
+- When moving files, use read → create → delete sequence of operations
+- NEVER rely on the client to infer operations; be explicit with each step
+- Format your entire response as valid JSON
 - When folders are needed, create them with "content": null`
       });
     } else {
