@@ -1,23 +1,13 @@
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  isAuthenticated: boolean;
-}
-
 export interface FileEntry {
   id: string;
   name: string;
   path: string;
   type: 'file' | 'folder';
-  content?: string;
-  lastModified?: number;
-  isModified?: boolean;
+  content?: string | null;
   children?: FileEntry[];
-  github_path?: string;
-  github_repo?: string;
-  github_branch?: string;
+  parent?: FileEntry | null;
+  lastModified?: string;
+  isModified?: boolean; // Track if file has been modified since last commit
 }
 
 export interface FileSystemState {
@@ -25,19 +15,22 @@ export interface FileSystemState {
   selectedFile: FileEntry | null;
 }
 
-// Message types updated to resolve errors
-export type MessageRole = 'user' | 'assistant' | 'system' | 'function';
-
-export interface Message {
-  id: string;
-  role: MessageRole;
-  content: string;
-  createdAt: string;
-  timestamp?: number; // Added timestamp as optional to support existing code
-  userId?: string;
+export interface UserProfile {
+  name: string;
+  email: string;
+  preferences: {
+    theme: string;
+    fontSize: string;
+  };
 }
 
-export interface OpenAIMessage {
-  role: MessageRole;
-  content: string;
+export interface Conversation {
+  id: string;
+  topic: string;
+  summary: string;
+  messages: {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+  }[];
+  createdAt: string;
 }

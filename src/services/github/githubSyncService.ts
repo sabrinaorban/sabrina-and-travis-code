@@ -33,20 +33,30 @@ export class GithubSyncService {
     let createdFolders = 0;
     let createdFiles = 0;
     let errors = 0;
+    let allFilesAndFolders: { path: string, type: string, content?: string }[] = [];
 
     try {
       console.log(`Starting sync of ${owner}/${repo} (${branch}) to file system...`);
 
       // Fetch all repository contents recursively
-      const allContents = await this.apiService.fetchDirectoryContents(owner, repo, '', branch);
-      console.log(`Fetched ${allContents.length} items from repository`);
+      allFilesAndFolders = await this.apiService.fetchDirectoryContents(owner, repo, '', branch);
+      console.log(`Fetched ${allFilesAndFolders.length} items from repository`);
+      
+      if (allFilesAndFolders.length === 0) {
+        this.toast({
+          title: 'Repository Empty',
+          description: 'No files found in the repository',
+          variant: 'destructive',
+        });
+        return false;
+      }
 
       // Create a map to track folder creation status
       const folderCreationStatus = new Map<string, boolean>();
       folderCreationStatus.set('/', true); // Root folder always exists
 
       // First create all folders in depth order (sort by path length/depth)
-      const folders = allContents
+      const folders = allFilesAndFolders
         .filter(item => item.type === 'folder')
         .sort((a, b) => {
           // Sort by path depth (count of slashes)
@@ -57,7 +67,7 @@ export class GithubSyncService {
 
       console.log(`Creating ${folders.length} folders in order of depth`);
 
-      // Create each folder
+      // Create each folder with retry logic
       for (const folder of folders) {
         const folderPath = '/' + folder.path;
         const lastSlashIndex = folderPath.lastIndexOf('/');
@@ -69,46 +79,49 @@ export class GithubSyncService {
           continue;
         }
 
-        // Ensure all parent folders exist
-        if (folderCreationStatus.get(parentPath)) {
+        let retries = 3;
+        let folderCreated = false;
+        
+        while (retries > 0 && !folderCreated) {
           try {
+            // Ensure parent folder exists first
+            if (!folderCreationStatus.get(parentPath)) {
+              // Try to create parent folder recursively
+              const parentPathParts = parentPath.split('/').filter(Boolean);
+              const grandparentPath = '/' + parentPathParts.slice(0, -1).join('/');
+              const parentName = parentPathParts[parentPathParts.length - 1];
+              
+              if (grandparentPath && parentName) {
+                await createFolder(grandparentPath || '/', parentName);
+                folderCreationStatus.set(parentPath, true);
+                createdFolders++;
+              }
+            }
+            
+            // Now create this folder
             await createFolder(parentPath, folderName);
             folderCreationStatus.set(folderPath, true);
+            folderCreated = true;
             createdFolders++;
             console.log(`Created folder: ${folderPath}`);
           } catch (error) {
-            console.warn(`Folder ${folderName} at ${parentPath} might already exist, continuing...`);
-            folderCreationStatus.set(folderPath, true); // Assume it exists if creation fails
+            console.warn(`Attempt ${4-retries}/3: Folder creation failed: ${folderPath}`, error);
+            retries--;
+            // Short delay before retry
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
-        } else {
-          console.warn(`Cannot create folder ${folderPath} because parent ${parentPath} doesn't exist`);
-          // Try to create parent folder first
-          const parentLastSlashIndex = parentPath.lastIndexOf('/');
-          const parentParentPath = parentLastSlashIndex > 0 ? parentPath.substring(0, parentLastSlashIndex) : '/';
-          const parentFolderName = parentPath.substring(parentLastSlashIndex + 1);
-
-          if (folderCreationStatus.get(parentParentPath)) {
-            try {
-              await createFolder(parentParentPath, parentFolderName);
-              folderCreationStatus.set(parentPath, true);
-              createdFolders++;
-              console.log(`Created parent folder: ${parentPath}`);
-
-              // Now try to create the original folder
-              await createFolder(parentPath, folderName);
-              folderCreationStatus.set(folderPath, true);
-              createdFolders++;
-              console.log(`Created folder: ${folderPath}`);
-            } catch (error) {
-              console.error(`Failed to create parent folder ${parentPath}:`, error);
-              errors++;
-            }
-          }
+        }
+        
+        if (!folderCreated) {
+          console.error(`Failed to create folder after multiple attempts: ${folderPath}`);
+          errors++;
+          // Mark as created anyway to avoid blocking child files
+          folderCreationStatus.set(folderPath, true);
         }
       }
 
-      // Then create all files
-      const files = allContents.filter(item => item.type === 'file');
+      // Then create all files with retry logic
+      const files = allFilesAndFolders.filter(item => item.type === 'file');
       console.log(`Creating ${files.length} files`);
 
       for (const file of files) {
@@ -117,54 +130,76 @@ export class GithubSyncService {
         const parentPath = lastSlashIndex > 0 ? filePath.substring(0, lastSlashIndex) : '/';
         const fileName = filePath.substring(lastSlashIndex + 1);
 
-        // Ensure parent folder exists
+        // Ensure parent folder exists or create it
         if (!folderCreationStatus.get(parentPath)) {
-          // Create missing parent folder
-          const parentLastSlashIndex = parentPath.lastIndexOf('/');
-          const parentParentPath = parentLastSlashIndex > 0 ? parentPath.substring(0, parentLastSlashIndex) : '/';
-          const parentFolderName = parentPath.substring(parentLastSlashIndex + 1);
-
           try {
-            await createFolder(parentParentPath, parentFolderName);
-            folderCreationStatus.set(parentPath, true);
-            createdFolders++;
-            console.log(`Created missing parent folder: ${parentPath}`);
+            const parentPathParts = parentPath.split('/').filter(Boolean);
+            
+            // Create parent folders recursively if needed
+            let currentPath = '';
+            for (const part of parentPathParts) {
+              const nextPath = currentPath ? `${currentPath}/${part}` : `/${part}`;
+              if (!folderCreationStatus.get(nextPath)) {
+                await createFolder(currentPath || '/', part);
+                folderCreationStatus.set(nextPath, true);
+                createdFolders++;
+              }
+              currentPath = nextPath;
+            }
           } catch (error) {
             console.warn(`Failed to create parent folder ${parentPath}, continuing...`);
-            folderCreationStatus.set(parentPath, true); // Assume it exists anyway and try to create file
+            folderCreationStatus.set(parentPath, true); // Assume it exists and try to create file
           }
         }
 
-        // Fetch file content before creating the file
-        let content = '';
-        try {
-          content = await this.apiService.fetchFileContent(
-            `${owner}/${repo}`,
-            file.path,
-            branch
-          ) || '';
-        } catch (error) {
-          console.error(`Error fetching content for file ${file.path}:`, error);
-          // Continue with empty content
+        // Fetch file content if not already available
+        let content = file.content || '';
+        if (!content) {
+          try {
+            content = await this.apiService.fetchFileContent(
+              `${owner}/${repo}`,
+              file.path,
+              branch
+            ) || '';
+          } catch (error) {
+            console.error(`Error fetching content for file ${file.path}:`, error);
+          }
         }
 
-        // Now create the file
-        if (folderCreationStatus.get(parentPath)) {
+        // Now create the file with retry logic
+        let retries = 3;
+        let fileCreated = false;
+        
+        while (retries > 0 && !fileCreated) {
           try {
             await createFile(parentPath, fileName, content);
             createdFiles++;
+            fileCreated = true;
             console.log(`Created file: ${filePath} with content length: ${content.length}`);
-          } catch (error: any) {
-            console.error(`Error creating file ${fileName} at ${parentPath}:`, error);
-            errors++;
+          } catch (error) {
+            console.warn(`Attempt ${4-retries}/3: File creation failed: ${filePath}`, error);
+            retries--;
+            // Short delay before retry
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
-        } else {
-          console.warn(`Skipping file ${fileName} because parent ${parentPath} wasn't created`);
+        }
+        
+        if (!fileCreated) {
+          console.error(`Failed to create file after multiple attempts: ${filePath}`);
           errors++;
         }
       }
 
       console.log(`Synced ${createdFolders} folders and ${createdFiles} files from ${owner}/${repo} (${branch}) to file system. ${errors} errors.`);
+
+      if (createdFiles === 0 && createdFolders === 0) {
+        this.toast({
+          title: 'Sync Issue',
+          description: 'No files or folders were created. Please try again.',
+          variant: 'destructive',
+        });
+        return false;
+      }
 
       this.toast({
         title: 'Repository Synced',

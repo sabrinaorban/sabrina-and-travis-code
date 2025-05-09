@@ -21,28 +21,56 @@ export const GitHubCommitPanel: React.FC = () => {
   const { authState, currentRepo, currentBranch, saveFileToRepo, isLoading } = github;
   
   // Get file system context safely
-  const { fileSystem: fileSystemData } = useFileSystem();
+  const { fileSystem: fileSystemData, refreshFiles } = useFileSystem();
   
   // Track which files have been edited since last commit
   useEffect(() => {
+    const findModifiedFiles = (files: FileEntry[] | undefined): FileEntry[] => {
+      if (!files) return [];
+      
+      const modified: FileEntry[] = [];
+      
+      const traverseFiles = (fileEntries: FileEntry[]) => {
+        for (const file of fileEntries) {
+          if (file.type === 'file' && file.isModified) {
+            modified.push(file);
+          }
+          
+          if (file.type === 'folder' && file.children) {
+            traverseFiles(file.children);
+          }
+        }
+      };
+      
+      traverseFiles(files);
+      return modified;
+    };
+    
     if (fileSystemData?.files) {
-      // Filter for modified files (can be expanded with more sophisticated tracking)
-      const modified = fileSystemData.files.filter(file => 
-        file.type === 'file' && file.isModified
-      );
-      setEditedFiles(modified);
+      const modifiedFiles = findModifiedFiles(fileSystemData.files);
+      console.log('Found modified files:', modifiedFiles.length);
+      setEditedFiles(modifiedFiles);
     }
   }, [fileSystemData?.files]);
+
+  // Refresh files periodically to detect changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (authState?.isAuthenticated && currentRepo && currentBranch) {
+        refreshFiles();
+      }
+    }, 5000); // Check for changes every 5 seconds
+    
+    return () => clearInterval(interval);
+  }, [authState, currentRepo, currentBranch, refreshFiles]);
 
   // Only render when all required data is available
   if (!authState?.isAuthenticated || !currentRepo || !currentBranch || !fileSystemData) {
     return null;
   }
 
-  const selectedFile = fileSystemData.selectedFile;
-
   const handleCommit = async () => {
-    if (!commitMessage.trim()) return;
+    if (!commitMessage.trim() || editedFiles.length === 0) return;
     
     try {
       let successCount = 0;
@@ -75,8 +103,17 @@ export const GitHubCommitPanel: React.FC = () => {
           title: "Success",
           description: `${successCount} files pushed to ${currentRepo.full_name} (${currentBranch})`,
         });
-        // Reset edited files tracking (ideally this should be handled by the file system)
-        setEditedFiles([]);
+        
+        // Reset modified status in database
+        await Promise.all(editedFiles.map(async (file) => {
+          await supabase
+            .from('files')
+            .update({ is_modified: false })
+            .eq('id', file.id);
+        }));
+        
+        // Refresh files to update UI
+        await refreshFiles();
       }
       
       if (failCount > 0) {
@@ -162,3 +199,6 @@ export const GitHubCommitPanel: React.FC = () => {
     </Card>
   );
 };
+
+// Import supabase at the top level to fix error
+import { supabase } from '@/lib/supabase';
