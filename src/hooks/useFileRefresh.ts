@@ -14,9 +14,11 @@ export const useFileRefresh = (
   const refreshFiles = async () => {
     if (!user) return Promise.resolve();
     
+    console.log('Refreshing files for user:', user.id);
     setIsLoading(true);
     try {
       const files = await fetchFiles();
+      console.log('Fetched files:', files.length);
       
       // Preserve modification flags when refreshing
       const updatedFiles = files.map(newFile => {
@@ -36,9 +38,10 @@ export const useFileRefresh = (
         selectedFile: prev.selectedFile && updatedFiles.find(f => f.id === prev.selectedFile?.id) || null
       }));
       
-      console.log('Files refreshed:', updatedFiles.length);
+      console.log('Files refreshed successfully:', updatedFiles.length);
       return;
     } catch (error) {
+      console.error('Error refreshing files:', error);
       // Initialize with empty file system on error
       setFileSystem({
         files: [],
@@ -54,6 +57,7 @@ export const useFileRefresh = (
   const deleteAllFiles = async () => {
     if (!user) return Promise.resolve();
     
+    console.log('Deleting all files for user:', user.id);
     setIsLoading(true);
     try {
       // Delete all files from the Supabase database
@@ -63,6 +67,7 @@ export const useFileRefresh = (
         .eq('user_id', user.id);
         
       if (error) {
+        console.error('Supabase error when deleting files:', error);
         throw error;
       }
       
@@ -72,7 +77,7 @@ export const useFileRefresh = (
         selectedFile: null
       });
       
-      console.log('All files deleted');
+      console.log('All files deleted successfully');
     } catch (error) {
       console.error('Error deleting all files:', error);
       throw error;

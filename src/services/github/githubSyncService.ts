@@ -76,6 +76,7 @@ export class GithubSyncService {
 
         // Skip if this exact folder was already created
         if (folderCreationStatus.get(folderPath)) {
+          console.log(`Folder already created: ${folderPath}`);
           continue;
         }
 
@@ -95,10 +96,12 @@ export class GithubSyncService {
                 await createFolder(grandparentPath || '/', parentName);
                 folderCreationStatus.set(parentPath, true);
                 createdFolders++;
+                console.log(`Created parent folder: ${parentPath}`);
               }
             }
             
             // Now create this folder
+            console.log(`Attempting to create folder: ${folderName} at ${parentPath}`);
             await createFolder(parentPath, folderName);
             folderCreationStatus.set(folderPath, true);
             folderCreated = true;
@@ -133,6 +136,7 @@ export class GithubSyncService {
         // Ensure parent folder exists or create it
         if (!folderCreationStatus.get(parentPath)) {
           try {
+            console.log(`Creating missing parent folder: ${parentPath}`);
             const parentPathParts = parentPath.split('/').filter(Boolean);
             
             // Create parent folders recursively if needed
@@ -143,6 +147,7 @@ export class GithubSyncService {
                 await createFolder(currentPath || '/', part);
                 folderCreationStatus.set(nextPath, true);
                 createdFolders++;
+                console.log(`Created parent folder: ${nextPath}`);
               }
               currentPath = nextPath;
             }
@@ -161,6 +166,7 @@ export class GithubSyncService {
               file.path,
               branch
             ) || '';
+            console.log(`Fetched content for ${file.path}, length: ${content.length}`);
           } catch (error) {
             console.error(`Error fetching content for file ${file.path}:`, error);
           }
@@ -172,6 +178,7 @@ export class GithubSyncService {
         
         while (retries > 0 && !fileCreated) {
           try {
+            console.log(`Attempting to create file: ${fileName} at ${parentPath}`);
             await createFile(parentPath, fileName, content);
             createdFiles++;
             fileCreated = true;

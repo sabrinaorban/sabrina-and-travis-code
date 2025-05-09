@@ -91,6 +91,7 @@ const FileNode: React.FC<FileNodeProps> = ({
         
         <span className="flex-grow truncate">
           {file.name}
+          {file.isModified && <span className="ml-1 text-xs text-orange-500">•</span>}
         </span>
         
         <Button
@@ -124,11 +125,13 @@ const FileNode: React.FC<FileNodeProps> = ({
 export const FileExplorer: React.FC = () => {
   const { fileSystem, selectFile, refreshFiles, isLoading } = useFileSystem();
   const { toast } = useToast();
+  const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
   
   useEffect(() => {
     // Ensure files are loaded when component mounts
-    if (fileSystem.files.length === 0 && !isLoading) {
-      refreshFiles();
+    if (fileSystem.files.length === 0 && !isLoading && Date.now() - lastRefreshTime > 1000) {
+      console.log('No files found on mount, refreshing...');
+      handleRefresh();
     }
   }, []);
   
@@ -138,6 +141,8 @@ export const FileExplorer: React.FC = () => {
 
   const handleRefresh = async () => {
     try {
+      setLastRefreshTime(Date.now());
+      console.log('Manually refreshing files...');
       await refreshFiles();
       toast({
         title: "Refreshed",
@@ -189,6 +194,16 @@ export const FileExplorer: React.FC = () => {
           <p className="text-xs text-center mt-2">
             Use the "+" buttons above to create files and folders
           </p>
+          <Button 
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="mt-4"
+          >
+            <RefreshCw size={14} className={cn("mr-2", isLoading && "animate-spin")} />
+            Retry Refresh
+          </Button>
         </div>
       )}
     </div>

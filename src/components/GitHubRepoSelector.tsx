@@ -43,12 +43,30 @@ export const GitHubRepoSelector: React.FC = () => {
     setIsSyncing(true);
     try {
       // First delete all existing files
+      console.log('Deleting all existing files before syncing...');
       await deleteAllFiles();
       
       // Then sync the new repository
       const [owner, repo] = currentRepo.full_name.split('/');
-      await syncRepoToFileSystem(owner, repo, currentBranch);
-      await refreshFiles();
+      console.log(`Syncing repository ${owner}/${repo} (${currentBranch})...`);
+      const synced = await syncRepoToFileSystem(owner, repo, currentBranch);
+      
+      if (synced) {
+        // Force refresh files with a delay to ensure database operations complete
+        console.log('Sync successful, refreshing files...');
+        setTimeout(async () => {
+          try {
+            await refreshFiles();
+            console.log('Files refreshed after sync');
+          } catch (error) {
+            console.error('Error refreshing files after sync:', error);
+          }
+        }, 1000);
+      } else {
+        console.error('Sync failed or no files were created');
+      }
+    } catch (error) {
+      console.error('Error in sync process:', error);
     } finally {
       setIsSyncing(false);
       setIsSyncDialogOpen(false);
