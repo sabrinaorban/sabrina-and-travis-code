@@ -1,0 +1,21 @@
+
+import { FileEntry, FileSystemState } from '../types';
+
+export const useFileSelection = (
+  setFileSystem: React.Dispatch<React.SetStateAction<FileSystemState>>
+) => {
+  // Select a file for viewing/editing
+  const selectFile = (file: FileEntry | null) => {
+    setFileSystem(prev => ({
+      ...prev,
+      selectedFile: file
+    }));
+  };
+  
+  // Get all modified files for GitHub commits
+  const getModifiedFiles = (): FileEntry[] => {
+    return [];
+  };
+
+  return { selectFile, getModifiedFiles };
+};

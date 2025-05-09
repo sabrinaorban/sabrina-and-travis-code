@@ -8,7 +8,8 @@ export * from './ai/OpenAIService';
 // Export utility services
 export { 
   ensureFolderExists,
-  handleFileOperation 
+  handleFileOperation,
+  createNextJsProject
 } from './utils/FileSystemUtils';
 
 export { 

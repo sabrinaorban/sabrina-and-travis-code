@@ -3,347 +3,49 @@ import { FileEntry } from '../types';
 import { supabase, generateUUID } from '../lib/supabase';
 import { useToast } from './use-toast';
 import { findNode, findNodeById } from '../utils/fileSystemUtils';
+import { useFileCreate } from './useFileCreate';
+import { useFileUpdate } from './useFileUpdate';
+import { useFileDelete } from './useFileDelete';
 
 // Handles all file system operations
 export const useFileOperations = (user: any, refreshFiles: () => Promise<void>) => {
   const { toast } = useToast();
+  
+  // Using smaller, more focused hooks
+  const { createFile, createFolder } = useFileCreate(user, refreshFiles, toast);
+  const { updateFile } = useFileUpdate(user, toast);
+  const { deleteFile } = useFileDelete(user, refreshFiles, toast);
   
   // Find file by path
   const getFileByPath = (path: string, files: FileEntry[]): FileEntry | null => {
     const { node } = findNode(path, files);
     return node;
   };
-
-  // Create a new file
-  const createFile = async (path: string, name: string, content: string = '', files: FileEntry[]) => {
-    if (!user) {
-      toast({
-        title: 'Error',
-        description: 'You must be logged in to create files',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    // For root path
-    const parentPath = path === '/' ? '' : path;
-    const filePath = `${parentPath}/${name}`;
-    console.log(`Creating file at path: ${filePath}`);
-    
-    try {
-      // Check if parent folder exists
-      const { node } = findNode(path, files);
-      
-      if (!node || node.type !== 'folder') {
-        console.log(`Parent folder not found at path: ${path}, creating it...`);
-        // Create parent folders recursively
-        const pathParts = path.split('/').filter(Boolean);
-        let currentPath = '';
-        
-        for (const part of pathParts) {
-          const nextPath = currentPath ? `${currentPath}/${part}` : `/${part}`;
-          const { node: existingFolder } = findNode(nextPath, files);
-          
-          if (!existingFolder) {
-            const folderParentPath = currentPath || '/';
-            console.log(`Creating parent folder: ${part} at ${folderParentPath}`);
-            
-            const folderId = generateUUID();
-            const { error } = await supabase
-              .from('files')
-              .insert({
-                id: folderId,
-                user_id: user.id,
-                name: part,
-                path: nextPath,
-                type: 'folder',
-                content: null,
-                last_modified: new Date().toISOString(),
-              });
-              
-            if (error) throw error;
-          }
-          
-          currentPath = nextPath;
-        }
-        
-        // Refresh files to get the newly created folders
-        await refreshFiles();
-      }
-      
-      // Now create the file
-      const fileId = generateUUID();
-      console.log('Creating file with ID:', fileId);
-      
-      const { error } = await supabase
-        .from('files')
-        .insert({
-          id: fileId,
-          user_id: user.id,
-          name,
-          path: filePath,
-          type: 'file',
-          content,
-          last_modified: new Date().toISOString(),
-        });
-        
-      if (error) {
-        throw error;
-      }
-      
-      toast({
-        title: 'Success',
-        description: `File '${name}' created successfully.`,
-      });
-    } catch (error: any) {
-      console.error('Error creating file:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create file',
-        variant: 'destructive',
-      });
-    }
+  
+  // Get file content by path
+  const getFileContentByPath = (path: string, files: FileEntry[]): string | null => {
+    const file = getFileByPath(path, files);
+    return file && file.type === 'file' ? file.content || null : null;
   };
-
-  // Create a new folder
-  const createFolder = async (path: string, name: string, files: FileEntry[]) => {
-    if (!user) {
-      toast({
-        title: 'Error',
-        description: 'You must be logged in to create folders',
-        variant: 'destructive',
-      });
-      return;
+  
+  // Update file by path
+  const updateFileByPath = async (path: string, content: string, files: FileEntry[]): Promise<void> => {
+    const file = getFileByPath(path, files);
+    
+    if (!file || file.type !== 'file') {
+      throw new Error(`File not found at path: ${path}`);
     }
     
-    // For root path
-    const parentPath = path === '/' ? '' : path;
-    const folderPath = `${parentPath}/${name}`;
-    console.log(`Creating folder at path: ${folderPath}`);
-    
-    try {
-      // Check if parent folder exists
-      const { node } = findNode(path, files);
-      
-      if (!node || node.type !== 'folder') {
-        console.log(`Parent folder not found at path: ${path}, creating it...`);
-        // Create parent folders recursively
-        const pathParts = path.split('/').filter(Boolean);
-        let currentPath = '';
-        
-        for (const part of pathParts) {
-          const nextPath = currentPath ? `${currentPath}/${part}` : `/${part}`;
-          const { node: existingFolder } = findNode(nextPath, files);
-          
-          if (!existingFolder) {
-            const folderParentPath = currentPath || '/';
-            console.log(`Creating parent folder: ${part} at ${folderParentPath}`);
-            
-            const folderId = generateUUID();
-            const { error } = await supabase
-              .from('files')
-              .insert({
-                id: folderId,
-                user_id: user.id,
-                name: part,
-                path: nextPath,
-                type: 'folder',
-                content: null,
-                last_modified: new Date().toISOString(),
-              });
-              
-            if (error) throw error;
-          }
-          
-          currentPath = nextPath;
-        }
-        
-        // Refresh files to get the newly created folders
-        await refreshFiles();
-      }
-      
-      // Check if folder with same name already exists
-      const { node: parentNode } = findNode(path, files);
-      if (parentNode && parentNode.children?.some(child => child.name === name)) {
-        toast({
-          title: 'Error',
-          description: `A file or folder named '${name}' already exists at this location.`,
-          variant: 'destructive',
-        });
-        return;
-      }
-      
-      // Now create the folder
-      const folderId = generateUUID();
-      console.log('Creating folder with ID:', folderId);
-      
-      const { error } = await supabase
-        .from('files')
-        .insert({
-          id: folderId,
-          user_id: user.id,
-          name,
-          path: folderPath,
-          type: 'folder',
-          content: null,
-          last_modified: new Date().toISOString(),
-        });
-        
-      if (error) {
-        throw error;
-      }
-      
-      toast({
-        title: 'Success',
-        description: `Folder '${name}' created successfully.`,
-      });
-    } catch (error: any) {
-      console.error('Error creating folder:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create folder',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  // Update a file's content
-  const updateFile = async (id: string, content: string, files: FileEntry[], setFileSystem: any) => {
-    if (!user) {
-      toast({
-        title: 'Error',
-        description: 'You must be logged in to update files',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    const { node } = findNodeById(id, files);
-    
-    if (!node || node.type !== 'file') {
-      toast({
-        title: 'Error',
-        description: 'Cannot update content. File not found or is not a file.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    try {
-      // Update file in Supabase
-      const { error } = await supabase
-        .from('files')
-        .update({
-          content,
-          last_modified: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .eq('user_id', user.id);
-        
-      if (error) {
-        throw error;
-      }
-      
-      // Update local state
-      setFileSystem(prev => {
-        const newFiles = JSON.parse(JSON.stringify(prev.files));
-        const { node: targetNode } = findNodeById(id, newFiles);
-        
-        if (targetNode) {
-          targetNode.content = content;
-          targetNode.lastModified = Date.now();
-        }
-        
-        return {
-          ...prev,
-          files: newFiles,
-          selectedFile: prev.selectedFile?.id === id 
-            ? { ...prev.selectedFile, content, lastModified: Date.now() } 
-            : prev.selectedFile
-        };
-      });
-      
-      toast({
-        title: 'Success',
-        description: `File '${node.name}' updated successfully.`,
-      });
-    } catch (error: any) {
-      console.error('Error updating file:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to update file',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  // Delete a file or folder
-  const deleteFile = async (id: string, files: FileEntry[]) => {
-    if (!user) {
-      toast({
-        title: 'Error',
-        description: 'You must be logged in to delete files',
-        variant: 'destructive',
-      });
-      return Promise.reject(new Error('Not logged in'));
-    }
-    
-    const { node } = findNodeById(id, files);
-    
-    if (!node) {
-      toast({
-        title: 'Error',
-        description: 'Cannot delete. File or folder not found.',
-        variant: 'destructive',
-      });
-      return Promise.reject(new Error('File not found'));
-    }
-    
-    try {
-      // Delete file from Supabase
-      const { error } = await supabase
-        .from('files')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
-        
-      if (error) {
-        throw error;
-      }
-      
-      // If it's a folder, delete all children recursively
-      if (node.type === 'folder') {
-        const { error: childrenError } = await supabase
-          .from('files')
-          .delete()
-          .like('path', `${node.path}/%`)
-          .eq('user_id', user.id);
-          
-        if (childrenError) {
-          throw childrenError;
-        }
-      }
-      
-      // Refresh files after deletion
-      await refreshFiles();
-      
-      return Promise.resolve();
-    } catch (error: any) {
-      console.error('Error deleting file:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to delete file',
-        variant: 'destructive',
-      });
-      return Promise.reject(error);
-    }
+    await updateFile(file.id, content, files);
   };
 
   return {
     getFileByPath,
-    createFile,
-    createFolder,
-    updateFile,
-    deleteFile
+    createFile: (path: string, name: string, content: string = '') => createFile(path, name, content),
+    createFolder: (path: string, name: string) => createFolder(path, name),
+    updateFile: (id: string, content: string, files: FileEntry[]) => updateFile(id, content, files),
+    deleteFile: (id: string, files: FileEntry[]) => deleteFile(id, files),
+    getFileContentByPath: (path: string, files: FileEntry[]) => getFileContentByPath(path, files),
+    updateFileByPath: (path: string, content: string, files: FileEntry[]) => updateFileByPath(path, content, files)
   };
 };
