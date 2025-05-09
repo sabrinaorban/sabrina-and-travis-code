@@ -6,6 +6,9 @@ export class GithubSyncService {
   private apiService: GithubApiService;
   private toast: ReturnType<typeof useToast>['toast']; 
   private syncInProgress: boolean = false;
+  private syncedFiles: number = 0;
+  private syncedFolders: number = 0;
+  private failedItems: string[] = [];
 
   constructor(apiService: GithubApiService, toast: ReturnType<typeof useToast>['toast']) {
     this.apiService = apiService;
@@ -19,6 +22,11 @@ export class GithubSyncService {
     createFile: (path: string, name: string, content: string) => Promise<void>,
     createFolder: (path: string, name: string) => Promise<void>
   ): Promise<boolean> {
+    // Reset counters and status
+    this.syncedFiles = 0;
+    this.syncedFolders = 0;
+    this.failedItems = [];
+    
     // Prevent multiple syncs from running simultaneously
     if (this.syncInProgress) {
       console.log('Sync already in progress, skipping new request');
@@ -30,9 +38,6 @@ export class GithubSyncService {
     }
 
     this.syncInProgress = true;
-    let createdFolders = 0;
-    let createdFiles = 0;
-    let errors = 0;
     let allFilesAndFolders: { path: string, type: string, content?: string }[] = [];
 
     try {
@@ -95,7 +100,7 @@ export class GithubSyncService {
               if (grandparentPath && parentName) {
                 await createFolder(grandparentPath || '/', parentName);
                 folderCreationStatus.set(parentPath, true);
-                createdFolders++;
+                this.syncedFolders++;
                 console.log(`Created parent folder: ${parentPath}`);
               }
             }
@@ -105,7 +110,7 @@ export class GithubSyncService {
             await createFolder(parentPath, folderName);
             folderCreationStatus.set(folderPath, true);
             folderCreated = true;
-            createdFolders++;
+            this.syncedFolders++;
             console.log(`Created folder: ${folderPath}`);
           } catch (error) {
             console.warn(`Attempt ${4-retries}/3: Folder creation failed: ${folderPath}`, error);
@@ -117,7 +122,7 @@ export class GithubSyncService {
         
         if (!folderCreated) {
           console.error(`Failed to create folder after multiple attempts: ${folderPath}`);
-          errors++;
+          this.failedItems.push(folderPath);
           // Mark as created anyway to avoid blocking child files
           folderCreationStatus.set(folderPath, true);
         }
@@ -146,13 +151,14 @@ export class GithubSyncService {
               if (!folderCreationStatus.get(nextPath)) {
                 await createFolder(currentPath || '/', part);
                 folderCreationStatus.set(nextPath, true);
-                createdFolders++;
+                this.syncedFolders++;
                 console.log(`Created parent folder: ${nextPath}`);
               }
               currentPath = nextPath;
             }
           } catch (error) {
             console.warn(`Failed to create parent folder ${parentPath}, continuing...`);
+            this.failedItems.push(parentPath);
             folderCreationStatus.set(parentPath, true); // Assume it exists and try to create file
           }
         }
@@ -180,7 +186,7 @@ export class GithubSyncService {
           try {
             console.log(`Attempting to create file: ${fileName} at ${parentPath}`);
             await createFile(parentPath, fileName, content);
-            createdFiles++;
+            this.syncedFiles++;
             fileCreated = true;
             console.log(`Created file: ${filePath} with content length: ${content.length}`);
           } catch (error) {
@@ -193,13 +199,13 @@ export class GithubSyncService {
         
         if (!fileCreated) {
           console.error(`Failed to create file after multiple attempts: ${filePath}`);
-          errors++;
+          this.failedItems.push(filePath);
         }
       }
 
-      console.log(`Synced ${createdFolders} folders and ${createdFiles} files from ${owner}/${repo} (${branch}) to file system. ${errors} errors.`);
+      console.log(`Synced ${this.syncedFolders} folders and ${this.syncedFiles} files from ${owner}/${repo} (${branch}) to file system. Failed items: ${this.failedItems.length}`);
 
-      if (createdFiles === 0 && createdFolders === 0) {
+      if (this.syncedFiles === 0 && this.syncedFolders === 0) {
         this.toast({
           title: 'Sync Issue',
           description: 'No files or folders were created. Please try again.',
@@ -208,12 +214,15 @@ export class GithubSyncService {
         return false;
       }
 
+      // Wait a bit to ensure all DB operations complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       this.toast({
         title: 'Repository Synced',
-        description: `Imported ${createdFiles} files and ${createdFolders} folders${errors > 0 ? ` (${errors} errors)` : ''}`,
+        description: `Imported ${this.syncedFiles} files and ${this.syncedFolders} folders${this.failedItems.length > 0 ? ` (${this.failedItems.length} errors)` : ''}`,
       });
 
-      return true;
+      return this.syncedFiles > 0 || this.syncedFolders > 0;
     } catch (error: any) {
       console.error('Error syncing repo:', error);
       this.toast({

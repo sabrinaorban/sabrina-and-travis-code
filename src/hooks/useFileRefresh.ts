@@ -10,12 +10,16 @@ export const useFileRefresh = (
   setFileSystem: React.Dispatch<React.SetStateAction<FileSystemState>>,
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>
 ) => {
+  const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
+  
   // Refresh files function
   const refreshFiles = async () => {
     if (!user) return Promise.resolve();
     
     console.log('Refreshing files for user:', user.id);
     setIsLoading(true);
+    setLastRefreshTime(Date.now());
+    
     try {
       const files = await fetchFiles();
       console.log('Fetched files:', files.length);
@@ -39,7 +43,7 @@ export const useFileRefresh = (
       }));
       
       console.log('Files refreshed successfully:', updatedFiles.length);
-      return;
+      return files;
     } catch (error) {
       console.error('Error refreshing files:', error);
       // Initialize with empty file system on error
@@ -87,5 +91,5 @@ export const useFileRefresh = (
     return Promise.resolve();
   };
 
-  return { refreshFiles, deleteAllFiles };
+  return { refreshFiles, deleteAllFiles, lastRefreshTime };
 };

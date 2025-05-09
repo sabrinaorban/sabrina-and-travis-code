@@ -1,46 +1,39 @@
 
-import React from "react";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { FileSystemProvider } from "@/contexts/FileSystemContext";
-import { GitHubProvider } from "@/contexts/GitHubContext";
-import { ChatProvider } from "@/contexts/ChatContext";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import "./App.css";
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { FileSystemProvider } from './contexts/FileSystemContext';
+import { Toaster } from './components/ui/toaster';
+import Index from './pages/Index';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { GitHubProvider } from './contexts/GitHubContext';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Create a new QueryClient instance
+// Create a client
 const queryClient = new QueryClient();
 
-const App = () => {
+function App() {
   return (
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <FileSystemProvider>
-            <GitHubProvider>
-              <ChatProvider>
-                <TooltipProvider>
-                  <Toaster />
-                  <Sonner />
-                  <BrowserRouter>
-                    <Routes>
-                      <Route path="/" element={<Index />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </BrowserRouter>
-                </TooltipProvider>
-              </ChatProvider>
-            </GitHubProvider>
-          </FileSystemProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            {/* Important: FileSystemProvider must be before GitHubProvider since GitHub uses FileSystem */}
+            <FileSystemProvider>
+              <GitHubProvider>
+                <Router>
+                  <Routes>
+                    <Route path="/" element={<Index />} />
+                  </Routes>
+                </Router>
+                <Toaster />
+              </GitHubProvider>
+            </FileSystemProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </React.StrictMode>
   );
-};
+}
 
 export default App;

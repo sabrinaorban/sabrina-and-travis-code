@@ -51,18 +51,24 @@ export const GitHubRepoSelector: React.FC = () => {
       console.log(`Syncing repository ${owner}/${repo} (${currentBranch})...`);
       const result = await syncRepoToFileSystem(owner, repo, currentBranch);
       
-      // Fixed: Check boolean result
+      // Check boolean result
       if (result === true) {
         // Force refresh files with a delay to ensure database operations complete
         console.log('Sync successful, refreshing files...');
+        
+        // First immediate refresh
+        await refreshFiles();
+        
+        // Then another refresh after a delay to catch any pending database operations
         setTimeout(async () => {
+          console.log('Performing second refresh to ensure all files are loaded');
           try {
             await refreshFiles();
-            console.log('Files refreshed after sync');
+            console.log('Second files refresh completed after sync');
           } catch (error) {
-            console.error('Error refreshing files after sync:', error);
+            console.error('Error during second refresh after sync:', error);
           }
-        }, 1000);
+        }, 2000);
       } else {
         console.error('Sync failed or no files were created');
       }

@@ -126,7 +126,9 @@ export const FileExplorer: React.FC = () => {
   const { fileSystem, selectFile, refreshFiles, isLoading } = useFileSystem();
   const { toast } = useToast();
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
+  const [refreshCount, setRefreshCount] = useState<number>(0);
   
+  // Load files when component mounts or when refresh is triggered
   useEffect(() => {
     // Ensure files are loaded when component mounts
     if (fileSystem.files.length === 0 && !isLoading && Date.now() - lastRefreshTime > 1000) {
@@ -134,6 +136,26 @@ export const FileExplorer: React.FC = () => {
       handleRefresh();
     }
   }, []);
+  
+  // Additional refresh if files not loaded after sync
+  useEffect(() => {
+    let refreshTimer: NodeJS.Timeout | null = null;
+    
+    // If we have no files but we're not loading, try to refresh again after a delay
+    if (fileSystem.files.length === 0 && !isLoading && refreshCount < 3) {
+      console.log(`No files after refresh attempt ${refreshCount}, scheduling another refresh`);
+      refreshTimer = setTimeout(() => {
+        setRefreshCount(prev => prev + 1);
+        handleRefresh();
+      }, 3000); // Wait 3 seconds before trying again
+    }
+    
+    return () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+    };
+  }, [fileSystem.files.length, isLoading, refreshCount]);
   
   const handleSelectFile = (file: FileEntry) => {
     selectFile(file);
