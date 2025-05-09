@@ -1,21 +1,31 @@
 
-import { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '@/lib/supabase';
 import { generateUUID } from '@/lib/supabase';
 
-export default async function handler(req: NextApiRequest, NextApiResponse) {
+// Create a REST API endpoint for messages
+Deno.serve(async (req) => {
+  // Set CORS headers
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+  };
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return new Response('ok', { headers });
   }
 
   // GET method for fetching messages
   if (req.method === 'GET') {
     try {
-      const { userId } = req.query;
+      const url = new URL(req.url);
+      const userId = url.searchParams.get('userId');
       
-      if (!userId || typeof userId !== 'string') {
-        return res.status(400).json({ error: 'User ID is required' });
+      if (!userId) {
+        return new Response(
+          JSON.stringify({ error: 'User ID is required' }), 
+          { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+        );
       }
       
       // Fetch messages from the database
@@ -28,20 +38,30 @@ export default async function handler(req: NextApiRequest, NextApiResponse) {
         
       if (error) throw error;
       
-      return res.status(200).json(data || []);
+      return new Response(
+        JSON.stringify(data || []), 
+        { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+      );
     } catch (error) {
       console.error('Error fetching messages:', error);
-      return res.status(500).json({ error: 'Failed to fetch messages' });
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch messages' }), 
+        { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+      );
     }
   }
   
   // POST method for creating messages
   else if (req.method === 'POST') {
     try {
-      const { userId, content, role } = req.body;
+      const body = await req.json();
+      const { userId, content, role } = body;
       
       if (!userId || !content || !role) {
-        return res.status(400).json({ error: 'Missing required fields' });
+        return new Response(
+          JSON.stringify({ error: 'Missing required fields' }), 
+          { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+        );
       }
       
       // Create new message in the database
@@ -60,20 +80,30 @@ export default async function handler(req: NextApiRequest, NextApiResponse) {
         
       if (error) throw error;
       
-      return res.status(201).json(data?.[0] || message);
+      return new Response(
+        JSON.stringify(data?.[0] || message), 
+        { status: 201, headers: { ...headers, "Content-Type": "application/json" } }
+      );
     } catch (error) {
       console.error('Error creating message:', error);
-      return res.status(500).json({ error: 'Failed to create message' });
+      return new Response(
+        JSON.stringify({ error: 'Failed to create message' }), 
+        { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+      );
     }
   }
   
   // DELETE method for clearing all messages
   else if (req.method === 'DELETE') {
     try {
-      const { userId } = req.body;
+      const body = await req.json();
+      const { userId } = body;
       
       if (!userId) {
-        return res.status(400).json({ error: 'User ID is required' });
+        return new Response(
+          JSON.stringify({ error: 'User ID is required' }), 
+          { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+        );
       }
       
       // Delete all messages for the user
@@ -84,15 +114,24 @@ export default async function handler(req: NextApiRequest, NextApiResponse) {
         
       if (error) throw error;
       
-      return res.status(200).json({ success: true });
+      return new Response(
+        JSON.stringify({ success: true }), 
+        { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+      );
     } catch (error) {
       console.error('Error deleting messages:', error);
-      return res.status(500).json({ error: 'Failed to delete messages' });
+      return new Response(
+        JSON.stringify({ error: 'Failed to delete messages' }), 
+        { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+      );
     }
   }
   
   // Handle unsupported methods
   else {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }), 
+      { status: 405, headers: { ...headers, "Content-Type": "application/json" } }
+    );
   }
-}
+});
