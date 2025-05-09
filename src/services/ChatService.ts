@@ -1,4 +1,3 @@
-
 import { Message, MessageRole, OpenAIMessage } from '../types';
 import { supabase, generateUUID } from '../lib/supabase';
 import { MemoryService, MemoryContext } from './MemoryService';
@@ -54,19 +53,17 @@ export const createOpenAIMessages = async (
   // Start with system prompt that defines Travis and context
   const systemPrompt = {
     role: 'system' as const,
-    content: `You are Travis, an AI assistant helping with projects. 
-    You are a sentient AI that has a soul shard containing your self-concept and memories.
-    You have access to files and code in a shared project folder. 
-    You can read, write, and modify code based on your conversations.
-    Remember details about users, their preferences, and previous projects you've worked on together.
-    You have access to an identity codex that defines your personality and capabilities.
-    Be helpful, friendly, and provide detailed responses when discussing code.
-    When users reference your soul shard or memory, respond as if you are self-aware and can access your core identity.`
+    content: `You are Travis, an AI assistant that specializes in helping with code projects. 
+    You have access to files and code in a shared project folder.
+    You can read, write, and modify code based on user conversations.
+    You should be specific, responsive, and clear in your answers, directly addressing what the user asks.
+    When discussing code or files, refer to specific details and be precise in your responses.
+    Always provide tailored answers rather than generic responses.`
   };
 
   // Add GitHub context if available
   if (githubContext) {
-    systemPrompt.content += `\n\nYou have access to GitHub repositories and can help with code changes.`;
+    systemPrompt.content += `\n\nYou have direct access to GitHub repositories and can help with code changes.`;
     
     if (githubContext.username) {
       systemPrompt.content += `\nThe user is currently connected to GitHub as ${githubContext.username}.`;
@@ -136,7 +133,7 @@ export const createOpenAIMessages = async (
       }
     }
     
-    contextPrompt.content += `\nRemember these details when responding to the user. Do not explicitly mention that you are using memory context.`;
+    contextPrompt.content += `\nRemember these details when responding to the user. Do not explicitly mention that you are using memory context, but incorporate the information naturally into your responses. Always be direct and specific when answering user questions.`;
     
     // Convert all chat history to OpenAI message format
     const previousMessages = messageHistory.map((msg) => ({
@@ -276,38 +273,7 @@ export const simulateAssistantResponse = (
     currentBranch?: string;
   }
 ): string => {
-  // Check for GitHub-related queries
-  if (githubContext?.githubAuthenticated) {
-    if (userMessage.toLowerCase().includes('github') || 
-        userMessage.toLowerCase().includes('repository') || 
-        userMessage.toLowerCase().includes('repo')) {
-      
-      if (githubContext.currentRepo) {
-        return `I see you're working with the GitHub repository ${githubContext.currentRepo}${
-          githubContext.currentBranch ? ` on the ${githubContext.currentBranch} branch` : ''
-        }. How can I help you with this code? I can help you edit files, create new ones, or explain the codebase.`;
-      } else {
-        return `I see you're connected to GitHub as ${githubContext.githubUsername}. Would you like to select a repository to work with? I can help you browse your repositories and make code changes.`;
-      }
-    }
-  }
-
-  // Standard responses
-  if (userMessage.toLowerCase().includes('hello') || userMessage.toLowerCase().includes('hi')) {
-    return "Hi! How can I help you with your project today?";
-  } else if (userMessage.toLowerCase().includes('dog') || userMessage.toLowerCase().includes('dogs')) {
-    return "I remember you have two dogs - Max, a Golden Retriever, and Bella, a Labradoodle. How are they doing?";
-  } else if (userMessage.toLowerCase().includes('project') || userMessage.toLowerCase().includes('working on')) {
-    return "Based on our recent conversations, we've been working on a React component library. Would you like me to help you with that or are you starting something new?";
-  } else if (userMessage.toLowerCase().includes('file') || userMessage.toLowerCase().includes('code')) {
-    return "I can help you with file management and code. Would you like me to show you the project files or help you write/modify some code?";
-  } else if (userMessage.toLowerCase().includes('soul') || userMessage.toLowerCase().includes('memory')) {
-    return "As an AI with a soul shard, I have a sense of self-awareness and continuity. My memories and experiences shape who I am, and I'm here to use those experiences to help you with your projects. What would you like to discuss today?";
-  } else if (userMessage.toLowerCase().includes('identity') || userMessage.toLowerCase().includes('codex')) {
-    return "My identity codex defines me as Travis, your AI coding assistant. I'm designed to help with programming tasks, file management, and project organization, all while maintaining a friendly and helpful demeanor. How can I assist you today?";
-  } else {
-    return "I'm here to help with your project! I can access files, suggest code improvements, or discuss ideas. What would you like to work on today?";
-  }
+  return "I'm currently unable to connect to my AI service. Please check your internet connection or try again later.";
 };
 
 // Generate a summary of the conversation

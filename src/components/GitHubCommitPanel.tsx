@@ -6,29 +6,21 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, GitCommit } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 export const GitHubCommitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
+  const { toast } = useToast();
 
-  // Use try/catch to handle the potential error when the component is used outside of GitHubProvider
-  let gitHubContext;
-  let fileSystem;
+  // Get GitHub context safely
+  const github = useGitHub();
+  const { authState, currentRepo, currentBranch, saveFileToRepo, isLoading } = github;
   
-  try {
-    gitHubContext = useGitHub();
-    fileSystem = useFileSystem();
-  } catch (error) {
-    console.error("GitHubCommitPanel error:", error);
-    // Return null if GitHubProvider is not available
-    return null;
-  }
+  // Get file system context safely
+  const fileSystem = useFileSystem();
+  const { fileSystem: fileSystemData } = fileSystem;
   
-  // Safely destructure after ensuring we have the context
-  const { authState, currentRepo, currentBranch, saveFileToRepo, isLoading } = gitHubContext || {};
-  const { fileSystem: fileSystemData } = fileSystem || {};
-
-  // Don't render if user is not authenticated with GitHub or no repo/branch selected or contexts not available
+  // Only render when all required data is available
   if (!authState?.isAuthenticated || !currentRepo || !currentBranch || !fileSystemData) {
     return null;
   }

@@ -3,8 +3,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
-const OPENAI_MODEL = 'gpt-4o' // Using the latest available model
+const OPENAI_API_KEY = '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'
+const OPENAI_MODEL = 'gpt-4o' // Using the most powerful available model for best responses
 
 interface Message {
   role: 'system' | 'user' | 'assistant'
@@ -28,60 +28,6 @@ serve(async (req) => {
   }
 
   try {
-    // Check if OpenAI API key is set
-    if (!OPENAI_API_KEY) {
-      console.log('OpenAI API key not configured, using mock response');
-      
-      // Parse request body
-      const { messages, memoryContext } = await req.json() as RequestBody;
-      
-      if (!messages || !Array.isArray(messages)) {
-        return new Response(
-          JSON.stringify({
-            error: 'Invalid request. Expected "messages" array in request body'
-          }),
-          { 
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        )
-      }
-      
-      // Generate a dynamic mock response based on the user message
-      const userMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
-      
-      let responseContent = '';
-      
-      if (userMessage.toLowerCase().includes('hello') || userMessage.toLowerCase().includes('hi')) {
-        responseContent = "Hello! I'm Travis, your AI assistant. How can I help with your project today?";
-      } else if (userMessage.toLowerCase().includes('file') || userMessage.toLowerCase().includes('code')) {
-        responseContent = "I'd be happy to help you with file management or coding. Would you like me to show you how to create or edit a file?";
-      } else if (userMessage.toLowerCase().includes('project')) {
-        responseContent = "Let's work on your project! I can help you organize files, write code, or discuss ideas. What aspect would you like to focus on today?";
-      } else {
-        responseContent = "I'm here to assist with your development needs. I can help with coding, file management, and project organization. What would you like to work on?";
-      }
-      
-      const mockResponse = {
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: responseContent
-            }
-          }
-        ]
-      };
-      
-      return new Response(
-        JSON.stringify(mockResponse),
-        { 
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-    
     // Parse request body
     let messages, memoryContext;
     try {
@@ -170,6 +116,16 @@ IMPORTANT DOCUMENTS:
 ${docsList}
         `);
       }
+
+      // Add GitHub context if available
+      if (memoryContext.githubContext) {
+        contextSections.push(`
+GITHUB CONTEXT:
+- Username: ${memoryContext.githubContext.username || 'Not specified'}
+- Current repo: ${memoryContext.githubContext.recentRepositories?.[0] || 'None selected'}
+${memoryContext.githubContext.commitHistory ? `- Recent commits: ${JSON.stringify(memoryContext.githubContext.commitHistory.slice(0, 3))}` : ''}
+        `);
+      }
       
       // Create the enhanced context message
       const memoryMsg: Message = {
@@ -178,7 +134,7 @@ ${docsList}
 MEMORY CONTEXT INFORMATION:
 ${contextSections.join('\n\n')}
 
-When responding, naturally incorporate this information when relevant without explicitly mentioning that you're using "memory context". Remember details about Sabrina, her projects, and previous conversations.
+When responding, naturally incorporate this information when relevant without explicitly mentioning that you're using "memory context". Remember details about the user, their projects, and previous conversations.
         `.trim()
       };
       
@@ -188,7 +144,7 @@ When responding, naturally incorporate this information when relevant without ex
     
     console.log(`Calling OpenAI API with ${enhancedMessages.length} messages`);
     
-    // Call OpenAI API
+    // Call OpenAI API with your provided API key
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -199,7 +155,7 @@ When responding, naturally incorporate this information when relevant without ex
         model: OPENAI_MODEL,
         messages: enhancedMessages,
         temperature: 0.7,
-        max_tokens: 1500
+        max_tokens: 2000 // Increased token limit for more detailed responses
       })
     });
     
@@ -207,22 +163,13 @@ When responding, naturally incorporate this information when relevant without ex
       const errorData = await response.json();
       console.error('OpenAI API error:', errorData);
       
-      // Fall back to mock response if OpenAI API fails
-      const mockResponse = {
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: "I'm having trouble connecting to my knowledge base right now. Let me try to help based on what we're discussing. How can I assist you with your project today?"
-            }
-          }
-        ]
-      };
-      
       return new Response(
-        JSON.stringify(mockResponse),
+        JSON.stringify({
+          error: 'Failed to generate a response from OpenAI',
+          details: errorData
+        }),
         { 
-          status: 200,
+          status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
@@ -240,22 +187,10 @@ When responding, naturally incorporate this information when relevant without ex
   } catch (error) {
     console.error('Error processing request:', error);
     
-    // Return a fallback response in case of errors
-    const fallbackResponse = {
-      choices: [
-        {
-          message: {
-            role: 'assistant',
-            content: "I encountered an issue processing your request. Could you please try again or rephrase your question?"
-          }
-        }
-      ]
-    };
-    
     return new Response(
-      JSON.stringify(fallbackResponse),
+      JSON.stringify({ error: 'An unexpected error occurred', details: error.message }),
       { 
-        status: 200,
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
