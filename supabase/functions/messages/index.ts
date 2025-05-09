@@ -1,9 +1,8 @@
 
-// Implement message handling Edge Function
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.3";
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1"
-
+// CORS headers to enable cross-origin requests
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-user-id',
@@ -14,154 +13,143 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-
+  
   try {
-    // Create a Supabase client with the Auth context of the logged in user
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
-    );
-
-    const url = new URL(req.url);
+    // Get Supabase URL and key from environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    // Header based method
-    let userId = req.headers.get('x-user-id');
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Missing Supabase environment variables');
+    }
     
-    if (!userId) {
-      // If not in headers, try to get from URL or body
-      if (req.method === 'GET') {
-        // Legacy URL parameter approach
-        userId = url.searchParams.get('userId');
-      } else {
-        // Try to get from body
-        const { userId: bodyUserId } = await req.json();
-        userId = bodyUserId;
-      }
-    }
-
-    if (!userId) {
-      return new Response(
-        JSON.stringify({ error: 'Missing user ID in request' }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // GET: Fetch messages
+    // Initialize Supabase client with service role key for admin access
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Process GET requests (fetch messages)
     if (req.method === 'GET') {
-      // Query messages for user
-      console.log(`Fetching messages for user: ${userId}`);
+      const userId = req.headers.get('x-user-id');
       
-      const { data, error } = await supabaseClient
+      if (!userId) {
+        return new Response(
+          JSON.stringify({ error: 'User ID is required' }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
+      // Fetch messages for the specified user
+      const { data, error } = await supabase
         .from('messages')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: true })
-        .limit(50);
-        
-      if (error) throw error;
+        .order('timestamp', { ascending: true });
       
-      console.log(`Found ${data.length} messages for user ${userId}`);
+      if (error) throw error;
       
       return new Response(
         JSON.stringify(data),
         { 
-          status: 200,
+          status: 200, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
     
-    // POST: Create a new message
+    // Process POST requests (create new message)
     else if (req.method === 'POST') {
-      // Parse the request body
-      let body;
-      try {
-        body = await req.json();
-      } catch (e) {
+      const { userId, content, role } = await req.json();
+      
+      if (!userId || !content || !role) {
         return new Response(
-          JSON.stringify({ error: 'Invalid JSON in request body' }),
+          JSON.stringify({ error: 'User ID, content, and role are required' }),
           { 
-            status: 400,
+            status: 400, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           }
         );
       }
       
-      const { content, role } = body;
+      // Generate a timestamp for the message
+      const timestamp = new Date().toISOString();
+      const id = crypto.randomUUID();
       
-      if (!content || !role) {
-        return new Response(
-          JSON.stringify({ error: 'Missing content or role in request body' }),
-          { 
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        );
-      }
-      
-      // Insert the message
-      const { data, error } = await supabaseClient
+      // Insert the message into the database
+      const { data, error } = await supabase
         .from('messages')
         .insert([
-          { 
-            user_id: userId, 
-            content, 
-            role 
+          {
+            id,
+            user_id: userId,
+            content,
+            role,
+            timestamp
           }
         ])
-        .select();
-        
+        .select()
+        .single();
+      
       if (error) throw error;
       
       return new Response(
-        JSON.stringify(data[0]),
+        JSON.stringify(data),
         { 
-          status: 201,
+          status: 201, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
     
-    // DELETE: Remove all messages for a user
+    // Process DELETE requests (delete messages)
     else if (req.method === 'DELETE') {
-      const { error } = await supabaseClient
+      const { userId } = await req.json();
+      
+      if (!userId) {
+        return new Response(
+          JSON.stringify({ error: 'User ID is required' }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
+      // Delete all messages for the specified user
+      const { error } = await supabase
         .from('messages')
         .delete()
         .eq('user_id', userId);
-        
+      
       if (error) throw error;
       
       return new Response(
         JSON.stringify({ success: true }),
         { 
-          status: 200,
+          status: 200, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
     
-    // Method not allowed
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { 
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-    
+    // Handle unsupported methods
+    else {
+      return new Response(
+        JSON.stringify({ error: 'Method not allowed' }),
+        { 
+          status: 405, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
   } catch (error) {
+    console.error('Error in messages function:', error);
+    
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
-        status: 500,
+        status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );

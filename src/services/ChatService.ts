@@ -23,4 +23,3 @@ export {
   processFileOperations as processFileOps,
   getProjectStructure as getProjectFileStructure
 } from './chat/FileOperationService';
-
