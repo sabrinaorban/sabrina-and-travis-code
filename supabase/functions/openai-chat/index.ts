@@ -179,16 +179,7 @@ IMPORTANT: You can directly edit files in the project when asked. For example:
   3. Update the file
   4. Explain what you did
 
-To perform file operations, include a 'file_operations' property in your response with an array of operations:
-[
-  {
-    "operation": "read/write/create/delete",
-    "path": "/path/to/file",
-    "content": "file content for write/create operations"
-  }
-]
-
-Always provide helpful and friendly responses, showing the user what changes you've made.` : ''}`;
+To perform file operations, include file operations in your JSON response.` : ''}`;
     }
     
     console.log(`Calling OpenAI API with ${enhancedMessages.length} messages`);
@@ -203,10 +194,9 @@ Always provide helpful and friendly responses, showing the user what changes you
 2. Then make the necessary changes with a "write" operation for existing files or "create" for new files
 3. Tell the user exactly what you changed and show relevant code snippets
 
-Your response should be formatted normally as helpful explanatory text, but you can include file operations by adding a "file_operations" array to your message. These operations will be executed automatically.
-
-Example file operations:
+Format your response as a JSON object with the following structure:
 {
+  "response": "Your helpful explanation text goes here",
   "file_operations": [
     { "operation": "read", "path": "/index.html" },
     { "operation": "write", "path": "/index.html", "content": "updated HTML content" },
@@ -215,7 +205,7 @@ Example file operations:
   ]
 }
 
-When responding to the user, explain what files you've read and what changes you've made in a clear, user-friendly way.`
+Remember to always mention 'json' in your system prompt when using json output format.`
       });
     }
     
@@ -280,7 +270,7 @@ When responding to the user, explain what files you've read and what changes you
         }
       } catch (e) {
         // If parsing fails, just use the message as is
-        console.log("Could not parse response as JSON, using as plain text");
+        console.log("Could not parse response as JSON, using as plain text:", e);
       }
     }
     
