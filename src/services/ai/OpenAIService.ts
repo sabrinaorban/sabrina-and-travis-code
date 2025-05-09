@@ -71,11 +71,6 @@ WHEN MOVING FILES:
 2. Then create the file at the new location with the same content
 3. Only delete the original file after confirming the new one was created successfully
 4. NEVER delete any unrelated files
-
-WHEN CREATING A FOLDER OR NEW FILE:
-1. First check what files already exist
-2. Create the new folder or file without disturbing existing files
-3. DO NOT delete or modify any files unless explicitly asked to do so
 `;
 
   // Get the complete project structure to include in the messages

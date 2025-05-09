@@ -11,9 +11,25 @@ export const processMoveDeleteOperations = async (
 ): Promise<FileOperation[]> => {
   const results: FileOperation[] = [];
   
+  // Track paths that we've already processed in this batch to avoid duplicates
+  const processedPaths = new Set<string>();
+  
   for (const op of operations) {
     try {
       const cleanPath = normalizePath(op.path);
+      
+      // Skip duplicate delete operations for the same path in the same batch
+      if (processedPaths.has(cleanPath)) {
+        console.log(`[FileOperationService] Skipping duplicate delete for: ${cleanPath}`);
+        results.push({
+          ...op,
+          success: true,
+          message: `Skipped duplicate delete for ${cleanPath}`
+        });
+        continue;
+      }
+      
+      processedPaths.add(cleanPath);
       
       // Don't delete protected files
       if (PROTECTED_FILES.includes(cleanPath) && !op.isSafeToDelete) {
@@ -93,9 +109,25 @@ export const processManualDeleteOperations = async (
 ): Promise<FileOperation[]> => {
   const results: FileOperation[] = [];
   
+  // Track paths that we've already processed in this batch to avoid duplicates
+  const processedPaths = new Set<string>();
+  
   for (const op of operations) {
     try {
       const cleanPath = normalizePath(op.path);
+      
+      // Skip duplicate delete operations for the same path in the same batch
+      if (processedPaths.has(cleanPath)) {
+        console.log(`[FileOperationService] Skipping duplicate manual delete for: ${cleanPath}`);
+        results.push({
+          ...op,
+          success: true,
+          message: `Skipped duplicate manual delete for ${cleanPath}`
+        });
+        continue;
+      }
+      
+      processedPaths.add(cleanPath);
       
       // Extra protection for critical files
       if (PROTECTED_FILES.includes(cleanPath)) {

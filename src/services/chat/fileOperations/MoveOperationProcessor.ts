@@ -12,6 +12,9 @@ export const processMoveOperations = async (
 ): Promise<FileOperation[]> => {
   const results: FileOperation[] = [];
   
+  // Track paths that we've already processed in this batch to avoid duplicates
+  const processedSourcePaths = new Set<string>();
+  
   for (const op of operations) {
     try {
       if (!op.targetPath) {
@@ -20,6 +23,19 @@ export const processMoveOperations = async (
       
       const cleanSourcePath = normalizePath(op.path);
       const cleanTargetPath = normalizePath(op.targetPath);
+      
+      // Skip duplicate move operations for the same source in the same batch
+      if (processedSourcePaths.has(cleanSourcePath)) {
+        console.log(`[FileOperationService] Skipping duplicate move for source: ${cleanSourcePath}`);
+        results.push({
+          ...op,
+          success: true,
+          message: `Skipped duplicate move for source ${cleanSourcePath}`
+        });
+        continue;
+      }
+      
+      processedSourcePaths.add(cleanSourcePath);
       
       console.log(`[FileOperationService] ${op.operation} from ${cleanSourcePath} to ${cleanTargetPath}`);
       
@@ -32,6 +48,32 @@ export const processMoveOperations = async (
       // Remember the source file ID to preserve identity
       const sourceFileId = sourceFile.id;
       state.fileIdMap.set(cleanSourcePath, sourceFileId);
+      
+      // Check if target file already exists to avoid duplicate creation
+      const targetExists = fileSystem.getFileByPath(cleanTargetPath);
+      if (targetExists) {
+        console.log(`[FileOperationService] Target file already exists at ${cleanTargetPath}`);
+        
+        // If this is a move operation and both source and target exist, 
+        // we can skip creating the target but still mark source as safe to delete
+        if (op.operation === 'move') {
+          state.safeToDeleteFiles.add(cleanSourcePath);
+          console.log(`[FileOperationService] Target already exists; marking ${cleanSourcePath} as safe to delete`);
+          
+          results.push({
+            operation: 'delete',
+            path: cleanSourcePath,
+            targetPath: cleanTargetPath, 
+            originOperation: 'move',
+            sourceFile: sourceFileId,
+            isSafeToDelete: true,
+            success: true,
+            message: `Source file ${cleanSourcePath} scheduled for deletion after move (target already exists)`
+          });
+          
+          continue;
+        }
+      }
       
       // Get content from read operation cache or read it now
       let content = state.readFiles.get(cleanSourcePath);

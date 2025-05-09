@@ -12,10 +12,26 @@ export const processFileCreationOperations = async (
 ): Promise<FileOperation[]> => {
   const results: FileOperation[] = [];
   
+  // Track paths that we've already processed in this batch to avoid duplicates
+  const processedPaths = new Set<string>();
+  
   for (const op of operations) {
     try {
       console.log(`[FileOperationService] Creating file: ${op.path}`);
       const cleanPath = normalizePath(op.path);
+      
+      // Skip duplicate paths in the same batch
+      if (processedPaths.has(cleanPath)) {
+        console.log(`[FileOperationService] Skipping duplicate file creation for: ${cleanPath}`);
+        results.push({
+          ...op,
+          success: true,
+          message: `Skipped duplicate file creation for ${cleanPath}`
+        });
+        continue;
+      }
+      
+      processedPaths.add(cleanPath);
       
       // Ensure parent directories exist
       const { parentPath, fileName } = getPathParts(cleanPath);
@@ -73,10 +89,26 @@ export const processWriteOperations = async (
 ): Promise<FileOperation[]> => {
   const results: FileOperation[] = [];
   
+  // Track paths that we've already processed in this batch to avoid duplicates
+  const processedPaths = new Set<string>();
+  
   for (const op of operations) {
     try {
       console.log(`[FileOperationService] Writing file: ${op.path}`);
       const cleanPath = normalizePath(op.path);
+      
+      // Skip duplicate paths in the same batch
+      if (processedPaths.has(cleanPath)) {
+        console.log(`[FileOperationService] Skipping duplicate write for: ${cleanPath}`);
+        results.push({
+          ...op,
+          success: true,
+          message: `Skipped duplicate write for ${cleanPath}`
+        });
+        continue;
+      }
+      
+      processedPaths.add(cleanPath);
       
       // Ensure parent directories exist
       const { parentPath, fileName } = getPathParts(cleanPath);

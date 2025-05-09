@@ -12,10 +12,26 @@ export const processFolderCreationOperations = async (
 ): Promise<FileOperation[]> => {
   const results: FileOperation[] = [];
   
+  // Track paths that we've already processed in this batch to avoid duplicates
+  const processedFolders = new Set<string>();
+  
   for (const op of operations) {
     try {
       console.log(`[FileOperationService] Creating folder: ${op.path}`);
       const cleanPath = normalizePath(op.path);
+      
+      // Skip duplicate folder creations in the same batch
+      if (processedFolders.has(cleanPath)) {
+        console.log(`[FileOperationService] Skipping duplicate folder creation for: ${cleanPath}`);
+        results.push({
+          ...op,
+          success: true,
+          message: `Skipped duplicate folder creation for ${cleanPath}`
+        });
+        continue;
+      }
+      
+      processedFolders.add(cleanPath);
       
       const pathWithoutTrailingSlash = cleanPath.replace(/\/$/, '');
       const { parentPath, fileName: folderName } = getPathParts(pathWithoutTrailingSlash);

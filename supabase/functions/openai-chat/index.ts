@@ -391,7 +391,7 @@ IMPORTANT:
 - NEVER rely on the client to infer operations; be explicit with each step
 - Format your entire response as valid JSON
 - When folders are needed, create them with "content": null
-- DO NOT delete unrelated files like index.html or style.css unless specifically asked to`
+- DO NOT delete unrelated files like index.html or style.css unless specifically asked to do so`
       });
     } else {
       enhancedMessages.push({
