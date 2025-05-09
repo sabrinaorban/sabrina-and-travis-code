@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { GitHubAuth } from '@/components/GitHubAuth';
 import { GitHubRepoSelector } from '@/components/GitHubRepoSelector';
 import { GitHubCommitPanel } from '@/components/GitHubCommitPanel';
-import { useGitHub } from '@/contexts/GitHubContext';
+import { GitHubProvider, useGitHub } from '@/contexts/GitHubContext';
 import { 
   Loader2, Menu, X, Upload, Download, Trash2, RefreshCw, 
   FolderPlus, FilePlus, Github 
@@ -328,7 +328,9 @@ const Dashboard = () => {
   return (
     <ChatProvider>
       <FileSystemProvider>
-        <DashboardContent />
+        <GitHubProvider>
+          <DashboardContent />
+        </GitHubProvider>
       </FileSystemProvider>
     </ChatProvider>
   );

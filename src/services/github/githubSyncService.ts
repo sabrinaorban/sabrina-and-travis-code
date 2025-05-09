@@ -95,10 +95,10 @@ export class GithubSyncService {
           continue;
         }
 
-        let retries = 3;
+        let retries = 2; // Reduce retries to avoid excessive looping
         let folderCreated = false;
         
-        while (retries > 0 && !folderCreated) {
+        while (retries >= 0 && !folderCreated) {
           try {
             // Ensure parent folder exists first
             if (!folderCreationStatus.get(parentPath)) {
@@ -123,18 +123,16 @@ export class GithubSyncService {
             this.syncedFolders++;
             console.log(`Created folder: ${folderPath}`);
           } catch (error) {
-            console.warn(`Attempt ${4-retries}/3: Folder creation failed: ${folderPath}`, error);
+            console.warn(`Attempt ${3-retries}/3: Folder creation failed: ${folderPath}`, error);
             retries--;
-            // Short delay before retry
-            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Mark as created even after a failure to avoid loops
+            if (retries < 0) {
+              folderCreationStatus.set(folderPath, true); // Prevent looping
+              this.failedItems.push(folderPath);
+              console.error(`Failed to create folder: ${folderPath} - marking as created to continue`);
+            }
           }
-        }
-        
-        if (!folderCreated) {
-          console.error(`Failed to create folder after multiple attempts: ${folderPath}`);
-          this.failedItems.push(folderPath);
-          // Mark as created anyway to avoid blocking child files
-          folderCreationStatus.set(folderPath, true);
         }
       }
 
@@ -195,14 +193,17 @@ export class GithubSyncService {
             console.log(`Fetched content for ${file.path}, length: ${content.length}`);
           } catch (error) {
             console.error(`Error fetching content for file ${file.path}:`, error);
+            // If we can't fetch content, skip this file
+            this.failedItems.push(filePath);
+            continue;
           }
         }
 
-        // Now create the file with retry logic
-        let retries = 3;
+        // Now create the file with reduced retry logic
+        let retries = 1; // Only retry once
         let fileCreated = false;
         
-        while (retries > 0 && !fileCreated) {
+        while (retries >= 0 && !fileCreated) {
           try {
             console.log(`Attempting to create file: ${fileName} at ${parentPath}`);
             await createFile(parentPath, fileName, content);
@@ -210,15 +211,13 @@ export class GithubSyncService {
             fileCreated = true;
             console.log(`Created file: ${filePath} with content length: ${content.length}`);
           } catch (error) {
-            console.warn(`Attempt ${4-retries}/3: File creation failed: ${filePath}`, error);
+            console.warn(`Attempt ${2-retries}/2: File creation failed: ${filePath}`, error);
             retries--;
-            // Short delay before retry
-            await new Promise(resolve => setTimeout(resolve, 500));
           }
         }
         
         if (!fileCreated) {
-          console.error(`Failed to create file after multiple attempts: ${filePath}`);
+          console.error(`Failed to create file after attempts: ${filePath}`);
           this.failedItems.push(filePath);
         }
       }
@@ -233,9 +232,6 @@ export class GithubSyncService {
         });
         return false;
       }
-
-      // Wait a bit to ensure all DB operations complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
 
       this.toast({
         title: 'Repository Synced',

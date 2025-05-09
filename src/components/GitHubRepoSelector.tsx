@@ -14,13 +14,14 @@ export const GitHubRepoSelector: React.FC = () => {
   const { refreshFiles, isLoading: fileSystemLoading, deleteAllFiles } = useFileSystem();
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncAttempt, setLastSyncAttempt] = useState<number>(0);
   
   // Fetch repositories when authenticated
   useEffect(() => {
     if (authState.isAuthenticated && authState.token && repositories.length === 0) {
       fetchRepositories();
     }
-  }, [authState.isAuthenticated, authState.token, repositories.length]);
+  }, [authState.isAuthenticated, authState.token, repositories.length, fetchRepositories]);
 
   if (!authState.isAuthenticated) {
     return null;
@@ -40,6 +41,20 @@ export const GitHubRepoSelector: React.FC = () => {
   const handleSync = async () => {
     if (!currentRepo || !currentBranch) return;
     
+    // Prevent multiple rapid sync attempts
+    const now = Date.now();
+    if (now - lastSyncAttempt < 5000) {
+      console.log('Sync attempted too quickly, debouncing...');
+      return;
+    }
+    setLastSyncAttempt(now);
+    
+    // Set syncing state and don't allow multiple syncs
+    if (isSyncing) {
+      console.log('Already syncing, ignoring request');
+      return;
+    }
+    
     setIsSyncing(true);
     try {
       // First delete all existing files
@@ -53,22 +68,18 @@ export const GitHubRepoSelector: React.FC = () => {
       
       // Check boolean result
       if (result === true) {
-        // Force refresh files with a delay to ensure database operations complete
+        // Single refresh with a delay to ensure database operations complete
         console.log('Sync successful, refreshing files...');
         
-        // First immediate refresh
-        await refreshFiles();
+        // Wait for a moment to ensure database operations are complete
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Then another refresh after a delay to catch any pending database operations
-        setTimeout(async () => {
-          console.log('Performing second refresh to ensure all files are loaded');
-          try {
-            await refreshFiles();
-            console.log('Second files refresh completed after sync');
-          } catch (error) {
-            console.error('Error during second refresh after sync:', error);
-          }
-        }, 2000);
+        try {
+          await refreshFiles();
+          console.log('Files refresh completed after sync');
+        } catch (error) {
+          console.error('Error during refresh after sync:', error);
+        }
       } else {
         console.error('Sync failed or no files were created');
       }

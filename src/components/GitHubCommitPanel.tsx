@@ -15,6 +15,8 @@ import { supabase } from '@/lib/supabase';
 export const GitHubCommitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
   const [editedFiles, setEditedFiles] = useState<FileEntry[]>([]);
+  const [isCommitting, setIsCommitting] = useState(false);
+  const [lastCommitTime, setLastCommitTime] = useState(0);
   const { toast } = useToast();
 
   // Get GitHub context safely
@@ -41,6 +43,22 @@ export const GitHubCommitPanel: React.FC = () => {
 
   const handleCommit = async () => {
     if (!commitMessage.trim() || editedFiles.length === 0) return;
+    
+    // Prevent multiple rapid commit attempts
+    const now = Date.now();
+    if (now - lastCommitTime < 5000) {
+      console.log('Commit attempted too quickly, debouncing...');
+      return;
+    }
+    
+    // Don't allow multiple commits at once
+    if (isCommitting) {
+      console.log('Already committing, ignoring request');
+      return;
+    }
+    
+    setIsCommitting(true);
+    setLastCommitTime(now);
     
     try {
       let successCount = 0;
@@ -81,6 +99,14 @@ export const GitHubCommitPanel: React.FC = () => {
             .update({ is_modified: false })
             .eq('id', file.id);
         }));
+        
+        // Clear commit message after successful commit
+        setCommitMessage('');
+        
+        // Refresh the list of modified files after commit
+        if (getModifiedFiles) {
+          setEditedFiles(getModifiedFiles());
+        }
       }
       
       if (failCount > 0) {
@@ -90,12 +116,6 @@ export const GitHubCommitPanel: React.FC = () => {
           variant: "destructive"
         });
       }
-      
-      setCommitMessage('');
-      // Refresh the list of modified files after commit
-      if (getModifiedFiles) {
-        setEditedFiles(getModifiedFiles());
-      }
     } catch (error) {
       console.error("Error committing files:", error);
       toast({
@@ -103,6 +123,8 @@ export const GitHubCommitPanel: React.FC = () => {
         description: "Failed to push changes",
         variant: "destructive"
       });
+    } finally {
+      setIsCommitting(false);
     }
   };
 
@@ -148,16 +170,16 @@ export const GitHubCommitPanel: React.FC = () => {
           onChange={(e) => setCommitMessage(e.target.value)}
           rows={2}
           className="text-sm"
-          disabled={editedFiles.length === 0 || isLoading}
+          disabled={editedFiles.length === 0 || isLoading || isCommitting}
         />
       </CardContent>
       <CardFooter>
         <Button 
           className="w-full"
-          disabled={editedFiles.length === 0 || !commitMessage.trim() || isLoading}
+          disabled={editedFiles.length === 0 || !commitMessage.trim() || isLoading || isCommitting}
           onClick={handleCommit}
         >
-          {isLoading ? (
+          {(isLoading || isCommitting) ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Pushing...

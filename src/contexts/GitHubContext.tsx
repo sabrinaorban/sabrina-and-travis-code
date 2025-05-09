@@ -181,22 +181,33 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentRepo, currentBranch]);
 
-  // Sync repository to file system - updated to return boolean
+  // Sync repository to file system - updated to return boolean and not trigger automatic refreshes
   const syncRepoToFileSystem = async (owner: string, repo: string, branch: string): Promise<boolean> => {
-    const result = await syncRepo(owner, repo, branch, createFile, createFolder);
-    await refreshFiles();
-    
-    // Store sync operation in memory
-    if (user?.id) {
-      await MemoryService.storeMemory(user.id, 'github_last_sync', {
-        owner,
-        repo,
-        branch,
-        timestamp: new Date().toISOString()
-      });
+    try {
+      const result = await syncRepo(owner, repo, branch, createFile, createFolder);
+      
+      // Only manually refresh once
+      if (result) {
+        // Single manual refresh after sync
+        await refreshFiles();
+      }
+      
+      // Store sync operation in memory
+      if (user?.id) {
+        await MemoryService.storeMemory(user.id, 'github_last_sync', {
+          owner,
+          repo,
+          branch,
+          timestamp: new Date().toISOString(),
+          success: result
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      console.error("Error in syncRepoToFileSystem:", error);
+      return false;
     }
-    
-    return result;
   };
 
   // Handle logout with reset
