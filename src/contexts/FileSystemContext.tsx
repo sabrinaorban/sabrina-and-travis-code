@@ -19,7 +19,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const { user } = useAuth();
   const { fetchFiles, isLoading, setIsLoading } = useFileFetcher(user);
   
-  // Update refreshFiles to handle both void and FileEntry[] return types
+  // Use the updated type signature for fetchFiles
   const { refreshFiles, deleteAllFiles } = useFileRefresh(
     user, 
     async () => { 
