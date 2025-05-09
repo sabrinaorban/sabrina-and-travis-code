@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { FileEntry, FileSystemState } from '../types';
 import { FileSystemContextType } from '../types/fileSystem';
@@ -69,7 +68,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         getFileContentByPath: (path: string) => getFileContentByPath(path, fileSystem.files),
         updateFileByPath: (path: string, content: string) => updateFileByPath(path, content, fileSystem.files),
         isLoading,
-        refreshFiles,
+        refreshFiles, // Fixed: No argument passed
         deleteAllFiles,
         getModifiedFiles: () => getModifiedFiles(fileSystem.files)
       }}
