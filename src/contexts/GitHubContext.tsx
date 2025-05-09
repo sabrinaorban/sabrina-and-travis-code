@@ -39,6 +39,9 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     username: null as string | null
   });
   
+  // Add a flag to track if we're restoring a repo selection
+  const isRestoringRepoRef = useRef(false);
+  
   console.log('GitHubProvider - Initializing with user:', user?.id);
   
   // Use our custom hooks for GitHub functionality
@@ -63,6 +66,16 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     syncRepoToFileSystem: syncRepo,
     reset
   } = useGithubRepos(authState.token);
+
+  // Debug logs for current state
+  useEffect(() => {
+    console.log('GitHubProvider - Current repo state:', {
+      hasRepo: !!currentRepo,
+      repoName: currentRepo?.full_name,
+      branch: currentBranch,
+      branchCount: branches.length,
+    });
+  }, [currentRepo, currentBranch, branches]);
 
   // Load GitHub contextual memory
   const loadGitHubMemory = useCallback(async () => {
@@ -190,33 +203,60 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           console.log('GitHubProvider - Found stored repo info:', storedRepoInfo);
           const { repoFullName, branchName } = JSON.parse(storedRepoInfo);
           
-          // Fetch repositories if needed
-          const initializeRepoSelection = async () => {
-            if (repositories.length === 0) {
-              console.log('GitHubProvider - Fetching repositories before restoring selection');
-              await fetchRepositories();
-            }
+          if (repoFullName) {
+            console.log('GitHubProvider - Found repo to restore:', repoFullName);
             
-            // Find the repository in the list and select it
-            if (repoFullName && repositories.length > 0) {
-              const repo = repositories.find(r => r.full_name === repoFullName);
-              if (repo) {
-                console.log('GitHubProvider - Restoring repo selection:', repo.full_name);
-                await selectRepository(repo);
+            // Set flag that we're restoring
+            isRestoringRepoRef.current = true;
+          
+            // Fetch repositories if needed
+            const initializeRepoSelection = async () => {
+              // Wait for repositories to be loaded first
+              let attempts = 0;
+              const maxAttempts = 3;
+            
+              while (repositories.length === 0 && attempts < maxAttempts) {
+                console.log(`GitHubProvider - Fetching repositories before restoring selection (attempt ${attempts + 1}/${maxAttempts})`);
+                await fetchRepositories();
+                attempts++;
                 
-                if (branchName) {
-                  console.log('GitHubProvider - Restoring branch selection:', branchName);
-                  await selectBranch(branchName);
+                // Wait a bit between attempts
+                if (repositories.length === 0 && attempts < maxAttempts) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+              }
+              
+              if (repositories.length > 0) {
+                // Find the repository in the list and select it
+                const repo = repositories.find(r => r.full_name === repoFullName);
+                
+                if (repo) {
+                  console.log('GitHubProvider - Restoring repo selection:', repo.full_name);
+                  await selectRepository(repo);
+                  
+                  // Wait a moment to allow branches to load
+                  setTimeout(async () => {
+                    if (branchName) {
+                      console.log('GitHubProvider - Restoring branch selection:', branchName);
+                      await selectBranch(branchName);
+                    }
+                    isRestoringRepoRef.current = false;
+                  }, 1000);
+                } else {
+                  console.log('GitHubProvider - Stored repo not found in the list:', repoFullName);
+                  isRestoringRepoRef.current = false;
                 }
               } else {
-                console.log('GitHubProvider - Stored repo not found in the list:', repoFullName);
+                console.log('GitHubProvider - Could not fetch repositories, cannot restore selection');
+                isRestoringRepoRef.current = false;
               }
-            }
-          };
-          
-          initializeRepoSelection();
+            };
+            
+            initializeRepoSelection();
+          }
         } catch (error) {
           console.error('GitHubProvider - Error restoring repo info:', error);
+          isRestoringRepoRef.current = false;
         }
       } else {
         console.log('GitHubProvider - No stored repo info found');
@@ -309,7 +349,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     selectBranch,
     fetchRepositories,
     fetchFileContent,
-    isLoading: isLoading || isInitializing,
+    isLoading: isLoading || isInitializing || isRestoringRepoRef.current,
     saveFileToRepo,
     syncRepoToFileSystem,
     logout: handleLogout

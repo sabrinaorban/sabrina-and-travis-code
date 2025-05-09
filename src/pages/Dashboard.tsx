@@ -125,7 +125,6 @@ const GitHubCommitPanelContainer = () => {
 };
 
 const DashboardContent = () => {
-  // ... keep existing code (state declarations and hooks)
   const [showFiles, setShowFiles] = useState(true);
   const { user, logout, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -154,7 +153,6 @@ const DashboardContent = () => {
     console.log('DashboardContent - GitHub auth state update:', authState);
   }, [user, authLoading, authState]);
 
-  // ... keep existing code (event handlers)
   const handleLogout = async () => {
     await logout();
     toast({

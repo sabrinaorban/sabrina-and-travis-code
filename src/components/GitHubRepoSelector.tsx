@@ -1,21 +1,27 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGitHub } from '@/contexts/GitHubContext';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFileSystem } from '@/contexts/FileSystemContext';
-import { Loader2, RefreshCw, GitBranch, Code, Trash2 } from 'lucide-react';
+import { Loader2, RefreshCw, GitBranch, Code, Trash2, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export const GitHubRepoSelector: React.FC = () => {
   const { authState, repositories, currentRepo, currentBranch, availableBranches, 
           isLoading, fetchRepositories, selectRepository, selectBranch, syncRepoToFileSystem } = useGitHub();
   const { refreshFiles, isLoading: fileSystemLoading, deleteAllFiles } = useFileSystem();
+  
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncAttempt, setLastSyncAttempt] = useState<number>(0);
   const [syncError, setSyncError] = useState<string | null>(null);
+  
+  // Track the last sync attempt time to prevent rapid clicking
+  const lastSyncAttemptRef = useRef(0);
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const syncCooldownMs = 10000; // 10 seconds cooldown
   
   // Debug logs
   useEffect(() => {
@@ -23,8 +29,9 @@ export const GitHubRepoSelector: React.FC = () => {
     console.log('GitHubRepoSelector - Repos count:', repositories.length);
     console.log('GitHubRepoSelector - Current repo:', currentRepo?.full_name);
     console.log('GitHubRepoSelector - Current branch:', currentBranch);
+    console.log('GitHubRepoSelector - Branches count:', availableBranches.length);
     console.log('GitHubRepoSelector - Loading states:', { isLoading, fileSystemLoading, isSyncing });
-  }, [authState, repositories, currentRepo, currentBranch, isLoading, fileSystemLoading, isSyncing]);
+  }, [authState, repositories, currentRepo, currentBranch, availableBranches, isLoading, fileSystemLoading, isSyncing]);
   
   // Fetch repositories when authenticated
   useEffect(() => {
@@ -34,11 +41,23 @@ export const GitHubRepoSelector: React.FC = () => {
     }
   }, [authState.isAuthenticated, authState.token, repositories.length, fetchRepositories]);
 
+  // Clean up timeouts when component unmounts
+  useEffect(() => {
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, []);
+
   if (!authState.isAuthenticated) {
     return null;
   }
 
   const handleRepositoryChange = async (repoFullName: string) => {
+    // Reset sync error when changing repositories
+    setSyncError(null);
+    
     console.log('GitHubRepoSelector - Repository selected:', repoFullName);
     const repo = repositories.find(r => r.full_name === repoFullName);
     if (repo) {
@@ -47,6 +66,9 @@ export const GitHubRepoSelector: React.FC = () => {
   };
 
   const handleBranchChange = async (branch: string) => {
+    // Reset sync error when changing branches
+    setSyncError(null);
+    
     console.log('GitHubRepoSelector - Branch selected:', branch);
     await selectBranch(branch);
   };
@@ -54,28 +76,31 @@ export const GitHubRepoSelector: React.FC = () => {
   const handleSync = async () => {
     if (!currentRepo || !currentBranch) {
       console.error('GitHubRepoSelector - Cannot sync: missing repo or branch');
+      setSyncError('No repository or branch selected');
       return;
     }
     
-    // Prevent multiple rapid sync attempts with a 10-second cooldown
+    // Prevent multiple rapid sync attempts with a cooldown
     const now = Date.now();
-    if (now - lastSyncAttempt < 10000) {
+    if (now - lastSyncAttemptRef.current < syncCooldownMs) {
       console.log('GitHubRepoSelector - Sync attempted too quickly, debouncing...');
-      setSyncError('Please wait 10 seconds between sync attempts');
+      setSyncError(`Please wait ${syncCooldownMs / 1000} seconds between sync attempts`);
       return;
     }
     
-    // Reset error state
-    setSyncError(null);
-    setLastSyncAttempt(now);
-    
-    // Set syncing state and don't allow multiple syncs
+    // Don't allow if already syncing
     if (isSyncing) {
       console.log('GitHubRepoSelector - Already syncing, ignoring request');
       return;
     }
     
+    // Reset error state
+    setSyncError(null);
+    lastSyncAttemptRef.current = now;
+    
+    // Set syncing state
     setIsSyncing(true);
+    
     try {
       // First delete all existing files
       console.log('GitHubRepoSelector - Deleting all existing files before syncing...');
@@ -97,6 +122,9 @@ export const GitHubRepoSelector: React.FC = () => {
           console.log('GitHubRepoSelector - Refreshing files after sync...');
           await refreshFiles();
           console.log('GitHubRepoSelector - Files refresh completed after sync');
+          
+          // Close dialog on success
+          setIsSyncDialogOpen(false);
         } catch (error) {
           console.error('GitHubRepoSelector - Error during refresh after sync:', error);
           setSyncError('Error refreshing files');
@@ -110,7 +138,11 @@ export const GitHubRepoSelector: React.FC = () => {
       setSyncError(error.message || 'Unknown error during sync');
     } finally {
       setIsSyncing(false);
-      setIsSyncDialogOpen(false);
+      
+      // Set a timeout to allow syncing again after the cooldown
+      syncTimeoutRef.current = setTimeout(() => {
+        console.log('GitHubRepoSelector - Sync cooldown complete');
+      }, syncCooldownMs);
     }
   };
 
@@ -146,13 +178,18 @@ export const GitHubRepoSelector: React.FC = () => {
               </div>
               <Select 
                 onValueChange={handleRepositoryChange} 
-                value={currentRepo?.full_name}
+                value={currentRepo?.full_name || ''}
                 disabled={isLoading}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a repository" />
                 </SelectTrigger>
                 <SelectContent>
+                  {repositories.length === 0 && !isLoading && (
+                    <SelectItem value="no-repos" disabled>
+                      No repositories found
+                    </SelectItem>
+                  )}
                   {repositories.map((repo) => (
                     <SelectItem key={repo.id} value={repo.full_name}>
                       {repo.full_name} {repo.private ? '(Private)' : ''}
@@ -177,6 +214,11 @@ export const GitHubRepoSelector: React.FC = () => {
                     <SelectValue placeholder="Select a branch" />
                   </SelectTrigger>
                   <SelectContent>
+                    {availableBranches.length === 0 && !isLoading && (
+                      <SelectItem value="no-branches" disabled>
+                        No branches found
+                      </SelectItem>
+                    )}
                     {availableBranches.map((branch) => (
                       <SelectItem key={branch.name} value={branch.name}>
                         {branch.name}
@@ -190,9 +232,11 @@ export const GitHubRepoSelector: React.FC = () => {
           
           {/* Show sync error if any */}
           {syncError && (
-            <div className="mt-2 text-sm text-red-500">
-              Error: {syncError}
-            </div>
+            <Alert variant="destructive" className="mt-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{syncError}</AlertDescription>
+            </Alert>
           )}
         </CardContent>
         <CardFooter>
@@ -216,14 +260,26 @@ export const GitHubRepoSelector: React.FC = () => {
         </CardFooter>
       </Card>
       
-      <Dialog open={isSyncDialogOpen} onOpenChange={setIsSyncDialogOpen}>
-        <DialogContent>
+      <Dialog open={isSyncDialogOpen} onOpenChange={(open) => {
+        // Only allow closing the dialog if not syncing
+        if (!isSyncing) {
+          setIsSyncDialogOpen(open);
+        }
+      }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Replace Project Files with Repository</DialogTitle>
             <DialogDescription>
               This will <strong>replace all existing files</strong> in your workspace with files from <strong>{currentRepo?.full_name}</strong> branch <strong>{currentBranch}</strong>. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {syncError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{syncError}</AlertDescription>
+            </Alert>
+          )}
           <DialogFooter>
             <Button 
               variant="outline" 

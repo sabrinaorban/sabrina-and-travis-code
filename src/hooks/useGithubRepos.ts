@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { GitHubRepo, GitHubBranch, GitHubFile } from '@/types/github';
 import { GithubApiService } from '@/services/github/githubApiService';
 import { GithubRepositoryService } from '@/services/github/githubRepositoryService';
@@ -15,6 +15,11 @@ export const useGithubRepos = (token: string | null) => {
   const [files, setFiles] = useState<GitHubFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
+  // Add operation tracking to prevent multiple concurrent operations
+  const isFetchingRef = useRef(false);
+  const lastOperationTimeRef = useRef(0);
+  const COOLDOWN_MS = 2000; // 2 second cooldown between operations
+  
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -29,14 +34,35 @@ export const useGithubRepos = (token: string | null) => {
   const repositoryService = new GithubRepositoryService(apiService, toast);
   const syncService = new GithubSyncService(apiService, toast);
 
+  // Helper to check if we should throttle operations
+  const shouldThrottle = () => {
+    const now = Date.now();
+    return now - lastOperationTimeRef.current < COOLDOWN_MS;
+  };
+
   const fetchRepositories = async () => {
     if (!token) {
       console.log('useGithubRepos - Cannot fetch repos: no token');
       return [];
     }
     
+    // Prevent concurrent operations
+    if (isFetchingRef.current) {
+      console.log('useGithubRepos - Already fetching repositories, aborting');
+      return repositories;
+    }
+    
+    // Apply throttling
+    if (shouldThrottle()) {
+      console.log('useGithubRepos - Operation throttled, please wait');
+      return repositories;
+    }
+    
     console.log('useGithubRepos - Fetching repositories');
     setIsLoading(true);
+    isFetchingRef.current = true;
+    lastOperationTimeRef.current = Date.now();
+    
     try {
       const repos = await repositoryService.fetchRepositories();
       console.log(`useGithubRepos - Fetched ${repos.length} repositories`);
@@ -44,9 +70,15 @@ export const useGithubRepos = (token: string | null) => {
       return repos;
     } catch (error) {
       console.error('useGithubRepos - Error fetching repositories:', error);
+      toast({
+        title: "Failed to load repositories",
+        description: "Please check your GitHub connection and try again",
+        variant: "destructive",
+      });
       return [];
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -56,8 +88,23 @@ export const useGithubRepos = (token: string | null) => {
       return [];
     }
     
+    // Prevent concurrent operations
+    if (isFetchingRef.current) {
+      console.log('useGithubRepos - Already fetching branches, aborting');
+      return branches;
+    }
+    
+    // Apply throttling
+    if (shouldThrottle()) {
+      console.log('useGithubRepos - Operation throttled, please wait');
+      return branches;
+    }
+    
     console.log(`useGithubRepos - Fetching branches for ${repoFullName}`);
     setIsLoading(true);
+    isFetchingRef.current = true;
+    lastOperationTimeRef.current = Date.now();
+    
     try {
       const branchList = await repositoryService.fetchBranches(repoFullName);
       console.log(`useGithubRepos - Fetched ${branchList.length} branches`);
@@ -65,9 +112,15 @@ export const useGithubRepos = (token: string | null) => {
       return branchList;
     } catch (error) {
       console.error('useGithubRepos - Error fetching branches:', error);
+      toast({
+        title: "Failed to load branches",
+        description: "Please check repository access and try again",
+        variant: "destructive",
+      });
       return [];
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -77,8 +130,23 @@ export const useGithubRepos = (token: string | null) => {
       return [];
     }
     
+    // Prevent concurrent operations
+    if (isFetchingRef.current) {
+      console.log('useGithubRepos - Already fetching files, aborting');
+      return files;
+    }
+    
+    // Apply throttling
+    if (shouldThrottle()) {
+      console.log('useGithubRepos - Operation throttled, please wait');
+      return files;
+    }
+    
     console.log(`useGithubRepos - Fetching files for ${repoFullName} (${branchName})`);
     setIsLoading(true);
+    isFetchingRef.current = true;
+    lastOperationTimeRef.current = Date.now();
+    
     try {
       const filesList = await repositoryService.fetchFiles(repoFullName, branchName);
       console.log(`useGithubRepos - Fetched ${filesList.length} files`);
@@ -86,23 +154,47 @@ export const useGithubRepos = (token: string | null) => {
       return filesList;
     } catch (error) {
       console.error('useGithubRepos - Error fetching files:', error);
+      toast({
+        title: "Failed to load files",
+        description: "Please check branch access and try again",
+        variant: "destructive",
+      });
       return [];
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
   const selectRepository = async (repo: GitHubRepo) => {
     console.log(`useGithubRepos - Selecting repository: ${repo.full_name}`);
+    
+    // Clear branches when selecting a new repo to prevent stale data
+    setBranches([]);
+    setCurrentBranch(null);
+    setFiles([]);
+    
     setCurrentRepo(repo);
-    await fetchBranches(repo.full_name);
+    
+    // Add a small delay before fetching branches to prevent race conditions
+    setTimeout(async () => {
+      await fetchBranches(repo.full_name);
+    }, 500);
   };
 
   const selectBranch = async (branchName: string) => {
     console.log(`useGithubRepos - Selecting branch: ${branchName}`);
+    
+    // Clear files when selecting a new branch to prevent stale data
+    setFiles([]);
+    
     setCurrentBranch(branchName);
+    
     if (currentRepo) {
-      await fetchFiles(currentRepo.full_name, branchName);
+      // Add a small delay before fetching files to prevent race conditions
+      setTimeout(async () => {
+        await fetchFiles(currentRepo.full_name, branchName);
+      }, 500);
     }
   };
 
@@ -112,8 +204,16 @@ export const useGithubRepos = (token: string | null) => {
       return null;
     }
     
+    // Apply throttling
+    if (shouldThrottle()) {
+      console.log('useGithubRepos - Operation throttled, please wait');
+      return null;
+    }
+    
     console.log(`useGithubRepos - Fetching content for ${filePath}`);
     setIsLoading(true);
+    lastOperationTimeRef.current = Date.now();
+    
     try {
       const content = await repositoryService.fetchFileContent(
         currentRepo.full_name, 
@@ -124,6 +224,11 @@ export const useGithubRepos = (token: string | null) => {
       return content;
     } catch (error) {
       console.error('useGithubRepos - Error fetching file content:', error);
+      toast({
+        title: "Failed to load file content",
+        description: "Please check file access and try again",
+        variant: "destructive",
+      });
       return null;
     } finally {
       setIsLoading(false);
@@ -136,8 +241,20 @@ export const useGithubRepos = (token: string | null) => {
       return false;
     }
     
+    // Apply throttling
+    if (shouldThrottle()) {
+      console.log('useGithubRepos - Operation throttled, please wait');
+      toast({
+        title: "Please wait",
+        description: "Too many operations in quick succession",
+      });
+      return false;
+    }
+    
     console.log(`useGithubRepos - Saving file ${filePath} to repo ${currentRepo.full_name} (${currentBranch})`);
     setIsLoading(true);
+    lastOperationTimeRef.current = Date.now();
+    
     try {
       const result = await repositoryService.saveFileToRepo(
         currentRepo.full_name, 
@@ -150,6 +267,11 @@ export const useGithubRepos = (token: string | null) => {
       return result;
     } catch (error) {
       console.error('useGithubRepos - Error saving file to repo:', error);
+      toast({
+        title: "Failed to save file",
+        description: "Please check repository access and try again",
+        variant: "destructive",
+      });
       return false;
     } finally {
       setIsLoading(false);
@@ -168,8 +290,31 @@ export const useGithubRepos = (token: string | null) => {
       return false;
     }
     
+    // Prevent concurrent operations
+    if (isFetchingRef.current) {
+      console.log('useGithubRepos - Already syncing repository, aborting');
+      toast({
+        title: "Sync in progress",
+        description: "Please wait for the current sync to complete",
+      });
+      return false;
+    }
+    
+    // Apply throttling
+    if (shouldThrottle()) {
+      console.log('useGithubRepos - Operation throttled, please wait');
+      toast({
+        title: "Please wait",
+        description: "Please wait a moment before trying again",
+      });
+      return false;
+    }
+    
     console.log(`useGithubRepos - Syncing repo ${owner}/${repo} (${branch}) to file system`);
     setIsLoading(true);
+    isFetchingRef.current = true;
+    lastOperationTimeRef.current = Date.now();
+    
     try {
       const result = await syncService.syncRepoToFileSystem(
         owner,
@@ -182,9 +327,20 @@ export const useGithubRepos = (token: string | null) => {
       return result;
     } catch (error) {
       console.error('useGithubRepos - Error syncing repo to file system:', error);
+      toast({
+        title: "Sync failed",
+        description: "Failed to import repository files",
+        variant: "destructive",
+      });
       return false;
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
+      
+      // Add extra delay after sync operation
+      setTimeout(() => {
+        console.log('useGithubRepos - Sync cooldown complete');
+      }, COOLDOWN_MS * 2);
     }
   };
 
@@ -195,6 +351,7 @@ export const useGithubRepos = (token: string | null) => {
     setCurrentRepo(null);
     setCurrentBranch(null);
     setFiles([]);
+    isFetchingRef.current = false;
   };
 
   return {

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGitHub } from '@/contexts/GitHubContext';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { Button } from '@/components/ui/button';
@@ -7,18 +7,23 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, GitCommit, FileText } from 'lucide-react';
+import { Loader2, GitCommit, FileText, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { FileEntry } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export const GitHubCommitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
   const [editedFiles, setEditedFiles] = useState<FileEntry[]>([]);
   const [isCommitting, setIsCommitting] = useState(false);
-  const [lastCommitTime, setLastCommitTime] = useState(0);
   const [commitError, setCommitError] = useState<string | null>(null);
   const { toast } = useToast();
+  
+  // Refs to handle cooldowns and prevent rapid/multiple commits
+  const lastCommitTimeRef = useRef<number>(0);
+  const commitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const COMMIT_COOLDOWN_MS = 10000; // 10 seconds cooldown
 
   // Get GitHub context safely
   const github = useGitHub();
@@ -26,6 +31,15 @@ export const GitHubCommitPanel: React.FC = () => {
   
   // Get file system context safely
   const { getModifiedFiles } = useFileSystem();
+  
+  // Clean up timeouts when component unmounts
+  useEffect(() => {
+    return () => {
+      if (commitTimeoutRef.current) {
+        clearTimeout(commitTimeoutRef.current);
+      }
+    };
+  }, []);
   
   // Debug logs
   useEffect(() => {
@@ -38,15 +52,26 @@ export const GitHubCommitPanel: React.FC = () => {
   
   // Track which files have been edited since last commit
   useEffect(() => {
-    if (getModifiedFiles) {
-      try {
-        const modifiedFiles = getModifiedFiles();
-        console.log('GitHubCommitPanel - Found modified files:', modifiedFiles.length);
-        setEditedFiles(modifiedFiles);
-      } catch (error) {
-        console.error('GitHubCommitPanel - Error fetching modified files:', error);
+    const refreshModifiedFiles = () => {
+      if (getModifiedFiles) {
+        try {
+          const modifiedFiles = getModifiedFiles();
+          console.log('GitHubCommitPanel - Found modified files:', modifiedFiles.length);
+          setEditedFiles(modifiedFiles);
+        } catch (error) {
+          console.error('GitHubCommitPanel - Error fetching modified files:', error);
+        }
       }
-    }
+    };
+    
+    // Refresh immediately when component mounts
+    refreshModifiedFiles();
+    
+    // Set up an interval to periodically check for modified files
+    const intervalId = setInterval(refreshModifiedFiles, 5000);
+    
+    // Clean up when component unmounts
+    return () => clearInterval(intervalId);
   }, [getModifiedFiles]);
 
   // Only render when all required data is available
@@ -72,9 +97,9 @@ export const GitHubCommitPanel: React.FC = () => {
     
     // Prevent multiple rapid commit attempts
     const now = Date.now();
-    if (now - lastCommitTime < 10000) {
+    if (now - lastCommitTimeRef.current < COMMIT_COOLDOWN_MS) {
       console.log('GitHubCommitPanel - Commit attempted too quickly, debouncing...');
-      setCommitError('Please wait 10 seconds between commit attempts');
+      setCommitError(`Please wait ${COMMIT_COOLDOWN_MS / 1000} seconds between commit attempts`);
       return;
     }
     
@@ -85,7 +110,7 @@ export const GitHubCommitPanel: React.FC = () => {
     }
     
     setIsCommitting(true);
-    setLastCommitTime(now);
+    lastCommitTimeRef.current = now;
     
     try {
       let successCount = 0;
@@ -103,6 +128,12 @@ export const GitHubCommitPanel: React.FC = () => {
         console.log(`GitHubCommitPanel - Committing file: ${githubPath}`);
         
         try {
+          if (!file.content && file.content !== '') {
+            console.warn(`GitHubCommitPanel - File has no content: ${githubPath}`);
+            failCount++;
+            continue;
+          }
+          
           const result = await saveFileToRepo(
             githubPath,
             file.content || '',
@@ -132,10 +163,14 @@ export const GitHubCommitPanel: React.FC = () => {
         
         // Reset modified status in database
         await Promise.all(editedFiles.map(async (file) => {
-          await supabase
-            .from('files')
-            .update({ is_modified: false })
-            .eq('id', file.id);
+          try {
+            await supabase
+              .from('files')
+              .update({ is_modified: false })
+              .eq('id', file.id);
+          } catch (dbError) {
+            console.error(`GitHubCommitPanel - Error updating file status for ${file.path}:`, dbError);
+          }
         }));
         
         // Clear commit message after successful commit
@@ -143,9 +178,13 @@ export const GitHubCommitPanel: React.FC = () => {
         
         // Refresh the list of modified files after commit
         if (getModifiedFiles) {
-          const updatedFiles = getModifiedFiles();
-          console.log('GitHubCommitPanel - Updated modified files count:', updatedFiles.length);
-          setEditedFiles(updatedFiles);
+          try {
+            const updatedFiles = getModifiedFiles();
+            console.log('GitHubCommitPanel - Updated modified files count:', updatedFiles.length);
+            setEditedFiles(updatedFiles);
+          } catch (error) {
+            console.error('GitHubCommitPanel - Error updating modified files list:', error);
+          }
         }
       }
       
@@ -166,6 +205,11 @@ export const GitHubCommitPanel: React.FC = () => {
       });
     } finally {
       setIsCommitting(false);
+      
+      // Set a timeout to allow committing again after the cooldown
+      commitTimeoutRef.current = setTimeout(() => {
+        console.log('GitHubCommitPanel - Commit cooldown complete');
+      }, COMMIT_COOLDOWN_MS);
     }
   };
 
@@ -216,9 +260,11 @@ export const GitHubCommitPanel: React.FC = () => {
 
         {/* Show commit error if any */}
         {commitError && (
-          <div className="text-sm text-red-500">
-            Error: {commitError}
-          </div>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{commitError}</AlertDescription>
+          </Alert>
         )}
       </CardContent>
       <CardFooter>

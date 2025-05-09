@@ -9,6 +9,8 @@ export class GithubSyncService {
   private syncedFiles: number = 0;
   private syncedFolders: number = 0;
   private failedItems: string[] = [];
+  private lastSyncAttempt: number = 0;
+  private SYNC_COOLDOWN_MS: number = 10000; // 10 seconds cooldown
 
   constructor(apiService: GithubApiService, toast: ReturnType<typeof useToast>['toast']) {
     this.apiService = apiService;
@@ -27,6 +29,18 @@ export class GithubSyncService {
     this.syncedFolders = 0;
     this.failedItems = [];
     
+    // Check cooldown
+    const now = Date.now();
+    if (now - this.lastSyncAttempt < this.SYNC_COOLDOWN_MS) {
+      console.log(`GithubSyncService - Sync attempted too quickly. Please wait ${this.SYNC_COOLDOWN_MS/1000} seconds`);
+      this.toast({
+        title: 'Please wait',
+        description: `Please wait ${this.SYNC_COOLDOWN_MS/1000} seconds between sync attempts`,
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
     // Prevent multiple syncs from running simultaneously
     if (this.syncInProgress) {
       console.log('GithubSyncService - Sync already in progress, skipping new request');
@@ -39,19 +53,31 @@ export class GithubSyncService {
 
     console.log(`GithubSyncService - Starting sync of ${owner}/${repo} (${branch})`);
     this.syncInProgress = true;
+    this.lastSyncAttempt = now;
     let allFilesAndFolders: { path: string, type: string, content?: string }[] = [];
 
     try {
       // Fetch all repository contents recursively
       console.log(`GithubSyncService - Fetching repo contents for ${owner}/${repo} (${branch})`);
-      allFilesAndFolders = await this.apiService.fetchDirectoryContents(owner, repo, '', branch);
-      console.log(`GithubSyncService - Fetched ${allFilesAndFolders.length} items from repository`);
       
-      if (allFilesAndFolders.length === 0) {
-        console.log('GithubSyncService - Repository is empty');
+      try {
+        allFilesAndFolders = await this.apiService.fetchDirectoryContents(owner, repo, '', branch);
+        console.log(`GithubSyncService - Fetched ${allFilesAndFolders.length} items from repository`);
+      } catch (fetchError: any) {
+        console.error('GithubSyncService - Error fetching repository contents:', fetchError);
         this.toast({
-          title: 'Repository Empty',
-          description: 'No files found in the repository',
+          title: 'Repository Access Error',
+          description: fetchError.message || 'Failed to access repository contents',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      
+      if (!Array.isArray(allFilesAndFolders) || allFilesAndFolders.length === 0) {
+        console.log('GithubSyncService - Repository is empty or access denied');
+        this.toast({
+          title: 'Repository Empty or Access Denied',
+          description: 'No files found in the repository or you may not have access',
           variant: 'destructive',
         });
         return false;
@@ -153,74 +179,87 @@ export class GithubSyncService {
         
       console.log(`GithubSyncService - Creating ${files.length} files`);
 
-      for (const file of files) {
-        const filePath = '/' + file.path;
-        const lastSlashIndex = filePath.lastIndexOf('/');
-        const parentPath = lastSlashIndex > 0 ? filePath.substring(0, lastSlashIndex) : '/';
-        const fileName = filePath.substring(lastSlashIndex + 1);
+      // Process files in smaller batches to avoid overwhelming the system
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+        console.log(`GithubSyncService - Processing file batch ${i/BATCH_SIZE + 1}/${Math.ceil(files.length/BATCH_SIZE)}`);
+        
+        // Process each file in the batch
+        await Promise.all(batch.map(async (file) => {
+          const filePath = '/' + file.path;
+          const lastSlashIndex = filePath.lastIndexOf('/');
+          const parentPath = lastSlashIndex > 0 ? filePath.substring(0, lastSlashIndex) : '/';
+          const fileName = filePath.substring(lastSlashIndex + 1);
 
-        console.log(`GithubSyncService - Processing file: ${fileName} in ${parentPath}`);
+          console.log(`GithubSyncService - Processing file: ${fileName} in ${parentPath}`);
 
-        // Ensure parent folder exists or create it
-        if (!folderCreationStatus.get(parentPath)) {
-          try {
-            console.log(`GithubSyncService - Creating missing parent folder for file: ${parentPath}`);
-            
-            // Create parent folders recursively if needed
-            const pathParts = parentPath.split('/').filter(Boolean);
-            let currentPath = '';
-            for (const part of pathParts) {
-              const nextPath = currentPath ? `${currentPath}/${part}` : `/${part}`;
-              if (!folderCreationStatus.get(nextPath)) {
-                try {
-                  console.log(`GithubSyncService - Creating parent folder: ${part} at ${currentPath || '/'}`);
-                  await createFolder(currentPath || '/', part);
-                  folderCreationStatus.set(nextPath, true);
-                  this.syncedFolders++;
-                } catch (error) {
-                  console.error(`GithubSyncService - Failed to create parent folder ${nextPath}:`, error);
-                  // Continue anyway to try creating the file
+          // Ensure parent folder exists or create it
+          if (!folderCreationStatus.get(parentPath)) {
+            try {
+              console.log(`GithubSyncService - Creating missing parent folder for file: ${parentPath}`);
+              
+              // Create parent folders recursively if needed
+              const pathParts = parentPath.split('/').filter(Boolean);
+              let currentPath = '';
+              for (const part of pathParts) {
+                const nextPath = currentPath ? `${currentPath}/${part}` : `/${part}`;
+                if (!folderCreationStatus.get(nextPath)) {
+                  try {
+                    console.log(`GithubSyncService - Creating parent folder: ${part} at ${currentPath || '/'}`);
+                    await createFolder(currentPath || '/', part);
+                    folderCreationStatus.set(nextPath, true);
+                    this.syncedFolders++;
+                  } catch (error) {
+                    console.error(`GithubSyncService - Failed to create parent folder ${nextPath}:`, error);
+                    // Continue anyway to try creating the file
+                  }
                 }
+                currentPath = nextPath;
               }
-              currentPath = nextPath;
+              
+              // Mark parent path as created
+              folderCreationStatus.set(parentPath, true);
+            } catch (error) {
+              console.error(`GithubSyncService - Error creating parent folder ${parentPath}:`, error);
+              this.failedItems.push(parentPath);
+              // Try to create the file anyway
             }
-            
-            // Mark parent path as created
-            folderCreationStatus.set(parentPath, true);
-          } catch (error) {
-            console.error(`GithubSyncService - Error creating parent folder ${parentPath}:`, error);
-            this.failedItems.push(parentPath);
-            // Try to create the file anyway
           }
-        }
 
-        // Get content for the file if not already available
-        let content = file.content || '';
-        if (!content) {
+          // Get content for the file if not already available
+          let content = file.content || '';
+          if (!content) {
+            try {
+              console.log(`GithubSyncService - Fetching content for ${file.path}`);
+              content = await this.apiService.fetchFileContent(
+                `${owner}/${repo}`,
+                file.path,
+                branch
+              ) || '';
+              console.log(`GithubSyncService - Content fetched for ${file.path}, length: ${content.length}`);
+            } catch (error) {
+              console.error(`GithubSyncService - Error fetching content for file ${file.path}:`, error);
+              this.failedItems.push(filePath);
+              return; // Skip this file if we can't get content
+            }
+          }
+
+          // Now create the file
           try {
-            console.log(`GithubSyncService - Fetching content for ${file.path}`);
-            content = await this.apiService.fetchFileContent(
-              `${owner}/${repo}`,
-              file.path,
-              branch
-            ) || '';
-            console.log(`GithubSyncService - Content fetched for ${file.path}, length: ${content.length}`);
+            console.log(`GithubSyncService - Creating file: ${fileName} at ${parentPath} with content length: ${content.length}`);
+            await createFile(parentPath, fileName, content);
+            this.syncedFiles++;
+            console.log(`GithubSyncService - Created file: ${filePath}`);
           } catch (error) {
-            console.error(`GithubSyncService - Error fetching content for file ${file.path}:`, error);
+            console.error(`GithubSyncService - Failed to create file: ${filePath}`, error);
             this.failedItems.push(filePath);
-            continue; // Skip this file if we can't get content
           }
-        }
-
-        // Now create the file
-        try {
-          console.log(`GithubSyncService - Creating file: ${fileName} at ${parentPath} with content length: ${content.length}`);
-          await createFile(parentPath, fileName, content);
-          this.syncedFiles++;
-          console.log(`GithubSyncService - Created file: ${filePath}`);
-        } catch (error) {
-          console.error(`GithubSyncService - Failed to create file: ${filePath}`, error);
-          this.failedItems.push(filePath);
+        }));
+        
+        // Add a small delay between batches
+        if (i + BATCH_SIZE < files.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
 
@@ -252,7 +291,11 @@ export class GithubSyncService {
       });
       return false;
     } finally {
-      this.syncInProgress = false;
+      // Reset sync status with a small delay to prevent immediate re-triggering
+      setTimeout(() => {
+        this.syncInProgress = false;
+        console.log('GithubSyncService - Sync lock released');
+      }, 2000);
     }
   }
 }
