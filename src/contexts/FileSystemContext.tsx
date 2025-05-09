@@ -43,9 +43,11 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   
   const { selectFile } = useFileSelection(setFileSystem);
 
-  // Load files when user is authenticated
+  // Load files when user is authenticated - but only once
   useEffect(() => {
     if (user) {
+      // Initial load of files when user is authenticated
+      console.log('User authenticated, loading files once');
       refreshFiles();
     } else {
       // Reset file system when user logs out

@@ -16,9 +16,16 @@ export const useFileRefresh = (
   const refreshFiles = async (): Promise<void> => {
     if (!user) return;
     
+    // Prevent multiple rapid refreshes
+    const now = Date.now();
+    if (now - lastRefreshTime < 2000) {
+      console.log('Skipping refresh - too soon since last refresh');
+      return;
+    }
+    
     console.log('Refreshing files for user:', user.id);
     setIsLoading(true);
-    setLastRefreshTime(Date.now());
+    setLastRefreshTime(now);
     
     try {
       const files = await fetchFiles();
