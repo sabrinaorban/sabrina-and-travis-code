@@ -19,18 +19,9 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const { user } = useAuth();
   const { fetchFiles, isLoading, setIsLoading } = useFileFetcher(user);
   
-  // Updated to match the useFileRefresh parameter type
   const { refreshFiles, deleteAllFiles } = useFileRefresh(
     user, 
-    async (): Promise<FileEntry[] | void> => { 
-      try {
-        const files = await fetchFiles();
-        return files;
-      } catch (error) {
-        console.error('Error in refreshFiles:', error);
-        return;
-      }
-    }, 
+    fetchFiles, 
     fileSystem, 
     setFileSystem, 
     setIsLoading

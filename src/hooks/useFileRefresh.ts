@@ -63,7 +63,7 @@ export const useFileRefresh = (
   };
 
   // Delete all files - implementation for replacement of repository files
-  // Updated return type to Promise<void> to be consistent
+  // Return type updated to Promise<void> for consistency
   const deleteAllFiles = async (): Promise<void> => {
     if (!user) return Promise.resolve();
     

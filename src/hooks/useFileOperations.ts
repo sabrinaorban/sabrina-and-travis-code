@@ -2,7 +2,7 @@
 import { FileEntry } from '../types';
 import { supabase, generateUUID } from '../lib/supabase';
 import { useToast } from './use-toast';
-import { findNode, findNodeById } from '../utils/fileSystemUtils';
+import { findNode, findNodeById } from '../services/utils/FileTreeUtils';
 import { useFileCreate } from './useFileCreate';
 import { useFileUpdate } from './useFileUpdate';
 import { useFileDelete } from './useFileDelete';
