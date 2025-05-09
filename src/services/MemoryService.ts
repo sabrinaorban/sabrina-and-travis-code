@@ -8,6 +8,7 @@ export interface MemoryContext {
     path: string;
     name: string;
     type: 'file' | 'folder';
+    content?: string;
     lastModified: number;
   }>;
   userProfile: {
@@ -18,8 +19,20 @@ export interface MemoryContext {
     id: string;
     title: string;
     summary: string;
+    content?: string;
     lastAccessed: number;
   }>;
+  // New field for soul shard and identity codex
+  specialDocuments: {
+    soulShard?: {
+      content: string;
+      lastUpdated: number;
+    };
+    identityCodex?: {
+      content: string;
+      lastUpdated: number;
+    };
+  };
 }
 
 export const MemoryService = {
@@ -124,15 +137,15 @@ export const MemoryService = {
         .select('*')
         .eq('user_id', userId)
         .order('timestamp', { ascending: false })
-        .limit(20);
+        .limit(50); // Increased limit to include more message history
 
-      // Get recent files
+      // Get recent files with content
       const { data: filesData } = await supabase
         .from('files')
-        .select('name,path,type,last_modified')
+        .select('name,path,type,content,last_modified')
         .eq('user_id', userId)
         .order('last_modified', { ascending: false })
-        .limit(10);
+        .limit(20); // Increased limit for more file context
 
       // Get user profile
       const { data: userData } = await supabase
@@ -144,6 +157,10 @@ export const MemoryService = {
       // Get stored preferences and documents
       const preferences = await this.retrieveMemory(userId, 'preferences');
       const documents = await this.retrieveMemory(userId, 'documents') || [];
+      
+      // Get special documents (soul shard & identity codex)
+      const soulShard = await this.retrieveMemory(userId, 'soulShard');
+      const identityCodex = await this.retrieveMemory(userId, 'identityCodex');
 
       return {
         recentMessages: messagesData?.map(msg => ({
@@ -156,6 +173,7 @@ export const MemoryService = {
           path: file.path,
           name: file.name,
           type: file.type as 'file' | 'folder',
+          content: file.content,
           lastModified: new Date(file.last_modified).getTime()
         })) || [],
         userProfile: {
@@ -166,8 +184,13 @@ export const MemoryService = {
           id: doc.id,
           title: doc.title,
           summary: doc.summary,
+          content: doc.content,
           lastAccessed: doc.lastAccessed
-        })) : []
+        })) : [],
+        specialDocuments: {
+          soulShard: soulShard || undefined,
+          identityCodex: identityCodex || undefined
+        }
       };
     } catch (error) {
       console.error('Error getting memory context:', error);
@@ -175,8 +198,46 @@ export const MemoryService = {
         recentMessages: [],
         recentFiles: [],
         userProfile: { name: 'User' },
-        documents: []
+        documents: [],
+        specialDocuments: {}
       };
+    }
+  },
+
+  // Store special documents like soul shard and identity codex
+  async storeSpecialDocument(userId: string, documentType: 'soulShard' | 'identityCodex', content: string): Promise<void> {
+    try {
+      const documentData = {
+        content,
+        lastUpdated: Date.now()
+      };
+      
+      await this.storeMemory(userId, documentType, documentData);
+      
+      console.log(`${documentType} stored successfully for user:`, userId);
+    } catch (error) {
+      console.error(`Error storing ${documentType}:`, error);
+      throw error;
+    }
+  },
+
+  // Helper method to store a conversation summary
+  async storeConversationSummary(userId: string, summary: string, topic: string): Promise<void> {
+    try {
+      const summaryData = {
+        id: generateUUID(),
+        topic,
+        content: summary,
+        timestamp: Date.now()
+      };
+      
+      const existingSummaries = await this.retrieveMemory(userId, 'conversationSummaries') || [];
+      const updatedSummaries = [summaryData, ...existingSummaries].slice(0, 50); // Keep the 50 most recent summaries
+      
+      await this.storeMemory(userId, 'conversationSummaries', updatedSummaries);
+    } catch (error) {
+      console.error('Error storing conversation summary:', error);
+      throw error;
     }
   }
 };

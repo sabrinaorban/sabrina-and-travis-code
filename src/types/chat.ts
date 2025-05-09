@@ -7,6 +7,7 @@ export interface ChatContextType {
   isTyping: boolean;
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => Promise<void>;
+  summarizeConversation: () => Promise<void>;
   memoryContext: MemoryContext | null;
   refreshMemoryContext: () => Promise<MemoryContext | null>;
 }

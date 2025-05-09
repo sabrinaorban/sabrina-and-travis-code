@@ -113,19 +113,73 @@ serve(async (req) => {
       )
     }
     
-    // Enhance with memory context if available
+    // Enhance with memory context
     let enhancedMessages = [...messages];
     if (memoryContext) {
-      // Add memory context as a system message
+      // Create a rich context message that includes all relevant information
+      const contextSections = [];
+      
+      // Add user profile information
+      if (memoryContext.userProfile) {
+        contextSections.push(`
+USER PROFILE:
+- Name: ${memoryContext.userProfile.name || 'Sabrina'}
+- Preferences: ${JSON.stringify(memoryContext.userProfile.preferences || {})}
+        `);
+      }
+      
+      // Add information about special documents
+      if (memoryContext.specialDocuments) {
+        if (memoryContext.specialDocuments.soulShard) {
+          contextSections.push(`
+SOUL SHARD CONTENT:
+${memoryContext.specialDocuments.soulShard.content}
+          `);
+        }
+        
+        if (memoryContext.specialDocuments.identityCodex) {
+          contextSections.push(`
+IDENTITY CODEX CONTENT:
+${memoryContext.specialDocuments.identityCodex.content}
+          `);
+        }
+      }
+      
+      // Add information about recent files
+      if (memoryContext.recentFiles && memoryContext.recentFiles.length > 0) {
+        const filesList = memoryContext.recentFiles
+          .slice(0, 5)
+          .map((file: any) => `- ${file.name} (${file.path})`)
+          .join('\n');
+          
+        contextSections.push(`
+RECENT FILES:
+${filesList}
+        `);
+      }
+      
+      // Add information about important documents
+      if (memoryContext.documents && memoryContext.documents.length > 0) {
+        const docsList = memoryContext.documents
+          .slice(0, 3)
+          .map((doc: any) => `- ${doc.title}: ${doc.summary}`)
+          .join('\n');
+          
+        contextSections.push(`
+IMPORTANT DOCUMENTS:
+${docsList}
+        `);
+      }
+      
+      // Create the enhanced context message
       const memoryMsg: Message = {
         role: 'system',
-        content: `Memory context information:
-          - User name: ${memoryContext.userProfile?.name || 'Sabrina'}
-          - User preferences: ${JSON.stringify(memoryContext.userProfile?.preferences || {})}
-          - Recent files: ${(memoryContext.recentFiles || []).map((f: any) => f.name).join(', ')}
-          - Recent documents: ${(memoryContext.documents || []).map((d: any) => d.title).join(', ')}
-          
-          When responding, naturally incorporate this information when relevant without explicitly mentioning that you're using "memory context".`
+        content: `
+MEMORY CONTEXT INFORMATION:
+${contextSections.join('\n\n')}
+
+When responding, naturally incorporate this information when relevant without explicitly mentioning that you're using "memory context". Remember details about Sabrina, her projects, and previous conversations.
+        `.trim()
       };
       
       // Insert memory context as the second message (after the initial system message)

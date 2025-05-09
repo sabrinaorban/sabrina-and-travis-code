@@ -12,7 +12,8 @@ import {
   deleteAllMessages,
   createOpenAIMessages,
   extractTopicFromMessages,
-  simulateAssistantResponse
+  simulateAssistantResponse,
+  generateConversationSummary
 } from '../services/ChatService';
 import { ChatContextType } from '../types/chat';
 
@@ -58,6 +59,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return null;
 
     try {
+      console.log('Refreshing memory context');
       const context = await MemoryService.getMemoryContext(user.id);
       setMemoryContext(context);
       return context;
@@ -123,11 +125,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Store this interaction in memory
         if (user) {
+          // Extract topic and store conversation summary
+          const topic = extractTopicFromMessages([...messages, newUserMessage, newAssistantMessage]);
+          const summary = await generateConversationSummary([...messages, newUserMessage, newAssistantMessage]);
+          
           await MemoryService.storeMemory(user.id, 'last_conversation', {
-            topic: extractTopicFromMessages([...messages, newUserMessage, newAssistantMessage]),
+            topic,
             timestamp: Date.now(),
             messageCount: messages.length + 2
           });
+          
+          // Store conversation summary
+          await MemoryService.storeConversationSummary(user.id, summary, topic);
         }
       } catch (error) {
         // If the OpenAI call fails, fall back to simulated responses
@@ -187,12 +196,58 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Function to summarize the current conversation
+  const summarizeConversation = async () => {
+    if (!user || messages.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'No conversation to summarize',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      setIsTyping(true);
+      
+      // Generate a summary of the conversation
+      const topic = extractTopicFromMessages(messages);
+      const summary = await generateConversationSummary(messages);
+      
+      // Store the summary
+      await MemoryService.storeConversationSummary(user.id, summary, topic);
+      
+      // Add a message to indicate that the conversation was summarized
+      const summaryMessage = await storeAssistantMessage(
+        user.id, 
+        `I've summarized our conversation about "${topic}". I'll remember the key points for future reference.`
+      );
+      
+      setMessages((prev) => [...prev, summaryMessage]);
+      
+      toast({
+        title: 'Success',
+        description: 'Conversation summarized and stored in memory',
+      });
+    } catch (error: any) {
+      console.error('Error summarizing conversation:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to summarize conversation',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
   return (
     <ChatContext.Provider value={{ 
       messages, 
       isTyping, 
       sendMessage, 
       clearMessages,
+      summarizeConversation,
       memoryContext,
       refreshMemoryContext
     }}>
