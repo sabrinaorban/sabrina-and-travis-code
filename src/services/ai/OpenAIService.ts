@@ -35,6 +35,13 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
 `;
 
   const fileOperationsPrompt = `
+CRITICAL INSTRUCTIONS: Before making ANY file changes, ALWAYS:
+1. First READ all relevant files to understand the current state
+2. DO NOT delete any existing files unless explicitly asked to do so
+3. When moving files, create the new file first, then delete the original only after confirming the new one exists
+4. Always check if a file exists before trying to modify or delete it
+5. Preserve all existing project files (like index.html, style.css) even when creating new folders or files
+
 When asked to create projects or implement features, you MUST:
 1. Look at the existing project structure to understand what you're working with
 2. Make direct changes to the necessary files using file operations
@@ -49,11 +56,15 @@ To perform file operations, include file_operations in your JSON response like t
   { "operation": "delete", "path": "/obsolete.txt" }
 ]
 
-WHEN CREATING A PROJECT LIKE NEXT.JS:
-1. First create all required directories (pages, public, styles, etc.)
-2. Then create all essential files (package.json, next.config.js, etc.)
-3. Implement a basic working application structure with index.js and components
-4. DO NOT just describe how to create the project - actually create it using file operations
+WHEN MOVING FILES:
+1. First read the original file
+2. Then create the file at the new location with the same content
+3. Only delete the original file after confirming the new one was created successfully
+
+WHEN CREATING A FOLDER OR NEW FILE:
+1. First check what files already exist
+2. Create the new folder or file without disturbing existing files
+3. DO NOT delete or modify any files unless explicitly asked to do so
 `;
 
   // Get the complete project structure to include in the messages
@@ -69,7 +80,7 @@ WHEN CREATING A PROJECT LIKE NEXT.JS:
       content: `CURRENT PROJECT STRUCTURE:
 ${projectStructure}
 
-You can see and edit any of these files. When the user mentions a file, check this list to find it and read its content before making changes.`
+CRITICAL: You can see and edit any of these files. When the user mentions a file, check this list to find it and read its content before making changes. NEVER DELETE OR MODIFY FILES THAT AREN'T MENTIONED BY THE USER. When creating new files or folders, ALWAYS preserve existing files.`
     },
     ...messages.map(msg => ({
       role: msg.role,
@@ -156,7 +167,11 @@ export const isFileOperationRequest = (message: string): boolean => {
     'add html',
     'edit html',
     'update html',
-    'modify html'
+    'modify html',
+    'move file',
+    'move folder',
+    'rename file',
+    'rename folder'
   ];
   
   // Check for exact matches of keywords
@@ -167,8 +182,8 @@ export const isFileOperationRequest = (message: string): boolean => {
   }
   
   // Check for combinations of actions and targets
-  const actions = ['create', 'make', 'generate', 'build', 'implement', 'add', 'setup', 'develop', 'edit', 'change', 'update', 'modify', 'insert'];
-  const targets = ['nextjs', 'next.js', 'react', 'app', 'application', 'project', 'component', 'website', 'file', 'code', 'html', 'css', 'javascript', 'js', 'index', 'div', 'section', 'page'];
+  const actions = ['create', 'make', 'generate', 'build', 'implement', 'add', 'setup', 'develop', 'edit', 'change', 'update', 'modify', 'insert', 'move', 'rename'];
+  const targets = ['nextjs', 'next.js', 'react', 'app', 'application', 'project', 'component', 'website', 'file', 'code', 'html', 'css', 'javascript', 'js', 'index', 'div', 'section', 'page', 'folder', 'directory'];
   
   for (const action of actions) {
     for (const target of targets) {
