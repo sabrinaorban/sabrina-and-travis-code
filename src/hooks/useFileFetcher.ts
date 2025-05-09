@@ -18,6 +18,22 @@ export const useFileFetcher = (user: any) => {
     try {
       console.log(`Fetching files for user ${user.id}...`);
       
+      // Check for and delete problematic index.file if it exists
+      const { data: indexFile } = await supabase
+        .from('files')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('name', 'index.file')
+        .maybeSingle();
+        
+      if (indexFile) {
+        console.log('Found problematic index.file, deleting it:', indexFile.id);
+        await supabase
+          .from('files')
+          .delete()
+          .eq('id', indexFile.id);
+      }
+      
       // Fetch files from Supabase for current user
       const { data, error } = await supabase
         .from('files')

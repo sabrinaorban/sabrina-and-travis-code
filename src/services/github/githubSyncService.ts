@@ -56,6 +56,16 @@ export class GithubSyncService {
         return false;
       }
 
+      // Check for index.file and remove it if it exists
+      const indexFileEntry = allFilesAndFolders.find(item => 
+        item.type === 'file' && (item.path === 'index.file' || item.path.endsWith('/index.file'))
+      );
+      
+      if (indexFileEntry) {
+        console.log('Found problematic index.file in GitHub repo, removing it from sync list');
+        allFilesAndFolders = allFilesAndFolders.filter(item => item !== indexFileEntry);
+      }
+
       // Create a map to track folder creation status
       const folderCreationStatus = new Map<string, boolean>();
       folderCreationStatus.set('/', true); // Root folder always exists
@@ -129,7 +139,11 @@ export class GithubSyncService {
       }
 
       // Then create all files with retry logic
-      const files = allFilesAndFolders.filter(item => item.type === 'file');
+      const files = allFilesAndFolders
+        .filter(item => item.type === 'file')
+        // Skip index.file as an extra precaution
+        .filter(item => !(item.path === 'index.file' || item.path.endsWith('/index.file')));
+        
       console.log(`Creating ${files.length} files`);
 
       for (const file of files) {
@@ -137,6 +151,12 @@ export class GithubSyncService {
         const lastSlashIndex = filePath.lastIndexOf('/');
         const parentPath = lastSlashIndex > 0 ? filePath.substring(0, lastSlashIndex) : '/';
         const fileName = filePath.substring(lastSlashIndex + 1);
+
+        // Skip index.file as an extra precaution
+        if (fileName === 'index.file') {
+          console.log('Skipping problematic index.file');
+          continue;
+        }
 
         // Ensure parent folder exists or create it
         if (!folderCreationStatus.get(parentPath)) {
