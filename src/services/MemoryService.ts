@@ -1,4 +1,3 @@
-
 import { supabase, generateUUID, getOrCreateUserProfile } from '../lib/supabase';
 import { Message } from '../types';
 
@@ -227,6 +226,7 @@ export const MemoryService = {
   // Store special documents like soul shard and identity codex
   async storeSpecialDocument(userId: string, documentType: 'soulShard' | 'identityCodex', content: string): Promise<void> {
     try {
+      // For large content, consider compression or chunking if needed in the future
       const documentData = {
         content,
         lastUpdated: Date.now()
@@ -264,8 +264,11 @@ export const MemoryService = {
   // Import a JSON or TXT file as a special document
   async importSpecialDocument(userId: string, documentType: 'soulShard' | 'identityCodex', file: File): Promise<void> {
     try {
+      console.log(`Starting import of ${documentType}, file size: ${file.size / 1024} KB`);
+      
       // Read file content
       const content = await file.text();
+      console.log(`File read complete, content length: ${content.length}`);
       
       // For JSON files, parse and validate
       if (file.name.endsWith('.json')) {
@@ -273,12 +276,15 @@ export const MemoryService = {
           const jsonContent = JSON.parse(content);
           // Store with proper formatting for readability
           await this.storeSpecialDocument(userId, documentType, JSON.stringify(jsonContent, null, 2));
+          console.log(`${documentType} parsed as JSON and stored`);
         } catch (e) {
+          console.error(`JSON parsing error:`, e);
           throw new Error(`Invalid JSON file: ${e.message}`);
         }
       } else {
         // For text files, store as is
         await this.storeSpecialDocument(userId, documentType, content);
+        console.log(`${documentType} stored as text`);
       }
       
       console.log(`${documentType} imported successfully from file for user:`, userId);
@@ -291,16 +297,29 @@ export const MemoryService = {
   // Import past conversations from a JSON file
   async importPastConversations(userId: string, file: File): Promise<void> {
     try {
-      // Read file content
+      console.log(`Starting import of past conversations, file size: ${file.size / 1024} KB`);
+      
+      // Read file content in chunks if needed for very large files
       const content = await file.text();
+      console.log(`File read complete, content length: ${content.length}`);
       
       try {
-        const conversations = JSON.parse(content);
+        let conversations;
+        
+        try {
+          conversations = JSON.parse(content);
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          throw new Error(`Could not parse JSON file: ${parseError.message}`);
+        }
         
         // Validate the conversations format
         if (!Array.isArray(conversations)) {
           throw new Error('Past conversations must be an array');
         }
+        
+        // Log the number of conversations being imported
+        console.log(`Importing ${conversations.length} conversations`);
         
         // Transform if needed and store
         const formattedConversations = conversations.map(conv => {
@@ -312,10 +331,15 @@ export const MemoryService = {
           };
         });
         
-        await this.storeMemory(userId, 'conversationSummaries', formattedConversations);
+        // Keep only the 50 most recent conversations if there are too many
+        const limitedConversations = formattedConversations.slice(0, 50);
+        
+        // Store the conversations
+        await this.storeMemory(userId, 'conversationSummaries', limitedConversations);
         
         console.log(`Past conversations imported successfully for user:`, userId);
       } catch (e) {
+        console.error('Conversation processing error:', e);
         throw new Error(`Invalid JSON file for past conversations: ${e.message}`);
       }
     } catch (error) {

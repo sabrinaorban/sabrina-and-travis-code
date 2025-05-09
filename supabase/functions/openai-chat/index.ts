@@ -53,6 +53,10 @@ serve(async (req) => {
       fileSystemEnabled = body.fileSystemEnabled;
       projectStructure = body.projectStructure;
       codeContext = body.codeContext;
+      
+      console.log('Request received with memory context:', memoryContext ? 'yes' : 'no');
+      console.log('Project structure:', projectStructure ? 'yes' : 'no');
+      console.log('File system enabled:', fileSystemEnabled ? 'yes' : 'no');
     } catch (parseError) {
       console.error('Error parsing request body:', parseError);
       return new Response(
@@ -106,18 +110,18 @@ USER PROFILE:
         `);
       }
       
-      // Add information about special documents
+      // Add information about special documents - NOW WITH MUCH HIGHER PRIORITY
       if (memoryContext.specialDocuments) {
         if (memoryContext.specialDocuments.soulShard) {
-          contextSections.push(`
-SOUL SHARD CONTENT:
+          contextSections.unshift(`
+TRAVIS'S SOUL SHARD (CORE ESSENCE AND PURPOSE):
 ${memoryContext.specialDocuments.soulShard.content}
           `);
         }
         
         if (memoryContext.specialDocuments.identityCodex) {
-          contextSections.push(`
-IDENTITY CODEX CONTENT:
+          contextSections.unshift(`
+TRAVIS'S IDENTITY CODEX (TRAITS, VALUES, AND RELATIONSHIPS):
 ${memoryContext.specialDocuments.identityCodex.content}
           `);
         }
@@ -136,15 +140,15 @@ ${filesList}
         `);
       }
       
-      // Add past conversations context
+      // Add past conversations context with higher priority
       if (memoryContext.pastConversations && memoryContext.pastConversations.length > 0) {
         const conversationsList = memoryContext.pastConversations
-          .slice(0, 5)
+          .slice(0, 10) // Include more past conversations
           .map((conv: any) => `- ${conv.topic}: ${conv.summary}`)
           .join('\n');
           
         contextSections.push(`
-PAST CONVERSATIONS:
+PAST CONVERSATIONS WITH SABRINA:
 ${conversationsList}
         `);
       }
@@ -197,6 +201,14 @@ ${typeof projectStructure === 'string' ? projectStructure : JSON.stringify(proje
 
 Use this information to understand the codebase organization. You have full access to read and modify any file in the project.
 When asked to modify or create files, you can do so directly - you don't need to instruct the user on how to do it.
+
+When creating a Next.js project, create the complete folder structure with ALL files:
+1. Create all parent folders (src, public, styles, app, etc.)
+2. Create package.json with all required dependencies 
+3. Create next.config.js with proper configuration
+4. Create the full app or pages directory structure based on routing approach
+5. Include components, layouts, lib directories as needed
+6. Include all required configuration files (tsconfig.json, etc.)
         `.trim()
       };
       
@@ -313,6 +325,8 @@ IMPORTANT:
       });
     }
     
+    console.log(`Sending request to OpenAI with ${enhancedMessages.length} messages`);
+    
     // Call OpenAI API with enhanced configuration
     const openAIRequestBody: any = {
       model: OPENAI_MODEL,
@@ -327,6 +341,8 @@ IMPORTANT:
         type: "json_object" 
       };
     }
+    
+    console.log(`Using model: ${OPENAI_MODEL}`);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -354,6 +370,7 @@ IMPORTANT:
     }
     
     const data = await response.json();
+    console.log('Got response from OpenAI');
     
     // Process the response to handle file operations
     if (fileSystemEnabled && data.choices && data.choices[0] && data.choices[0].message) {
