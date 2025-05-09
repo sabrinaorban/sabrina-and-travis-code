@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { FileEntry, FileSystemState } from '../types';
 import { supabase } from '../lib/supabase';
 
-// Updated function signature to accept Promise<FileEntry[] | void>
+// Updated function signature to accept fetchFiles with the correct return type
 export const useFileRefresh = (
   user: any,
   fetchFiles: () => Promise<FileEntry[] | void>,
@@ -63,7 +63,6 @@ export const useFileRefresh = (
   };
 
   // Delete all files - implementation for replacement of repository files
-  // Return type updated to Promise<void> for consistency
   const deleteAllFiles = async (): Promise<void> => {
     if (!user) return Promise.resolve();
     
