@@ -205,7 +205,7 @@ Format your response as a JSON object with the following structure:
   ]
 }
 
-Remember to always mention 'json' in your system prompt when using json output format.`
+Remember to always format your entire response as a valid JSON object when making file changes.`
       });
     }
     
@@ -256,6 +256,7 @@ Remember to always mention 'json' in your system prompt when using json output f
       try {
         // Parse the message content as JSON if it's a JSON string
         if (typeof data.choices[0].message.content === 'string') {
+          console.log("Received content:", data.choices[0].message.content.substring(0, 200) + "...");
           const contentObj = JSON.parse(data.choices[0].message.content);
           
           // Extract file operations if they exist
@@ -266,6 +267,8 @@ Remember to always mention 'json' in your system prompt when using json output f
             // Update the content to be just the textual response
             data.choices[0].message.content = contentObj.response || 
               "I've processed your file operation request.";
+              
+            console.log("Extracted file operations:", JSON.stringify(data.choices[0].message.file_operations));
           }
         }
       } catch (e) {
