@@ -6,6 +6,8 @@ export interface FileOperation {
   operation: 'read' | 'write' | 'create' | 'delete';
   path: string;
   content?: string;
+  success?: boolean;
+  message?: string;
 }
 
 export interface ChatContextType {
@@ -16,4 +18,5 @@ export interface ChatContextType {
   summarizeConversation: () => Promise<void>;
   memoryContext: MemoryContext | null;
   refreshMemoryContext: () => Promise<MemoryContext | null>;
+  fileOperationResults?: FileOperation[];
 }

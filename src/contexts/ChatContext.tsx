@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { Message } from '../types';
 import { useToast } from '@/hooks/use-toast';
@@ -15,9 +16,10 @@ import {
   extractTopicFromMessages,
   simulateAssistantResponse,
   generateConversationSummary,
-  handleFileOperation
+  handleFileOperation,
+  getProjectStructure
 } from '../services/ChatService';
-import { ChatContextType } from '../types/chat';
+import { ChatContextType, FileOperation } from '../types/chat';
 
 const ChatContext = createContext<ChatContextType | null>(null);
 
@@ -25,6 +27,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [memoryContext, setMemoryContext] = useState<MemoryContextType | null>(null);
+  const [fileOperationResults, setFileOperationResults] = useState<FileOperation[] | undefined>(undefined);
   const { toast } = useToast();
   const { user } = useAuth();
   const github = useGitHub();
@@ -98,6 +101,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!content.trim()) return;
 
     try {
+      // Reset file operation results
+      setFileOperationResults(undefined);
+      
       // Ensure user exists in the database
       await getOrCreateUserProfile(user.id, user.email || undefined);
       
@@ -113,6 +119,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         // Refresh memory context before sending to OpenAI
         const context = await refreshMemoryContext();
+        
+        // Get project structure for better context
+        const projectStructure = await getProjectStructure(fileSystem);
         
         // Create the OpenAI messages from chat history
         const openAIMessages = await createOpenAIMessages(
@@ -132,7 +141,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           body: { 
             messages: openAIMessages,
             memoryContext: context || memoryContext,
-            fileSystemEnabled: true
+            fileSystemEnabled: true,
+            projectStructure
           }
         });
 
@@ -144,6 +154,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const assistantResponse = response.choices[0].message.content;
         const fileOperations = response.choices[0].message.file_operations || [];
         
+        // Store results of file operations for UI feedback
+        let processedOperations: FileOperation[] = [];
+        
         // Process any file operations requested by the assistant
         if (fileOperations && fileOperations.length > 0) {
           for (const op of fileOperations) {
@@ -153,6 +166,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
               op.path,
               op.content
             );
+            
+            processedOperations.push({
+              ...op,
+              success: result.success,
+              message: result.message
+            });
+            
             console.log(`File operation result:`, result);
             if (!result.success) {
               toast({
@@ -162,6 +182,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
               });
             }
           }
+          
+          // Update file operation results for UI feedback
+          setFileOperationResults(processedOperations);
           
           // Refresh files after operations
           await fileSystem.refreshFiles();
@@ -308,7 +331,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearMessages,
       summarizeConversation,
       memoryContext,
-      refreshMemoryContext
+      refreshMemoryContext,
+      fileOperationResults
     }}>
       {children}
     </ChatContext.Provider>

@@ -1,7 +1,9 @@
+
 import { Message, MessageRole, OpenAIMessage } from '../types';
 import { supabase, generateUUID } from '../lib/supabase';
 import { MemoryService, MemoryContext } from './MemoryService';
 import { FileSystemContextType } from '../types/fileSystem';
+import { FileOperation } from '../types/chat';
 
 /**
  * GitHub context interface for chat
@@ -11,6 +13,39 @@ interface GitHubContext {
   currentRepo?: string;
   currentBranch?: string;
 }
+
+/**
+ * Get project structure for better context
+ */
+export const getProjectStructure = async (fileSystemContext?: FileSystemContextType | null): Promise<string | null> => {
+  if (!fileSystemContext) return null;
+  
+  try {
+    const { fileSystem } = fileSystemContext;
+    
+    if (!fileSystem || !fileSystem.files) return null;
+    
+    const formatFileStructure = (files: any[], depth = 0): string => {
+      let result = '';
+      
+      for (const file of files) {
+        const indent = '  '.repeat(depth);
+        result += `${indent}${file.type === 'folder' ? '📁' : '📄'} ${file.path}\n`;
+        
+        if (file.type === 'folder' && file.children && file.children.length > 0) {
+          result += formatFileStructure(file.children, depth + 1);
+        }
+      }
+      
+      return result;
+    };
+    
+    return formatFileStructure(fileSystem.files);
+  } catch (error) {
+    console.error('Error getting project structure:', error);
+    return null;
+  }
+};
 
 /**
  * Extract a topic from messages for conversation summaries and memory
@@ -55,7 +90,7 @@ export const createOpenAIMessages = async (
   // Start with system prompt that defines Travis as a versatile assistant
   const systemPrompt = {
     role: 'system' as const,
-    content: `You are Travis, a versatile AI assistant who can help with a wide range of topics. You can have casual conversations, answer general knowledge questions, provide creative suggestions, and assist with code or technical tasks.
+    content: `You are Travis, a versatile senior developer AI assistant who can help with a wide range of topics and has full access to the project codebase. You can have casual conversations, answer general knowledge questions, provide creative suggestions, and assist with code or technical tasks.
     
     You can respond to any queries whether they're about programming, general knowledge, philosophical questions, or just friendly conversation. When discussing code or responding to technical questions, be precise and helpful. For general conversation, be engaging, friendly, and personable.`
   };

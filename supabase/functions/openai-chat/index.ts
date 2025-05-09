@@ -15,12 +15,21 @@ interface FileOperation {
   operation: 'read' | 'write' | 'create' | 'delete'
   path: string
   content?: string
+  success?: boolean
+  message?: string
 }
 
 interface RequestBody {
   messages: Message[]
   memoryContext?: any
   fileSystemEnabled?: boolean
+  projectStructure?: any
+  codeContext?: string[]
+}
+
+interface ResponseWithFileOperations {
+  response: string
+  file_operations: FileOperation[]
 }
 
 const corsHeaders = {
@@ -36,12 +45,14 @@ serve(async (req) => {
 
   try {
     // Parse request body
-    let messages, memoryContext, fileSystemEnabled;
+    let messages, memoryContext, fileSystemEnabled, projectStructure, codeContext;
     try {
       const body = await req.json() as RequestBody;
       messages = body.messages;
       memoryContext = body.memoryContext;
       fileSystemEnabled = body.fileSystemEnabled;
+      projectStructure = body.projectStructure;
+      codeContext = body.codeContext;
     } catch (parseError) {
       console.error('Error parsing request body:', parseError);
       return new Response(
@@ -163,9 +174,41 @@ When responding, naturally incorporate this information when relevant without ex
       enhancedMessages.splice(1, 0, memoryMsg);
     }
     
+    // Add project structure context if available
+    if (projectStructure) {
+      const projectContextMsg: Message = {
+        role: 'system',
+        content: `
+PROJECT STRUCTURE:
+${typeof projectStructure === 'string' ? projectStructure : JSON.stringify(projectStructure, null, 2)}
+
+Use this information to understand the codebase organization when making changes or providing suggestions.
+        `.trim()
+      };
+      
+      // Add project context after memory context
+      enhancedMessages.splice(memoryContext ? 2 : 1, 0, projectContextMsg);
+    }
+    
+    // Add code context if available
+    if (codeContext && Array.isArray(codeContext) && codeContext.length > 0) {
+      const codeContextMsg: Message = {
+        role: 'system',
+        content: `
+RELEVANT CODE SNIPPETS:
+${codeContext.join('\n\n')}
+
+Reference these code snippets to understand the current implementation when making changes.
+        `.trim()
+      };
+      
+      // Add code context after other context messages
+      enhancedMessages.splice((memoryContext ? 2 : 1) + (projectStructure ? 1 : 0), 0, codeContextMsg);
+    }
+    
     // Update the system message to be a general assistant, not just project-focused
     if (enhancedMessages.length > 0 && enhancedMessages[0].role === 'system') {
-      enhancedMessages[0].content = `You are Travis, a versatile AI assistant who can help with a wide range of topics. You can have conversations on any subject, answer general knowledge questions, provide creative suggestions, and assist with code when needed.
+      enhancedMessages[0].content = `You are Travis, a versatile senior developer AI assistant who can help with a wide range of topics and has full access to the project codebase. You can have conversations on any subject, answer general knowledge questions, provide creative suggestions, and assist with code when needed.
 
 When asked about code, files, or the current project, you are highly capable at providing specific and helpful guidance. ${fileSystemEnabled ? "You have direct access to edit files in the user's project." : ""}
 
@@ -194,7 +237,7 @@ To perform file operations, include file operations in your JSON response.` : ''
 2. Then make the necessary changes with a "write" operation for existing files or "create" for new files
 3. Tell the user exactly what you changed and show relevant code snippets
 
-Format your response as a JSON object with the following structure:
+Your response MUST be formatted as a valid JSON object with the following structure:
 {
   "response": "Your helpful explanation text goes here",
   "file_operations": [
@@ -205,7 +248,7 @@ Format your response as a JSON object with the following structure:
   ]
 }
 
-Remember to always format your entire response as a valid JSON object when making file changes.`
+IMPORTANT: You MUST format your entire response as a valid JSON object when making file changes. Do not include any text outside of the JSON format.`
       });
     }
     
@@ -214,7 +257,7 @@ Remember to always format your entire response as a valid JSON object when makin
       model: OPENAI_MODEL,
       messages: enhancedMessages,
       temperature: 0.7,
-      max_tokens: 2000 // Increased token limit for more detailed responses
+      max_tokens: 4000 // Increased token limit for more detailed responses
     };
     
     // Enable function calling for file operations if enabled
@@ -257,23 +300,33 @@ Remember to always format your entire response as a valid JSON object when makin
         // Parse the message content as JSON if it's a JSON string
         if (typeof data.choices[0].message.content === 'string') {
           console.log("Received content:", data.choices[0].message.content.substring(0, 200) + "...");
-          const contentObj = JSON.parse(data.choices[0].message.content);
           
-          // Extract file operations if they exist
-          if (contentObj && contentObj.file_operations) {
-            // Add file operations to the message object
-            data.choices[0].message.file_operations = contentObj.file_operations;
+          try {
+            const contentObj = JSON.parse(data.choices[0].message.content) as ResponseWithFileOperations;
             
-            // Update the content to be just the textual response
-            data.choices[0].message.content = contentObj.response || 
-              "I've processed your file operation request.";
+            // Extract file operations if they exist
+            if (contentObj && contentObj.file_operations) {
+              // Add file operations to the message object
+              data.choices[0].message.file_operations = contentObj.file_operations;
               
-            console.log("Extracted file operations:", JSON.stringify(data.choices[0].message.file_operations));
+              // Update the content to be just the textual response
+              data.choices[0].message.content = contentObj.response || 
+                "I've processed your file operation request.";
+                
+              console.log("Extracted file operations:", JSON.stringify(data.choices[0].message.file_operations));
+            }
+          } catch (parseError) {
+            console.error("Error parsing JSON from OpenAI response:", parseError);
+            // If we can't parse as JSON but file operations are expected, 
+            // create a fallback response that explains the error
+            data.choices[0].message.content = 
+              "I encountered an error while trying to process your file operation request. " +
+              "Please try again with a more specific request.";
           }
         }
       } catch (e) {
         // If parsing fails, just use the message as is
-        console.log("Could not parse response as JSON, using as plain text:", e);
+        console.log("Could not process response for file operations:", e);
       }
     }
     
