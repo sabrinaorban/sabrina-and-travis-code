@@ -43,7 +43,7 @@ export const MemoryService = {
     }
   },
 
-  async retrieveMemory<T>(userId: string, key: string): Promise<T | null> {
+  async retrieveMemory(userId: string, key: string): Promise<any | null> {
     try {
       const { data, error } = await supabase
         .from('memory')
@@ -62,7 +62,7 @@ export const MemoryService = {
         .eq('user_id', userId)
         .eq('key', key);
 
-      return data.value as T;
+      return data.value;
     } catch (error) {
       console.error('Error retrieving memory:', error);
       return null;
@@ -95,8 +95,8 @@ export const MemoryService = {
         .single();
 
       // Get stored preferences and documents
-      const preferences = await this.retrieveMemory<Record<string, any>>(userId, 'preferences');
-      const documents = await this.retrieveMemory<Array<any>>(userId, 'documents') || [];
+      const preferences = await this.retrieveMemory(userId, 'preferences');
+      const documents = await this.retrieveMemory(userId, 'documents') || [];
 
       return {
         recentMessages: messagesData || [],

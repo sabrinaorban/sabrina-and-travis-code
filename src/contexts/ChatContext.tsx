@@ -12,7 +12,7 @@ interface ChatContextType {
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => Promise<void>;
   memoryContext: MemoryContextType | null;
-  refreshMemoryContext: () => Promise<void>;
+  refreshMemoryContext: () => Promise<MemoryContextType | null>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -68,7 +68,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user, toast]);
 
   const refreshMemoryContext = async () => {
-    if (!user) return;
+    if (!user) return null;
 
     try {
       const context = await MemoryService.getMemoryContext(user.id);
