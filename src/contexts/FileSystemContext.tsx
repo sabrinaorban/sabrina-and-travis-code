@@ -28,7 +28,6 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return files;
       } catch (error) {
         console.error('Error in refreshFiles:', error);
-        // Return void to satisfy Promise<void>
         return;
       }
     }, 

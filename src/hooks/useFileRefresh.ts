@@ -13,7 +13,7 @@ export const useFileRefresh = (
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
   
   // Refresh files function
-  const refreshFiles = async () => {
+  const refreshFiles = async (): Promise<FileEntry[] | void> => {
     if (!user) return Promise.resolve();
     
     console.log('Refreshing files for user:', user.id);
@@ -22,7 +22,7 @@ export const useFileRefresh = (
     
     try {
       const files = await fetchFiles();
-      console.log('Fetched files:', files ? files.length : 0);
+      console.log('Fetched files:', files ? (Array.isArray(files) ? files.length : 'non-array result') : 0);
       
       // Only update files if we received an array
       if (files && Array.isArray(files)) {
