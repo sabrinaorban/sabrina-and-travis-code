@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ChatHistory } from '@/components/ChatHistory';
 import { ChatInput } from '@/components/ChatInput';
@@ -13,12 +12,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { GitHubAuth } from '@/components/GitHubAuth';
 import { GitHubRepoSelector } from '@/components/GitHubRepoSelector';
-import { GitHubCommitPanel } from '@/components/GitHubCommitPanel';
-import { GitHubProvider, useGitHub } from '@/contexts/github/GitHubContext';
-import { TestButton } from '@/components/TestButton'; // Import the TestButton
+import { GitHubProvider, useGitHub } from '@/contexts/github';
+import { TestButton } from '@/components/TestButton';
+import { GitHubCommitPanelContainer } from '@/components/github/commit/GitHubCommitPanelContainer';
 import { 
-  Loader2, Menu, X, Upload, Download, Trash2, RefreshCw, 
-  FolderPlus, FilePlus, Github 
+  Loader2, Menu, FolderPlus, FilePlus, Github 
 } from 'lucide-react';
 
 // Component to handle file creation
@@ -100,38 +98,6 @@ const FileSystemControls = ({ currentPath, setCurrentPath }) => {
   return (
     <div className="flex items-center p-2 bg-gray-50 border-b text-sm">
       <span className="truncate">Path: {currentPath}</span>
-    </div>
-  );
-};
-
-// GitHub Commit Panel Container that checks GitHub state
-const GitHubCommitPanelContainer = () => {
-  const { authState, currentRepo, currentBranch } = useGitHub();
-  
-  // Force rerender after GitHub operations
-  const [key, setKey] = useState(0);
-  
-  useEffect(() => {
-    // Update the key when GitHub state changes
-    setKey(prev => prev + 1);
-  }, [authState?.isAuthenticated, currentRepo, currentBranch]);
-  
-  console.log('GitHubCommitPanelContainer - State check:', {
-    isAuthenticated: authState?.isAuthenticated,
-    repoName: currentRepo?.full_name,
-    branchName: currentBranch,
-    key
-  });
-  
-  // Only render when GitHub is authenticated and a repo is selected
-  if (!authState?.isAuthenticated || !currentRepo || !currentBranch) {
-    console.log('Not rendering GitHub commit panel - missing required state');
-    return null;
-  }
-  
-  return (
-    <div className="border-t" key={`github-commit-panel-${key}`}>
-      <GitHubCommitPanel />
     </div>
   );
 };

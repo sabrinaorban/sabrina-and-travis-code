@@ -1,10 +1,11 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useGitHub } from '@/contexts/github';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { GitCommit } from 'lucide-react';
+import { useCommitPanelState } from '@/hooks/github/useCommitPanelState';
 import { useCommitPanel } from '@/hooks/github/useCommitPanel';
 import { CommitButton } from './github/commit/CommitButton';
 import { ModifiedFilesList } from './github/commit/ModifiedFilesList';
@@ -17,21 +18,38 @@ export const GitHubCommitPanel: React.FC = () => {
   
   // Get file system context safely
   const { getModifiedFiles } = useFileSystem();
-
-  // Use our custom hook to handle all commit logic
+  
+  // Use panel state management
+  const panelState = useCommitPanelState();
   const {
-    commitMessage,
-    setCommitMessage,
-    editedFiles,
+    commitMessage, 
+    setCommitMessage, 
+    editedFiles, 
     isCommitting,
     commitError,
-    handleCommit
-  } = useCommitPanel(
+    startCommit,
+    finishCommit,
+    updateEditedFiles
+  } = panelState;
+
+  // Use commit handler hook
+  const { handleCommit } = useCommitPanel(
     getModifiedFiles || (() => []),
     saveFileToRepo,
     currentRepo?.full_name || '',
-    currentBranch || ''
+    currentBranch || '',
+    startCommit,
+    finishCommit,
+    updateEditedFiles
   );
+
+  // Update modified files list whenever repo changes
+  useEffect(() => {
+    if (currentRepo && currentBranch && getModifiedFiles) {
+      const files = getModifiedFiles();
+      updateEditedFiles(files);
+    }
+  }, [currentRepo, currentBranch, getModifiedFiles]);
 
   // Only render when all required data is available
   // This ensures the panel only appears when GitHub is authenticated AND repo is selected
