@@ -1,16 +1,18 @@
 import { OpenAIMessage, Message, FileEntry } from '../types';
 import { MemoryContext } from './MemoryService';
 import { FileSystemContextType } from '../types/fileSystem';
+import { supabase } from '@/integrations/supabase/client';
 
-// Function to fetch chat messages from Supabase
+// Function to fetch chat messages from Supabase Edge Function
 export const fetchMessages = async (userId: string): Promise<Message[]> => {
   try {
-    const response = await fetch(`/api/messages?userId=${userId}`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    return data;
+    const { data, error } = await supabase.functions.invoke('messages', {
+      method: 'GET',
+      query: { userId }
+    });
+    
+    if (error) throw error;
+    return data || [];
   } catch (error) {
     console.error('Error fetching messages:', error);
     throw error;
@@ -20,19 +22,12 @@ export const fetchMessages = async (userId: string): Promise<Message[]> => {
 // Function to store a user message in Supabase
 export const storeUserMessage = async (userId: string, content: string): Promise<Message> => {
   try {
-    const response = await fetch('/api/messages', {
+    const { data, error } = await supabase.functions.invoke('messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId, content, role: 'user' }),
+      body: { userId, content, role: 'user' }
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
+    
+    if (error) throw error;
     return data;
   } catch (error) {
     console.error('Error storing user message:', error);
@@ -43,19 +38,12 @@ export const storeUserMessage = async (userId: string, content: string): Promise
 // Function to store an assistant message in Supabase
 export const storeAssistantMessage = async (userId: string, content: string): Promise<Message> => {
   try {
-    const response = await fetch('/api/messages', {
+    const { data, error } = await supabase.functions.invoke('messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId, content, role: 'assistant' }),
+      body: { userId, content, role: 'assistant' }
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
+    
+    if (error) throw error;
     return data;
   } catch (error) {
     console.error('Error storing assistant message:', error);
@@ -66,17 +54,12 @@ export const storeAssistantMessage = async (userId: string, content: string): Pr
 // Function to delete all messages for a user in Supabase
 export const deleteAllMessages = async (userId: string): Promise<void> => {
   try {
-    const response = await fetch('/api/messages', {
+    const { error } = await supabase.functions.invoke('messages', {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId }),
+      body: { userId }
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+    
+    if (error) throw error;
   } catch (error) {
     console.error('Error deleting all messages:', error);
     throw error;

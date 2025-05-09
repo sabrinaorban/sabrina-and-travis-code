@@ -1,8 +1,35 @@
 
 project_id = "vdtogebrtoqnbbpjntgg"
 
-[functions.memory-context]
-verify_jwt = true
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
 
-[functions.openai-chat]
-verify_jwt = true
+[db]
+port = 54322
+
+[studio]
+port = 54323
+
+[inbucket]
+port = 54324
+
+[auth]
+enabled = true
+port = 54325
+
+[storage]
+enabled = true
+port = 54326
+
+[realtime]
+enabled = true
+port = 54327
+
+[functions]
+enabled = true
+port = 54328
+
+[functions.messages]
+verify_jwt = false

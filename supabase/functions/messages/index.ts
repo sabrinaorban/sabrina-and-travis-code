@@ -1,18 +1,28 @@
 
-import { supabase } from '@/lib/supabase';
-import { generateUUID } from '@/lib/supabase';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.43.0';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+
+// Create a Supabase client
+const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://vdtogebrtoqnbbpjntgg.supabase.co';
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_ANON_KEY');
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Generate a proper UUID for Supabase
+const generateUUID = (): string => {
+  return crypto.randomUUID();
+};
+
+// Set CORS headers
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+};
 
 // Create a REST API endpoint for messages
-Deno.serve(async (req) => {
-  // Set CORS headers
-  const headers = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
-  };
-
+serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   // GET method for fetching messages
@@ -24,7 +34,7 @@ Deno.serve(async (req) => {
       if (!userId) {
         return new Response(
           JSON.stringify({ error: 'User ID is required' }), 
-          { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       
@@ -40,13 +50,13 @@ Deno.serve(async (req) => {
       
       return new Response(
         JSON.stringify(data || []), 
-        { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } catch (error) {
       console.error('Error fetching messages:', error);
       return new Response(
         JSON.stringify({ error: 'Failed to fetch messages' }), 
-        { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
   }
@@ -60,7 +70,7 @@ Deno.serve(async (req) => {
       if (!userId || !content || !role) {
         return new Response(
           JSON.stringify({ error: 'Missing required fields' }), 
-          { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       
@@ -82,13 +92,13 @@ Deno.serve(async (req) => {
       
       return new Response(
         JSON.stringify(data?.[0] || message), 
-        { status: 201, headers: { ...headers, "Content-Type": "application/json" } }
+        { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } catch (error) {
       console.error('Error creating message:', error);
       return new Response(
         JSON.stringify({ error: 'Failed to create message' }), 
-        { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
   }
@@ -102,7 +112,7 @@ Deno.serve(async (req) => {
       if (!userId) {
         return new Response(
           JSON.stringify({ error: 'User ID is required' }), 
-          { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       
@@ -116,13 +126,13 @@ Deno.serve(async (req) => {
       
       return new Response(
         JSON.stringify({ success: true }), 
-        { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } catch (error) {
       console.error('Error deleting messages:', error);
       return new Response(
         JSON.stringify({ error: 'Failed to delete messages' }), 
-        { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
   }
@@ -131,7 +141,7 @@ Deno.serve(async (req) => {
   else {
     return new Response(
       JSON.stringify({ error: 'Method not allowed' }), 
-      { status: 405, headers: { ...headers, "Content-Type": "application/json" } }
+      { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
