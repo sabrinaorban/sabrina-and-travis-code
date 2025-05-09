@@ -2,10 +2,11 @@ import { FileSystemContextType } from '../../types/fileSystem';
 import { FileOperation } from '../../types/chat';
 
 export interface FileOpsResult {
-  operation: string;
+  operation: 'read' | 'write' | 'create' | 'delete';  // Change from string to union type
   path: string;
   success: boolean;
   message?: string;
+  content?: string;  // Added to match FileOperation
 }
 
 // Process file operations requested by the assistant

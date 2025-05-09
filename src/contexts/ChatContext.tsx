@@ -287,9 +287,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('Processing file operations:', fileOperations.length);
           const processedOperations = await processFileOps(fileSystem, fileOperations);
           
-          // Update file operation results for UI feedback
+          // Update file operation results for UI feedback - with type cast to ensure compatibility
           if (processedOperations.length > 0) {
-            setFileOperationResults(processedOperations);
+            // Cast the result to FileOperation[] since we've made the types compatible
+            setFileOperationResults(processedOperations as unknown as FileOperation[]);
             
             // Refresh files after operations
             await fileSystem.refreshFiles();
