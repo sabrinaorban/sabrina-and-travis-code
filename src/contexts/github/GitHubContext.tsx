@@ -1,14 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { FileEntry } from '@/types';
 import { useFileSystem } from '../FileSystemContext';
 import { useAuth } from '../AuthContext';
 import { GithubTokenService } from '@/services/github/githubTokenService';
 import { useGithubOperations } from '@/hooks/github/useGithubOperations';
-import { useGitHubAuth, GitHubAuthResult } from './useGitHubAuth';
+import { useGitHubAuth } from './useGitHubAuth';
 import { useGitHubMemory } from './useGitHubMemory';
 import { useGitHubRepoSelection } from './useGitHubRepoSelection';
 import { useGitHubSync } from './useGitHubSync';
 import { GitHubContextType } from './githubContextTypes';
+import { useToast } from '@/hooks/use-toast';
 
 // Create GitHub context with null check
 const GitHubContext = createContext<GitHubContextType | null>(null);
@@ -16,15 +18,21 @@ const GitHubContext = createContext<GitHubContextType | null>(null);
 export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [lastSyncState, setLastSyncState] = useState<{ isSuccessful: boolean; timestamp: number } | null>(null);
+  
+  // Create a ref to track if a sync is already in progress
+  const syncInProgressRef = useRef<boolean>(false);
+  
   const fileSystemContext = useFileSystem();
   const { refreshFiles, createFile, createFolder } = fileSystemContext;
   const { user } = useAuth();
+  const { toast } = useToast();
   
   console.log('GitHubProvider - Initializing with user:', user?.id);
   
   // Initialize GitHub auth
-  const githubAuthHook = useGitHubAuth();
-  const { authState, authenticate, logout } = githubAuthHook;
+  const { authState, authenticate, logout } = useGitHubAuth();
   
   useEffect(() => {
     console.log('GitHubProvider - Auth state update:', authState);
@@ -124,13 +132,84 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentRepo, currentBranch]);
 
-  // Create a wrapper for syncRepoToFileSystem that includes refreshFiles
+  // Get last sync state
+  const getLastSyncState = () => {
+    return lastSyncState;
+  };
+
+  // Reset sync state
+  const resetSyncState = () => {
+    setLastSyncState(null);
+  };
+
+  // Create a wrapper for syncRepoToFileSystem that includes sync state tracking
   const handleSyncRepoToFileSystem = async (
     owner: string,
     repo: string,
     branch: string
   ): Promise<boolean> => {
-    return syncRepoToFileSystem(owner, repo, branch, createFile, createFolder, refreshFiles);
+    // If a sync is already in progress, prevent starting another
+    if (syncInProgressRef.current) {
+      console.log('GitHubProvider - Sync already in progress, aborting new sync request');
+      toast({
+        title: "Sync in progress",
+        description: "Please wait for the current sync operation to complete",
+      });
+      return false;
+    }
+
+    try {
+      // Set sync flags
+      syncInProgressRef.current = true;
+      setIsSyncing(true);
+      
+      console.log(`GitHubProvider - Starting sync of ${owner}/${repo} (${branch})`);
+      
+      // Execute the sync operation
+      const result = await syncRepoToFileSystem(owner, repo, branch, createFile, createFolder, refreshFiles);
+      
+      // Update sync state
+      setLastSyncState({
+        isSuccessful: result,
+        timestamp: Date.now()
+      });
+      
+      // Give user feedback
+      if (result) {
+        toast({
+          title: "Sync completed",
+          description: `Repository ${repo} has been successfully imported`,
+        });
+      } else {
+        toast({
+          title: "Sync failed",
+          description: `Failed to import repository ${repo}`,
+          variant: "destructive",
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      console.error("GitHubProvider - Error in syncRepoToFileSystem:", error);
+      setLastSyncState({
+        isSuccessful: false,
+        timestamp: Date.now()
+      });
+      
+      toast({
+        title: "Sync error",
+        description: `An unexpected error occurred while importing the repository`,
+        variant: "destructive",
+      });
+      
+      return false;
+    } finally {
+      // Reset sync flags with a small delay to prevent immediate re-triggering
+      setTimeout(() => {
+        syncInProgressRef.current = false;
+        setIsSyncing(false);
+      }, 1000);
+    }
   };
 
   // Create a wrapper for saveFileToRepo to match the expected interface
@@ -153,7 +232,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       authenticate,
       repositories,
       branches,
-      availableBranches: branches, // Ensure we pass branches here
+      availableBranches: branches,
       currentRepo,
       currentBranch,
       files,
@@ -172,7 +251,10 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isLoading: loadingState,
       saveFileToRepo: handleSaveFileToRepo,
       syncRepoToFileSystem: handleSyncRepoToFileSystem,
-      logout: handleLogout
+      logout: handleLogout,
+      getLastSyncState,
+      resetSyncState,
+      isSyncing
     };
   }, [
     authState,
@@ -188,10 +270,11 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     fetchRepositories,
     fetchFileContent,
     loadingState,
-    saveFileToRepo,
     handleSaveFileToRepo,
     handleSyncRepoToFileSystem,
-    handleLogout
+    handleLogout,
+    lastSyncState,
+    isSyncing
   ]);
 
   return (

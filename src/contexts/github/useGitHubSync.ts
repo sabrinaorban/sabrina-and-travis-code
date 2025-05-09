@@ -16,7 +16,7 @@ export const useGitHubSync = (
   const { toast } = useToast();
   const { storeGitHubSync } = useGitHubMemory();
 
-  // Sync repository to file system
+  // Sync repository to file system with improved error handling and debouncing
   const syncRepoToFileSystem = useCallback(async (
     owner: string, 
     repo: string, 
@@ -27,20 +27,31 @@ export const useGitHubSync = (
   ): Promise<boolean> => {
     try {
       console.log(`useGitHubSync - Syncing repo ${owner}/${repo} (${branch}) to file system`);
+      
+      // Perform the sync operation
       const result = await syncRepo(owner, repo, branch, createFile, createFolder);
       
-      // Only manually refresh once
+      // Only manually refresh if sync was successful and refreshFiles is provided
       if (result) {
-        // Single manual refresh after sync
-        console.log('useGitHubSync - Sync successful, refreshing files');
-        await refreshFiles();
+        try {
+          console.log('useGitHubSync - Sync successful, refreshing files');
+          await refreshFiles();
+        } catch (refreshError) {
+          console.error('useGitHubSync - Error refreshing files after sync:', refreshError);
+          // Continue execution even if refresh fails - the sync was still successful
+        }
       } else {
         console.log('useGitHubSync - Sync returned false, not refreshing files');
       }
       
       // Store sync operation in memory
       if (userId) {
-        await storeGitHubSync(userId, owner, repo, branch, result);
+        try {
+          await storeGitHubSync(userId, owner, repo, branch, result);
+        } catch (memoryError) {
+          console.error('useGitHubSync - Error storing sync state in memory:', memoryError);
+          // Continue execution even if memory storage fails
+        }
       }
       
       return result;

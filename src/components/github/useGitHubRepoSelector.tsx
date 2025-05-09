@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useGitHub } from '@/contexts/github';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { GitHubRepo } from '@/types/github';
@@ -15,7 +15,9 @@ export const useGitHubRepoSelector = () => {
     fetchRepositories, 
     selectRepository, 
     selectBranch, 
-    syncRepoToFileSystem 
+    syncRepoToFileSystem,
+    isSyncing: contextIsSyncing,
+    getLastSyncState 
   } = useGitHub();
   
   const { refreshFiles, isLoading: fileSystemLoading, deleteAllFiles } = useFileSystem();
@@ -33,9 +35,14 @@ export const useGitHubRepoSelector = () => {
   // Track repo selection to prevent race conditions
   const selectingRepoRef = useRef(false);
   const branchSelectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Synchronize internal isSyncing state with context state
+  useEffect(() => {
+    setIsSyncing(contextIsSyncing);
+  }, [contextIsSyncing]);
   
   // Debug logs
-  React.useEffect(() => {
+  useEffect(() => {
     console.log('GitHubRepoSelector - Auth state:', authState?.isAuthenticated);
     console.log('GitHubRepoSelector - Repos count:', repositories?.length);
     console.log('GitHubRepoSelector - Current repo:', currentRepo?.full_name);
@@ -45,7 +52,7 @@ export const useGitHubRepoSelector = () => {
   }, [authState, repositories, currentRepo, currentBranch, branches, isLoading, fileSystemLoading, isSyncing, isFetchingBranches]);
   
   // Clean up timeouts when component unmounts
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
@@ -59,6 +66,7 @@ export const useGitHubRepoSelector = () => {
   // Handle repository selection with debounce for UI feedback
   const handleRepositoryChange = async (repoFullName: string) => {
     try {
+      // Prevent multiple concurrent repo selections
       if (selectingRepoRef.current) {
         console.log('GitHubRepoSelector - Repository selection in progress, debouncing...');
         return;
@@ -135,36 +143,30 @@ export const useGitHubRepoSelector = () => {
       setSyncError(null);
       lastSyncAttemptRef.current = now;
       
-      // Set syncing state
-      setIsSyncing(true);
-      
       // First delete all existing files
       console.log('GitHubRepoSelector - Deleting all existing files before syncing...');
-      await deleteAllFiles();
+      try {
+        await deleteAllFiles();
+      } catch (deleteError) {
+        console.error('GitHubRepoSelector - Error deleting files:', deleteError);
+        setSyncError('Failed to delete existing files');
+        return;
+      }
       
       // Then sync the new repository
       const [owner, repo] = currentRepo.full_name.split('/');
       console.log(`GitHubRepoSelector - Syncing repository ${owner}/${repo} (${currentBranch})...`);
+      
+      // The syncRepoToFileSystem function now takes care of setting the isSyncing state
       const result = await syncRepoToFileSystem(owner, repo, currentBranch);
       
-      // Check boolean result
+      // Check result
       if (result === true) {
         console.log('GitHubRepoSelector - Sync successful');
-        
-        // Wait for a moment to ensure database operations are complete
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        try {
-          console.log('GitHubRepoSelector - Refreshing files after sync...');
-          await refreshFiles();
-          console.log('GitHubRepoSelector - Files refresh completed after sync');
-          
-          // Close dialog on success
+        // Close dialog on success after a short delay
+        setTimeout(() => {
           setIsSyncDialogOpen(false);
-        } catch (error) {
-          console.error('GitHubRepoSelector - Error during refresh after sync:', error);
-          setSyncError('Error refreshing files');
-        }
+        }, 1000);
       } else {
         console.error('GitHubRepoSelector - Sync failed or no files were created');
         setSyncError('Sync failed or no files were created');
@@ -172,13 +174,6 @@ export const useGitHubRepoSelector = () => {
     } catch (error: any) {
       console.error('GitHubRepoSelector - Error in sync process:', error);
       setSyncError(error.message || 'Unknown error during sync');
-    } finally {
-      setIsSyncing(false);
-      
-      // Set a timeout to allow syncing again after the cooldown
-      syncTimeoutRef.current = setTimeout(() => {
-        console.log('GitHubRepoSelector - Sync cooldown complete');
-      }, syncCooldownMs);
     }
   };
 

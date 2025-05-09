@@ -44,8 +44,11 @@ export interface GitHubContextType {
   fetchRepositories: () => Promise<GitHubRepo[]>;
   fetchFileContent: (filePath: string) => Promise<string | null>;
   isLoading: boolean;
-  // Update this signature to match the implementation
   saveFileToRepo: (filePath: string, content: string, commitMessage: string) => Promise<boolean>; 
   syncRepoToFileSystem: (owner: string, repo: string, branch: string) => Promise<boolean>;
   logout: () => void;
+  // Add new methods for memory management
+  getLastSyncState: () => { isSuccessful: boolean; timestamp: number } | null;
+  resetSyncState: () => void;
+  isSyncing: boolean;
 }
