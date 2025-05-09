@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { FileEntry, FileSystemState } from '../types';
 import { FileSystemContextType } from '../types/fileSystem';
@@ -45,7 +44,8 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }));
       
       console.log('Files refreshed:', updatedFiles.length);
-      return updatedFiles; // Return files for chaining
+      // Return files for use in other functions but maintain Promise<void> return type for this function
+      return;
     } catch (error) {
       // Error handling is done in fetchFiles
       // Initialize with empty file system on error
@@ -57,7 +57,6 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } finally {
       setIsLoading(false);
     }
-    return Promise.resolve();
   };
   
   const { getFileByPath, createFile: createFileOp, createFolder: createFolderOp, 
@@ -80,26 +79,24 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const createFile = async (path: string, name: string, content: string = '') => {
     await createFileOp(path, name, content, fileSystem.files);
     // Mark the file as modified to ensure it appears in the GitHub commit panel
-    await refreshFiles().then(files => {
-      if (files && Array.isArray(files)) {
-        const newFile = files.find(f => f.path === `${path === '/' ? '' : path}/${name}`);
-        if (newFile) {
-          setFileSystem(prev => ({
-            ...prev,
-            files: prev.files.map(file => {
-              if (file.id === newFile.id) {
-                return {
-                  ...file,
-                  isModified: true,
-                  lastModified: Date.now()
-                };
-              }
-              return file;
-            })
-          }));
-        }
-      }
-    });
+    await refreshFiles();
+    const fullPath = `${path === '/' ? '' : path}/${name}`;
+    const newFile = fileSystem.files.find(f => f.path === fullPath);
+    if (newFile) {
+      setFileSystem(prev => ({
+        ...prev,
+        files: prev.files.map(file => {
+          if (file.id === newFile.id) {
+            return {
+              ...file,
+              isModified: true,
+              lastModified: Date.now()
+            };
+          }
+          return file;
+        })
+      }));
+    }
   };
 
   // Create a folder wrapper

@@ -12,7 +12,7 @@ export interface FileSystemContextType {
   getFileContentByPath: (path: string) => string | null;
   updateFileByPath: (path: string, content: string) => Promise<void>;
   isLoading: boolean;
-  refreshFiles: () => Promise<any>;
+  refreshFiles: () => Promise<void>;
   deleteAllFiles: () => Promise<void>;
   getModifiedFiles?: () => FileEntry[];
 }
