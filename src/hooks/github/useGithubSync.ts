@@ -12,6 +12,7 @@ export const useGithubSync = (
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { shouldThrottle, updateLastOperationTime, COOLDOWN_MS } = useGithubThrottling();
+  const syncInProgressRef = useRef(false);
 
   const syncRepoToFileSystem = useCallback(async (
     owner: string, 
@@ -25,12 +26,12 @@ export const useGithubSync = (
       return false;
     }
     
-    // Prevent concurrent operations
-    if (isFetchingRef.current) {
-      console.log('useGithubSync - Already syncing repository, aborting');
+    // Use ref to prevent concurrent operations instead of a variable that might change
+    if (syncInProgressRef.current || isFetchingRef.current) {
+      console.log('useGithubSync - Already syncing repository or another operation is in progress, aborting');
       toast({
-        title: "Sync in progress",
-        description: "Please wait for the current sync to complete",
+        title: "Operation in progress",
+        description: "Please wait for the current operation to complete",
       });
       return false;
     }
@@ -48,6 +49,7 @@ export const useGithubSync = (
     console.log(`useGithubSync - Syncing repo ${owner}/${repo} (${branch}) to file system`);
     setIsLoading(true);
     isFetchingRef.current = true;
+    syncInProgressRef.current = true;
     updateLastOperationTime();
     
     try {
@@ -69,13 +71,13 @@ export const useGithubSync = (
       });
       return false;
     } finally {
-      setIsLoading(false);
-      isFetchingRef.current = false;
-      
-      // Add extra delay after sync operation
+      // Add small delay before releasing locks
       setTimeout(() => {
-        console.log('useGithubSync - Sync cooldown complete');
-      }, COOLDOWN_MS * 2);
+        setIsLoading(false);
+        isFetchingRef.current = false;
+        syncInProgressRef.current = false;
+        console.log('useGithubSync - Sync completed, locks released');
+      }, 1000);
     }
   }, [token, syncService, toast, shouldThrottle, updateLastOperationTime, isFetchingRef, COOLDOWN_MS]);
 

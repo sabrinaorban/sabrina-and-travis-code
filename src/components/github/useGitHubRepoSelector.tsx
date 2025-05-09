@@ -35,21 +35,14 @@ export const useGitHubRepoSelector = () => {
   // Track repo selection to prevent race conditions
   const selectingRepoRef = useRef(false);
   const branchSelectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Flag to prevent multiple repository fetches
+  const hasInitializedRef = useRef(false);
 
   // Synchronize internal isSyncing state with context state
   useEffect(() => {
     setIsSyncing(contextIsSyncing);
   }, [contextIsSyncing]);
-  
-  // Debug logs
-  useEffect(() => {
-    console.log('GitHubRepoSelector - Auth state:', authState?.isAuthenticated);
-    console.log('GitHubRepoSelector - Repos count:', repositories?.length);
-    console.log('GitHubRepoSelector - Current repo:', currentRepo?.full_name);
-    console.log('GitHubRepoSelector - Current branch:', currentBranch);
-    console.log('GitHubRepoSelector - Branches count:', branches?.length);
-    console.log('GitHubRepoSelector - Loading states:', { isLoading, fileSystemLoading, isSyncing, isFetchingBranches });
-  }, [authState, repositories, currentRepo, currentBranch, branches, isLoading, fileSystemLoading, isSyncing, isFetchingBranches]);
   
   // Clean up timeouts when component unmounts
   useEffect(() => {
@@ -83,11 +76,12 @@ export const useGitHubRepoSelector = () => {
       if (repo) {
         await selectRepository(repo);
         
-        // Add a small delay to allow branches to load
+        // Clean up any existing timeout
         if (branchSelectionTimeoutRef.current) {
           clearTimeout(branchSelectionTimeoutRef.current);
         }
         
+        // Add a small delay to allow branches to load
         branchSelectionTimeoutRef.current = setTimeout(() => {
           setIsFetchingBranches(false);
           selectingRepoRef.current = false;
@@ -176,6 +170,18 @@ export const useGitHubRepoSelector = () => {
       setSyncError(error.message || 'Unknown error during sync');
     }
   };
+  
+  // Initialize repositories only once when authenticated
+  useEffect(() => {
+    if (authState?.isAuthenticated && !hasInitializedRef.current && !repositories?.length) {
+      hasInitializedRef.current = true;
+      console.log("GitHubRepoSelector - Loading repositories on first authentication");
+      fetchRepositories().catch(error => {
+        console.error("GitHubRepoSelector - Error fetching repositories:", error);
+        hasInitializedRef.current = false; // Reset flag to allow retry
+      });
+    }
+  }, [authState?.isAuthenticated, repositories, fetchRepositories]);
 
   return {
     authState,

@@ -16,7 +16,7 @@ export const useGitHubSync = (
   const { toast } = useToast();
   const { storeGitHubSync } = useGitHubMemory();
 
-  // Sync repository to file system with improved error handling and debouncing
+  // Sync repository to file system with improved error handling and state management
   const syncRepoToFileSystem = useCallback(async (
     owner: string, 
     repo: string, 
@@ -35,7 +35,15 @@ export const useGitHubSync = (
       if (result) {
         try {
           console.log('useGitHubSync - Sync successful, refreshing files');
-          await refreshFiles();
+          // Important: wrap in setTimeout to prevent state update cycles
+          setTimeout(async () => {
+            try {
+              await refreshFiles();
+              console.log('useGitHubSync - Files refreshed successfully');
+            } catch (refreshError) {
+              console.error('useGitHubSync - Error refreshing files after sync:', refreshError);
+            }
+          }, 500);
         } catch (refreshError) {
           console.error('useGitHubSync - Error refreshing files after sync:', refreshError);
           // Continue execution even if refresh fails - the sync was still successful

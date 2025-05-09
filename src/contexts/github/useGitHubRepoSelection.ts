@@ -10,16 +10,24 @@ export const useGitHubRepoSelection = (
   selectBranch: (branchName: string) => Promise<void>
 ) => {
   const isRestoringRepoRef = useRef(false);
+  const hasAttemptedRestoreRef = useRef(false);
   const { toast } = useToast();
 
   // Restore repository selection from localStorage
   const restoreRepoSelection = useCallback(async (repositories: GitHubRepo[]) => {
+    // Check if we already attempted to restore the repo to prevent loops
+    if (hasAttemptedRestoreRef.current || isRestoringRepoRef.current) {
+      console.log('useGitHubRepoSelection - Already attempted to restore repo selection, skipping');
+      return;
+    }
+    
     console.log('useGitHubRepoSelection - Attempting to restore repo selection');
     
     // Get stored repo info
     const storedRepoInfo = localStorage.getItem('githubRepoInfo');
     if (!storedRepoInfo) {
       console.log('useGitHubRepoSelection - No stored repo info found');
+      hasAttemptedRestoreRef.current = true;
       return;
     }
     
@@ -29,11 +37,13 @@ export const useGitHubRepoSelection = (
       
       if (!repoFullName) {
         console.log('useGitHubRepoSelection - No repo name in stored info');
+        hasAttemptedRestoreRef.current = true;
         return;
       }
       
       console.log('useGitHubRepoSelection - Found repo to restore:', repoFullName);
       isRestoringRepoRef.current = true;
+      hasAttemptedRestoreRef.current = true;
       
       // Find the repository in the list
       const repo = repositories.find(r => r.full_name === repoFullName);
@@ -43,13 +53,22 @@ export const useGitHubRepoSelection = (
         await selectRepository(repo);
         
         // Wait a moment to allow branches to load
-        setTimeout(async () => {
-          if (branchName) {
-            console.log('useGitHubRepoSelection - Restoring branch selection:', branchName);
-            await selectBranch(branchName);
-          }
+        if (branchName) {
+          console.log('useGitHubRepoSelection - Restoring branch selection:', branchName);
+          // Use setTimeout to avoid immediate state updates
+          setTimeout(async () => {
+            try {
+              await selectBranch(branchName);
+              console.log('useGitHubRepoSelection - Branch selection restored');
+            } catch (error) {
+              console.error('useGitHubRepoSelection - Error restoring branch selection:', error);
+            } finally {
+              isRestoringRepoRef.current = false;
+            }
+          }, 1500);
+        } else {
           isRestoringRepoRef.current = false;
-        }, 1000);
+        }
       } else {
         console.log('useGitHubRepoSelection - Stored repo not found in list:', repoFullName);
         isRestoringRepoRef.current = false;
@@ -57,12 +76,13 @@ export const useGitHubRepoSelection = (
     } catch (error) {
       console.error('useGitHubRepoSelection - Error restoring repo info:', error);
       isRestoringRepoRef.current = false;
+      hasAttemptedRestoreRef.current = true;
     }
   }, [selectRepository, selectBranch]);
 
   // Load repositories and restore selection when authenticated
   useEffect(() => {
-    if (authState.isAuthenticated) {
+    if (authState.isAuthenticated && !hasAttemptedRestoreRef.current) {
       console.log('useGitHubRepoSelection - Authenticated, loading repositories for selection restoration');
       
       const initializeRepoSelection = async () => {
@@ -75,9 +95,11 @@ export const useGitHubRepoSelection = (
             await restoreRepoSelection(repos);
           } else {
             console.log('useGitHubRepoSelection - No repositories found, skipping restore');
+            hasAttemptedRestoreRef.current = true;
           }
         } catch (error) {
           console.error('useGitHubRepoSelection - Error initializing repo selection:', error);
+          hasAttemptedRestoreRef.current = true;
         }
       };
       
@@ -87,6 +109,10 @@ export const useGitHubRepoSelection = (
 
   // Return the flag to indicate if restoration is in progress
   return {
-    isRestoringRepo: () => isRestoringRepoRef.current
+    isRestoringRepo: () => isRestoringRepoRef.current,
+    hasAttemptedRestore: () => hasAttemptedRestoreRef.current,
+    resetRestoreState: () => {
+      hasAttemptedRestoreRef.current = false;
+    }
   };
 };
