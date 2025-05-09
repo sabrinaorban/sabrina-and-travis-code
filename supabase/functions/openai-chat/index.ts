@@ -3,7 +3,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
-const OPENAI_API_KEY = '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'
+const OPENAI_API_KEY = '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'
 const OPENAI_MODEL = 'gpt-4o' // Using the most powerful available model for best responses
 
 interface Message {
