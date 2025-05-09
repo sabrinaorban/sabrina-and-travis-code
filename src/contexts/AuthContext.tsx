@@ -88,10 +88,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async () => {
     setIsLoading(true);
     try {
-      // For demo purposes, we'll use a magic link for Sabrina
-      // In a real app, you'd use a proper login form
+      // Using the correct email for Sabrina
       const { error } = await supabase.auth.signInWithPassword({
-        email: 'sabrina@example.com',
+        email: 'sabrina.orban@gmail.com',
         password: 'password123',
       });
 
