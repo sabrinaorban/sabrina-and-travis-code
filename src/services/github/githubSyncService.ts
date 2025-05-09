@@ -29,7 +29,7 @@ export class GithubSyncService {
     
     // Prevent multiple syncs from running simultaneously
     if (this.syncInProgress) {
-      console.log('Sync already in progress, skipping new request');
+      console.log('GithubSyncService - Sync already in progress, skipping new request');
       this.toast({
         title: 'Sync in progress',
         description: 'Please wait for the current sync to complete',
@@ -37,17 +37,18 @@ export class GithubSyncService {
       return false;
     }
 
+    console.log(`GithubSyncService - Starting sync of ${owner}/${repo} (${branch})`);
     this.syncInProgress = true;
     let allFilesAndFolders: { path: string, type: string, content?: string }[] = [];
 
     try {
-      console.log(`Starting sync of ${owner}/${repo} (${branch}) to file system...`);
-
       // Fetch all repository contents recursively
+      console.log(`GithubSyncService - Fetching repo contents for ${owner}/${repo} (${branch})`);
       allFilesAndFolders = await this.apiService.fetchDirectoryContents(owner, repo, '', branch);
-      console.log(`Fetched ${allFilesAndFolders.length} items from repository`);
+      console.log(`GithubSyncService - Fetched ${allFilesAndFolders.length} items from repository`);
       
       if (allFilesAndFolders.length === 0) {
+        console.log('GithubSyncService - Repository is empty');
         this.toast({
           title: 'Repository Empty',
           description: 'No files found in the repository',
@@ -56,21 +57,27 @@ export class GithubSyncService {
         return false;
       }
 
-      // Check for index.file and remove it if it exists
-      const indexFileEntry = allFilesAndFolders.find(item => 
-        item.type === 'file' && (item.path === 'index.file' || item.path.endsWith('/index.file'))
-      );
-      
-      if (indexFileEntry) {
-        console.log('Found problematic index.file in GitHub repo, removing it from sync list');
-        allFilesAndFolders = allFilesAndFolders.filter(item => item !== indexFileEntry);
-      }
+      // Filter out problematic files
+      const PROBLEMATIC_FILES = ['index.file'];
+      allFilesAndFolders = allFilesAndFolders.filter(item => {
+        const isProblematic = PROBLEMATIC_FILES.some(name => {
+          return item.type === 'file' && 
+                (item.path === name || item.path.endsWith(`/${name}`));
+        });
+        
+        if (isProblematic) {
+          console.log(`GithubSyncService - Filtering out problematic file: ${item.path}`);
+          return false;
+        }
+        return true;
+      });
 
       // Create a map to track folder creation status
       const folderCreationStatus = new Map<string, boolean>();
       folderCreationStatus.set('/', true); // Root folder always exists
 
       // First create all folders in depth order (sort by path length/depth)
+      console.log('GithubSyncService - Creating folders');
       const folders = allFilesAndFolders
         .filter(item => item.type === 'folder')
         .sort((a, b) => {
@@ -80,9 +87,9 @@ export class GithubSyncService {
           return depthA - depthB;
         });
 
-      console.log(`Creating ${folders.length} folders in order of depth`);
+      console.log(`GithubSyncService - Creating ${folders.length} folders in order of depth`);
 
-      // Create each folder with retry logic
+      // Create each folder
       for (const folder of folders) {
         const folderPath = '/' + folder.path;
         const lastSlashIndex = folderPath.lastIndexOf('/');
@@ -91,58 +98,60 @@ export class GithubSyncService {
 
         // Skip if this exact folder was already created
         if (folderCreationStatus.get(folderPath)) {
-          console.log(`Folder already created: ${folderPath}`);
+          console.log(`GithubSyncService - Skipping folder (already created): ${folderPath}`);
           continue;
         }
 
-        let retries = 2; // Reduce retries to avoid excessive looping
-        let folderCreated = false;
-        
-        while (retries >= 0 && !folderCreated) {
-          try {
-            // Ensure parent folder exists first
-            if (!folderCreationStatus.get(parentPath)) {
-              // Try to create parent folder recursively
-              const parentPathParts = parentPath.split('/').filter(Boolean);
-              const grandparentPath = '/' + parentPathParts.slice(0, -1).join('/');
-              const parentName = parentPathParts[parentPathParts.length - 1];
-              
-              if (grandparentPath && parentName) {
-                await createFolder(grandparentPath || '/', parentName);
-                folderCreationStatus.set(parentPath, true);
-                this.syncedFolders++;
-                console.log(`Created parent folder: ${parentPath}`);
+        try {
+          // Ensure parent folder exists first
+          if (!folderCreationStatus.get(parentPath)) {
+            // Create parent folder recursively
+            console.log(`GithubSyncService - Parent folder missing: ${parentPath}`);
+            
+            // Try to create parent folders recursively
+            const pathParts = parentPath.split('/').filter(Boolean);
+            
+            // Build parent folders one by one
+            let currentPath = '';
+            for (const part of pathParts) {
+              const nextPath = currentPath ? `${currentPath}/${part}` : `/${part}`;
+              if (!folderCreationStatus.get(nextPath)) {
+                try {
+                  console.log(`GithubSyncService - Creating parent folder: ${part} at ${currentPath || '/'}`);
+                  await createFolder(currentPath || '/', part);
+                  folderCreationStatus.set(nextPath, true);
+                  this.syncedFolders++;
+                } catch (error) {
+                  console.error(`GithubSyncService - Failed to create parent folder ${nextPath}:`, error);
+                  // Don't throw, try to continue with remaining folders
+                }
               }
-            }
-            
-            // Now create this folder
-            console.log(`Attempting to create folder: ${folderName} at ${parentPath}`);
-            await createFolder(parentPath, folderName);
-            folderCreationStatus.set(folderPath, true);
-            folderCreated = true;
-            this.syncedFolders++;
-            console.log(`Created folder: ${folderPath}`);
-          } catch (error) {
-            console.warn(`Attempt ${3-retries}/3: Folder creation failed: ${folderPath}`, error);
-            retries--;
-            
-            // Mark as created even after a failure to avoid loops
-            if (retries < 0) {
-              folderCreationStatus.set(folderPath, true); // Prevent looping
-              this.failedItems.push(folderPath);
-              console.error(`Failed to create folder: ${folderPath} - marking as created to continue`);
+              currentPath = nextPath;
             }
           }
+          
+          // Now create this folder
+          console.log(`GithubSyncService - Creating folder: ${folderName} at ${parentPath}`);
+          await createFolder(parentPath, folderName);
+          folderCreationStatus.set(folderPath, true);
+          this.syncedFolders++;
+        } catch (error) {
+          console.error(`GithubSyncService - Failed to create folder: ${folderPath}`, error);
+          this.failedItems.push(folderPath);
+          
+          // Mark as created anyway to avoid dependency issues
+          folderCreationStatus.set(folderPath, true);
         }
       }
 
-      // Then create all files with retry logic
+      // Then create all files
+      console.log('GithubSyncService - Creating files');
       const files = allFilesAndFolders
         .filter(item => item.type === 'file')
         // Skip index.file as an extra precaution
         .filter(item => !(item.path === 'index.file' || item.path.endsWith('/index.file')));
         
-      console.log(`Creating ${files.length} files`);
+      console.log(`GithubSyncService - Creating ${files.length} files`);
 
       for (const file of files) {
         const filePath = '/' + file.path;
@@ -150,81 +159,76 @@ export class GithubSyncService {
         const parentPath = lastSlashIndex > 0 ? filePath.substring(0, lastSlashIndex) : '/';
         const fileName = filePath.substring(lastSlashIndex + 1);
 
-        // Skip index.file as an extra precaution
-        if (fileName === 'index.file') {
-          console.log('Skipping problematic index.file');
-          continue;
-        }
+        console.log(`GithubSyncService - Processing file: ${fileName} in ${parentPath}`);
 
         // Ensure parent folder exists or create it
         if (!folderCreationStatus.get(parentPath)) {
           try {
-            console.log(`Creating missing parent folder: ${parentPath}`);
-            const parentPathParts = parentPath.split('/').filter(Boolean);
+            console.log(`GithubSyncService - Creating missing parent folder for file: ${parentPath}`);
             
             // Create parent folders recursively if needed
+            const pathParts = parentPath.split('/').filter(Boolean);
             let currentPath = '';
-            for (const part of parentPathParts) {
+            for (const part of pathParts) {
               const nextPath = currentPath ? `${currentPath}/${part}` : `/${part}`;
               if (!folderCreationStatus.get(nextPath)) {
-                await createFolder(currentPath || '/', part);
-                folderCreationStatus.set(nextPath, true);
-                this.syncedFolders++;
-                console.log(`Created parent folder: ${nextPath}`);
+                try {
+                  console.log(`GithubSyncService - Creating parent folder: ${part} at ${currentPath || '/'}`);
+                  await createFolder(currentPath || '/', part);
+                  folderCreationStatus.set(nextPath, true);
+                  this.syncedFolders++;
+                } catch (error) {
+                  console.error(`GithubSyncService - Failed to create parent folder ${nextPath}:`, error);
+                  // Continue anyway to try creating the file
+                }
               }
               currentPath = nextPath;
             }
+            
+            // Mark parent path as created
+            folderCreationStatus.set(parentPath, true);
           } catch (error) {
-            console.warn(`Failed to create parent folder ${parentPath}, continuing...`);
+            console.error(`GithubSyncService - Error creating parent folder ${parentPath}:`, error);
             this.failedItems.push(parentPath);
-            folderCreationStatus.set(parentPath, true); // Assume it exists and try to create file
+            // Try to create the file anyway
           }
         }
 
-        // Fetch file content if not already available
+        // Get content for the file if not already available
         let content = file.content || '';
         if (!content) {
           try {
+            console.log(`GithubSyncService - Fetching content for ${file.path}`);
             content = await this.apiService.fetchFileContent(
               `${owner}/${repo}`,
               file.path,
               branch
             ) || '';
-            console.log(`Fetched content for ${file.path}, length: ${content.length}`);
+            console.log(`GithubSyncService - Content fetched for ${file.path}, length: ${content.length}`);
           } catch (error) {
-            console.error(`Error fetching content for file ${file.path}:`, error);
-            // If we can't fetch content, skip this file
+            console.error(`GithubSyncService - Error fetching content for file ${file.path}:`, error);
             this.failedItems.push(filePath);
-            continue;
+            continue; // Skip this file if we can't get content
           }
         }
 
-        // Now create the file with reduced retry logic
-        let retries = 1; // Only retry once
-        let fileCreated = false;
-        
-        while (retries >= 0 && !fileCreated) {
-          try {
-            console.log(`Attempting to create file: ${fileName} at ${parentPath}`);
-            await createFile(parentPath, fileName, content);
-            this.syncedFiles++;
-            fileCreated = true;
-            console.log(`Created file: ${filePath} with content length: ${content.length}`);
-          } catch (error) {
-            console.warn(`Attempt ${2-retries}/2: File creation failed: ${filePath}`, error);
-            retries--;
-          }
-        }
-        
-        if (!fileCreated) {
-          console.error(`Failed to create file after attempts: ${filePath}`);
+        // Now create the file
+        try {
+          console.log(`GithubSyncService - Creating file: ${fileName} at ${parentPath} with content length: ${content.length}`);
+          await createFile(parentPath, fileName, content);
+          this.syncedFiles++;
+          console.log(`GithubSyncService - Created file: ${filePath}`);
+        } catch (error) {
+          console.error(`GithubSyncService - Failed to create file: ${filePath}`, error);
           this.failedItems.push(filePath);
         }
       }
 
-      console.log(`Synced ${this.syncedFolders} folders and ${this.syncedFiles} files from ${owner}/${repo} (${branch}) to file system. Failed items: ${this.failedItems.length}`);
+      console.log(`GithubSyncService - Sync completed: ${this.syncedFolders} folders, ${this.syncedFiles} files, ${this.failedItems.length} failures`);
 
+      // Check if any files/folders were created
       if (this.syncedFiles === 0 && this.syncedFolders === 0) {
+        console.error('GithubSyncService - Sync failed: no files or folders were created');
         this.toast({
           title: 'Sync Issue',
           description: 'No files or folders were created. Please try again.',
@@ -240,7 +244,7 @@ export class GithubSyncService {
 
       return this.syncedFiles > 0 || this.syncedFolders > 0;
     } catch (error: any) {
-      console.error('Error syncing repo:', error);
+      console.error('GithubSyncService - Error syncing repo:', error);
       this.toast({
         title: 'Sync Failed',
         description: `Failed to sync repository: ${error.message}`,

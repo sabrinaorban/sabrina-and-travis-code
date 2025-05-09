@@ -17,6 +17,7 @@ export const GitHubCommitPanel: React.FC = () => {
   const [editedFiles, setEditedFiles] = useState<FileEntry[]>([]);
   const [isCommitting, setIsCommitting] = useState(false);
   const [lastCommitTime, setLastCommitTime] = useState(0);
+  const [commitError, setCommitError] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Get GitHub context safely
@@ -26,34 +27,60 @@ export const GitHubCommitPanel: React.FC = () => {
   // Get file system context safely
   const { getModifiedFiles } = useFileSystem();
   
+  // Debug logs
+  useEffect(() => {
+    console.log('GitHubCommitPanel - Auth state:', authState);
+    console.log('GitHubCommitPanel - Current repo:', currentRepo?.full_name);
+    console.log('GitHubCommitPanel - Current branch:', currentBranch);
+    console.log('GitHubCommitPanel - Loading states:', { isLoading, isCommitting });
+    console.log('GitHubCommitPanel - Modified files count:', editedFiles.length);
+  }, [authState, currentRepo, currentBranch, isLoading, isCommitting, editedFiles.length]);
+  
   // Track which files have been edited since last commit
   useEffect(() => {
     if (getModifiedFiles) {
-      const modifiedFiles = getModifiedFiles();
-      console.log('Found modified files:', modifiedFiles.length);
-      setEditedFiles(modifiedFiles);
+      try {
+        const modifiedFiles = getModifiedFiles();
+        console.log('GitHubCommitPanel - Found modified files:', modifiedFiles.length);
+        setEditedFiles(modifiedFiles);
+      } catch (error) {
+        console.error('GitHubCommitPanel - Error fetching modified files:', error);
+      }
     }
   }, [getModifiedFiles]);
 
   // Only render when all required data is available
   // This ensures the panel only appears when GitHub is authenticated AND repo is selected
   if (!authState?.isAuthenticated || !currentRepo || !currentBranch) {
+    console.log('GitHubCommitPanel - Not rendering, missing required context:', {
+      isAuthenticated: authState?.isAuthenticated,
+      hasRepo: !!currentRepo,
+      hasBranch: !!currentBranch
+    });
     return null;
   }
 
   const handleCommit = async () => {
-    if (!commitMessage.trim() || editedFiles.length === 0) return;
+    if (!commitMessage.trim() || editedFiles.length === 0) {
+      console.log('GitHubCommitPanel - Cannot commit: empty message or no files');
+      setCommitError('Please provide a commit message and ensure you have modified files');
+      return;
+    }
+    
+    // Reset error state
+    setCommitError(null);
     
     // Prevent multiple rapid commit attempts
     const now = Date.now();
-    if (now - lastCommitTime < 5000) {
-      console.log('Commit attempted too quickly, debouncing...');
+    if (now - lastCommitTime < 10000) {
+      console.log('GitHubCommitPanel - Commit attempted too quickly, debouncing...');
+      setCommitError('Please wait 10 seconds between commit attempts');
       return;
     }
     
     // Don't allow multiple commits at once
     if (isCommitting) {
-      console.log('Already committing, ignoring request');
+      console.log('GitHubCommitPanel - Already committing, ignoring request');
       return;
     }
     
@@ -64,6 +91,8 @@ export const GitHubCommitPanel: React.FC = () => {
       let successCount = 0;
       let failCount = 0;
       
+      console.log(`GitHubCommitPanel - Starting commit of ${editedFiles.length} files`);
+      
       // Process each edited file
       for (const file of editedFiles) {
         // Get the GitHub path for this file (strip the leading slash)
@@ -71,22 +100,31 @@ export const GitHubCommitPanel: React.FC = () => {
           ? file.path.substring(1) 
           : file.path;
         
-        console.log(`Committing file: ${githubPath}`);
+        console.log(`GitHubCommitPanel - Committing file: ${githubPath}`);
         
-        const result = await saveFileToRepo(
-          githubPath,
-          file.content || '',
-          commitMessage
-        );
-        
-        if (result) {
-          successCount++;
-        } else {
+        try {
+          const result = await saveFileToRepo(
+            githubPath,
+            file.content || '',
+            commitMessage
+          );
+          
+          if (result) {
+            successCount++;
+            console.log(`GitHubCommitPanel - Successfully committed: ${githubPath}`);
+          } else {
+            failCount++;
+            console.error(`GitHubCommitPanel - Failed to commit: ${githubPath}`);
+          }
+        } catch (error) {
+          console.error(`GitHubCommitPanel - Error committing file ${githubPath}:`, error);
           failCount++;
         }
       }
       
       if (successCount > 0) {
+        console.log(`GitHubCommitPanel - Commit successful: ${successCount} files committed`);
+        
         toast({
           title: "Success",
           description: `${successCount} files pushed to ${currentRepo.full_name} (${currentBranch})`,
@@ -105,7 +143,9 @@ export const GitHubCommitPanel: React.FC = () => {
         
         // Refresh the list of modified files after commit
         if (getModifiedFiles) {
-          setEditedFiles(getModifiedFiles());
+          const updatedFiles = getModifiedFiles();
+          console.log('GitHubCommitPanel - Updated modified files count:', updatedFiles.length);
+          setEditedFiles(updatedFiles);
         }
       }
       
@@ -116,8 +156,9 @@ export const GitHubCommitPanel: React.FC = () => {
           variant: "destructive"
         });
       }
-    } catch (error) {
-      console.error("Error committing files:", error);
+    } catch (error: any) {
+      console.error("GitHubCommitPanel - Error committing files:", error);
+      setCommitError(error.message || 'Unknown error during commit');
       toast({
         title: "Error",
         description: "Failed to push changes",
@@ -172,17 +213,27 @@ export const GitHubCommitPanel: React.FC = () => {
           className="text-sm"
           disabled={editedFiles.length === 0 || isLoading || isCommitting}
         />
+
+        {/* Show commit error if any */}
+        {commitError && (
+          <div className="text-sm text-red-500">
+            Error: {commitError}
+          </div>
+        )}
       </CardContent>
       <CardFooter>
         <Button 
           className="w-full"
           disabled={editedFiles.length === 0 || !commitMessage.trim() || isLoading || isCommitting}
-          onClick={handleCommit}
+          onClick={() => {
+            console.log('GitHubCommitPanel - Commit button clicked');
+            handleCommit();
+          }}
         >
           {(isLoading || isCommitting) ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Pushing...
+              {isCommitting ? 'Pushing...' : 'Loading...'}
             </>
           ) : (
             `Commit & Push (${editedFiles.length})`

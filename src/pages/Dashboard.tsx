@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ChatHistory } from '@/components/ChatHistory';
 import { ChatInput } from '@/components/ChatInput';
@@ -107,6 +106,12 @@ const FileSystemControls = ({ currentPath, setCurrentPath }) => {
 const GitHubCommitPanelContainer = () => {
   const { authState, currentRepo, currentBranch } = useGitHub();
   
+  console.log('GitHubCommitPanelContainer - State check:', {
+    isAuthenticated: authState?.isAuthenticated,
+    repoName: currentRepo?.full_name,
+    branchName: currentBranch
+  });
+  
   // Only render when GitHub is authenticated and a repo is selected
   if (!authState?.isAuthenticated || !currentRepo || !currentBranch) {
     return null;
@@ -120,6 +125,7 @@ const GitHubCommitPanelContainer = () => {
 };
 
 const DashboardContent = () => {
+  // ... keep existing code (state declarations and hooks)
   const [showFiles, setShowFiles] = useState(true);
   const { user, logout, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -130,8 +136,25 @@ const DashboardContent = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [currentPath, setCurrentPath] = useState('/');
   const { refreshFiles } = useFileSystem();
-  const { authState } = useGitHub();
   
+  // Access GitHub context safely
+  const gitHubContext = useGitHub();
+  const { authState } = gitHubContext;
+  
+  // Debug logs for initialization
+  useEffect(() => {
+    console.log('DashboardContent - Initial render');
+    console.log('DashboardContent - Auth state:', { user, authLoading });
+    console.log('DashboardContent - GitHub auth state:', authState);
+  }, []);
+  
+  // Effect for debugging auth state changes
+  useEffect(() => {
+    console.log('DashboardContent - Auth state update:', { user, authLoading });
+    console.log('DashboardContent - GitHub auth state update:', authState);
+  }, [user, authLoading, authState]);
+
+  // ... keep existing code (event handlers)
   const handleLogout = async () => {
     await logout();
     toast({
@@ -139,12 +162,6 @@ const DashboardContent = () => {
       description: 'You have been logged out successfully.',
     });
   };
-  
-  // Effect for debugging auth state
-  useEffect(() => {
-    console.log('Dashboard render - auth state:', { user, authLoading });
-    console.log('GitHub auth state:', authState);
-  }, [user, authLoading, authState]);
 
   const handleCreateFile = () => {
     setNewFileName('');
@@ -195,7 +212,7 @@ const DashboardContent = () => {
             onClick={handleOpenGitHubDialog}
           >
             <Github size={16} />
-            GitHub {authState.isAuthenticated ? `(${authState.username})` : ''}
+            GitHub {authState?.isAuthenticated ? `(${authState.username})` : ''}
           </Button>
           <span className="font-medium">Welcome, {user.name}</span>
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
@@ -230,7 +247,10 @@ const DashboardContent = () => {
                   variant="ghost" 
                   size="icon" 
                   title="Refresh files"
-                  onClick={() => refreshFiles()}
+                  onClick={() => {
+                    console.log('Dashboard - Manual file refresh triggered');
+                    refreshFiles();
+                  }}
                 >
                   <RefreshCw size={16} />
                 </Button>
@@ -325,6 +345,7 @@ const DashboardContent = () => {
 };
 
 const Dashboard = () => {
+  console.log('Dashboard - Component initialized');
   return (
     <ChatProvider>
       <FileSystemProvider>
