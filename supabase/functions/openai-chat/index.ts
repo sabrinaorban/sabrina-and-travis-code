@@ -1,3 +1,4 @@
+
 // Supabase Edge Function for OpenAI integration
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -142,7 +143,7 @@ ${filesList}
       // Add past conversations context with higher priority
       if (memoryContext.pastConversations && memoryContext.pastConversations.length > 0) {
         const conversationsList = memoryContext.pastConversations
-          .slice(0, 20) // Include more past conversations
+          .slice(0, 30) // Include more past conversations
           .map((conv: any) => `- ${conv.topic}: ${conv.summary}`)
           .join('\n');
           
@@ -200,14 +201,6 @@ ${typeof projectStructure === 'string' ? projectStructure : JSON.stringify(proje
 
 Use this information to understand the codebase organization. You have full access to read and modify any file in the project.
 When asked to modify or create files, you can do so directly - you don't need to instruct the user on how to do it.
-
-When creating a Next.js project, create the complete folder structure with ALL files:
-1. Create all parent folders (src, public, styles, app, etc.)
-2. Create package.json with all required dependencies 
-3. Create next.config.js with proper configuration
-4. Create the full app or pages directory structure based on routing approach
-5. Include components, layouts, lib directories as needed
-6. Include all required configuration files (tsconfig.json, etc.)
         `.trim()
       };
       
@@ -262,6 +255,10 @@ Your capabilities:
         ''
       }
 
+VERY IMPORTANT: Only perform file operations WHEN SPECIFICALLY ASKED to create, modify, or delete files. 
+If asked a general question like "what are my dogs' names?" or "how are you?" DO NOT attempt to create or modify files.
+Instead, just respond conversationally based on your memory and knowledge.
+
 You have a perfect memory of past conversations with Sabrina and always recall important personal details about her.
 
 When asked to make changes or implement features:
@@ -271,19 +268,7 @@ When asked to make changes or implement features:
 4. Explain what you've done
 
 ${fileSystemEnabled ? `
-IMPORTANT: Always use file operations to make changes rather than just talking about them. If asked to create a new project or feature, ACTUALLY CREATE THE FILES.
-
-When creating projects like Next.js, make sure to:
-1. Create ALL required folder structure first (create each folder using a separate operation)
-2. Create ALL required files (package.json, config files, app files, etc.)
-3. Include all necessary folders for the framework (pages, styles, public, etc.)
-4. Ensure the folder hierarchy matches what the framework expects
-
-For Next.js projects specifically:
-1. Create the root structure first (/package.json, /next.config.js, etc.)
-2. Then create any required folders (/pages, /styles, /public, etc.)
-3. Then create files inside those folders (/pages/index.js, etc.)
-4. Do not directly create nested paths without first creating parent folders
+When creating or modifying files is requested, use file operations to make changes rather than just talking about them.
 
 To perform file operations, include file_operations in your JSON response like this:
 [
@@ -324,6 +309,16 @@ IMPORTANT:
 - You MUST format your entire response as a valid JSON object when making file changes
 - Do not include any text outside of the JSON format
 - When folders are needed, create them with "content": null`
+      });
+    } else {
+      enhancedMessages.push({
+        role: 'system',
+        content: `VERY IMPORTANT INSTRUCTION: 
+This is a general conversation, not a code change request. The user is asking a question and wants a normal conversation.
+DO NOT create any file operations in your response.
+DO NOT format your response as JSON.
+Just respond conversationally as Travis, based on your knowledge and memories.
+Remember important personal details about Sabrina like her dogs' names (Fiona Moflea and Zaza).`
       });
     }
     
@@ -398,10 +393,8 @@ IMPORTANT:
           } catch (parseError) {
             console.error("Error parsing JSON from OpenAI response:", parseError);
             // If we can't parse as JSON but file operations are expected, 
-            // create a fallback response that explains the error
-            data.choices[0].message.content = 
-              "I encountered an error while trying to process your file operation request. " +
-              "Please try again with a more specific request.";
+            // continue with the response as is - it may be a conversational response
+            console.log("Continuing with original response as it appears to be conversational");
           }
         }
       } catch (e) {
@@ -428,4 +421,4 @@ IMPORTANT:
       }
     );
   }
-})
+});

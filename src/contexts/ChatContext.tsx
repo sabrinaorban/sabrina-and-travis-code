@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { Message } from '../types';
 import { useToast } from '@/hooks/use-toast';
@@ -13,11 +12,13 @@ import {
   storeAssistantMessage, 
   deleteAllMessages,
   createOpenAIMessages,
+  callOpenAI,
   extractTopicFromMessages,
   simulateAssistantResponse,
   generateConversationSummary,
-  handleFileOperation,
-  getProjectStructure
+  getProjectStructure,
+  processFileOperations,
+  isFileOperationRequest
 } from '../services/ChatService';
 import { ChatContextType, FileOperation } from '../types/chat';
 
@@ -249,6 +250,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Refresh memory context before sending to OpenAI
         const context = await refreshMemoryContext();
         
+        // Determine if this is likely a file operation request
+        const shouldEnableFileOps = isFileOperationRequest(content);
+        console.log('File operations enabled:', shouldEnableFileOps);
+        
         // Get project structure for better context
         const projectStructure = await getProjectStructure(fileSystem);
         
@@ -266,53 +271,22 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
         
         // Call OpenAI API through Supabase Edge Function
-        const { data: response, error: apiError } = await supabase.functions.invoke('openai-chat', {
-          body: { 
-            messages: openAIMessages,
-            memoryContext: context || memoryContext,
-            fileSystemEnabled: true,
-            projectStructure
-          }
-        });
-
-        if (apiError) {
-          throw apiError;
-        }
+        const response = await callOpenAI(
+          openAIMessages,
+          context || memoryContext,
+          shouldEnableFileOps,
+          projectStructure
+        );
 
         // Process the assistant's response
         const assistantResponse = response.choices[0].message.content;
         const fileOperations = response.choices[0].message.file_operations || [];
         
-        // Store results of file operations for UI feedback
-        let processedOperations: FileOperation[] = [];
-        
         // Process any file operations requested by the assistant
-        if (fileOperations && fileOperations.length > 0) {
-          for (const op of fileOperations) {
-            const result = await handleFileOperation(
-              fileSystem,
-              op.operation,
-              op.path,
-              op.content
-            );
-            
-            processedOperations.push({
-              ...op,
-              success: result.success,
-              message: result.message
-            });
-            
-            console.log(`File operation result:`, result);
-            if (!result.success) {
-              toast({
-                title: 'File Operation Error',
-                description: result.message,
-                variant: 'destructive',
-              });
-            }
-          }
-          
-          // Update file operation results for UI feedback
+        const processedOperations = await processFileOperations(fileSystem, fileOperations);
+        
+        // Update file operation results for UI feedback
+        if (processedOperations.length > 0) {
           setFileOperationResults(processedOperations);
           
           // Refresh files after operations
@@ -379,6 +353,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Rest of the functions remain the same
   const clearMessages = async () => {
     if (!user) {
       toast({

@@ -42,13 +42,13 @@ serve(async (req) => {
     
     // Get user's context data
     const [messagesResponse, filesResponse, userResponse, memoryResponse] = await Promise.all([
-      // Get recent messages
+      // Get recent messages - increased to 100 from 50 for better context
       supabaseAdmin
         .from('messages')
         .select('*')
         .eq('user_id', user.id)
         .order('timestamp', { ascending: false })
-        .limit(50),
+        .limit(100),
         
       // Get recent files
       supabaseAdmin
@@ -77,12 +77,29 @@ serve(async (req) => {
     console.log('Files found:', filesResponse.data?.length || 0);
     console.log('Memory items found:', memoryResponse.data?.length || 0);
     
+    // Extract special documents from memory
+    let specialDocuments = null;
+    if (memoryResponse.data) {
+      const soulShard = memoryResponse.data.find(item => item.key === 'soulShard');
+      const identityCodex = memoryResponse.data.find(item => item.key === 'identityCodex');
+      const pastConversations = memoryResponse.data.filter(item => item.key.startsWith('conversation_'));
+      
+      if (soulShard || identityCodex || pastConversations.length > 0) {
+        specialDocuments = {
+          soulShard: soulShard ? soulShard.value : null,
+          identityCodex: identityCodex ? identityCodex.value : null,
+          pastConversations: pastConversations.map(c => c.value)
+        };
+      }
+    }
+    
     // Prepare context object
     const context = {
-      user: userResponse.data || { name: 'User' },
+      userProfile: userResponse.data || { name: 'User' },
       recentMessages: messagesResponse.data || [],
       recentFiles: filesResponse.data || [],
-      memory: memoryResponse.data || []
+      memory: memoryResponse.data || [],
+      specialDocuments
     };
     
     // Update memory access time
