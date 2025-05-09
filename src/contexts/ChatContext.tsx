@@ -1,8 +1,8 @@
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { nanoid } from 'nanoid';
 import { Message, MessageRole, OpenAIMessage } from '../types';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '../lib/supabase';
+import { supabase, generateUUID } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { MemoryService, MemoryContext as MemoryContextType } from '../services/MemoryService';
 
@@ -30,6 +30,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!user) return;
       
       try {
+        console.log('Fetching messages for user:', user.id);
         // Fetch messages
         const { data, error } = await supabase
           .from('messages')
@@ -42,6 +43,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         if (data) {
+          console.log('Fetched messages:', data.length);
           const formattedMessages: Message[] = data.map(msg => ({
             id: msg.id,
             role: msg.role as MessageRole,
@@ -150,11 +152,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // Create and add user message to Supabase
       const newUserMessage: Message = {
-        id: nanoid(),
+        id: generateUUID(),
         role: 'user',
         content,
         timestamp: Date.now(),
       };
+      
+      console.log('Sending message with ID:', newUserMessage.id);
       
       // Add message to local state immediately for UI responsiveness
       setMessages((prev) => [...prev, newUserMessage]);
@@ -171,6 +175,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         
       if (insertError) {
+        console.error('Error inserting message:', insertError);
         throw insertError;
       }
 
@@ -200,12 +205,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const assistantResponse = response.choices[0].message.content;
         
         const newAssistantMessage: Message = {
-          id: nanoid(),
+          id: generateUUID(),
           role: 'assistant',
           content: assistantResponse,
           timestamp: Date.now(),
         };
 
+        console.log('Received assistant response with ID:', newAssistantMessage.id);
+        
         // Add to local state
         setMessages((prev) => [...prev, newAssistantMessage]);
         
@@ -221,6 +228,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           
         if (assistantInsertError) {
+          console.error('Error inserting assistant message:', assistantInsertError);
           throw assistantInsertError;
         }
         
@@ -253,7 +261,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Add the fallback assistant's response
         const newFallbackMessage: Message = {
-          id: nanoid(),
+          id: generateUUID(),
           role: 'assistant',
           content: assistantResponse,
           timestamp: Date.now(),

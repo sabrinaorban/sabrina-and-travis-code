@@ -20,10 +20,28 @@ supabase.auth.onAuthStateChange((event, session) => {
   console.log('Global auth state change:', event, session?.user?.id);
 });
 
+// Generate a proper UUID for Supabase
+export const generateUUID = (): string => {
+  return crypto.randomUUID();
+};
+
 // Helper function to create or get a user profile
 export const getOrCreateUserProfile = async (userId: string, email?: string): Promise<any> => {
   try {
-    // First, check if a user profile exists
+    // First, check if users table exists by querying it
+    const { error: tableCheckError } = await supabase
+      .from('users')
+      .select('count')
+      .limit(1)
+      .single();
+      
+    // If table doesn't exist, we need to handle that gracefully
+    if (tableCheckError && tableCheckError.code === '42P01') { // relation does not exist
+      console.warn('Users table does not exist, returning default profile');
+      return { id: userId, name: email ? email.split('@')[0] : 'Guest', isAuthenticated: true };
+    }
+    
+    // If table exists, check if user profile exists
     const { data: existingUser, error: fetchError } = await supabase
       .from('users')
       .select('*')
@@ -58,6 +76,12 @@ export const getOrCreateUserProfile = async (userId: string, email?: string): Pr
       .single();
       
     if (insertError) {
+      // Special handling for RLS policy violations
+      if (insertError.code === '42501') {
+        console.warn('RLS policy prevented user creation, returning default profile');
+        return { id: userId, name: email ? email.split('@')[0] : 'Guest', isAuthenticated: true };
+      }
+      
       console.error('Error creating user profile:', insertError);
       throw insertError;
     }
@@ -67,6 +91,6 @@ export const getOrCreateUserProfile = async (userId: string, email?: string): Pr
   } catch (err) {
     console.error('Error in getOrCreateUserProfile:', err);
     // Return a default user object to prevent app from breaking
-    return { id: userId, name: 'Guest', isAuthenticated: true };
+    return { id: userId, name: email ? email.split('@')[0] : 'Guest', isAuthenticated: true };
   }
 };

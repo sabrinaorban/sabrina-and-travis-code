@@ -1,9 +1,8 @@
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { FileEntry, FileSystemState } from '../types';
-import { nanoid } from 'nanoid';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '../lib/supabase';
+import { supabase, generateUUID } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
 interface FileSystemContextType {
@@ -35,6 +34,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       setIsLoading(true);
       try {
+        console.log('Fetching files for user:', user.id);
         const { data, error } = await supabase
           .from('files')
           .select('*')
@@ -43,6 +43,8 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (error) {
           throw error;
         }
+        
+        console.log('Fetched files:', data?.length || 0);
         
         if (data) {
           // Convert flat file list to hierarchical structure
@@ -214,9 +216,11 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     
     const filePath = `${path === '/' ? '' : path}/${name}`;
-    const fileId = nanoid();
+    const fileId = generateUUID();
     
     try {
+      console.log('Creating file with ID:', fileId);
+      
       // Create file in Supabase
       const { error } = await supabase
         .from('files')
@@ -305,9 +309,11 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     
     const folderPath = `${path === '/' ? '' : path}/${name}`;
-    const folderId = nanoid();
+    const folderId = generateUUID();
     
     try {
+      console.log('Creating folder with ID:', folderId);
+      
       // Create folder in Supabase
       const { error } = await supabase
         .from('files')

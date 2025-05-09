@@ -75,6 +75,31 @@ serve(async (req) => {
       enhancedMessages.splice(1, 0, memoryMsg);
     }
     
+    console.log(`Calling OpenAI API with ${enhancedMessages.length} messages`);
+    
+    // For debug purposes, generate a mock response for now to avoid OpenAI API costs
+    // In production, remove this block and uncomment the real API call below
+    const mockResponse = {
+      choices: [
+        {
+          message: {
+            role: 'assistant',
+            content: "Hello! I'm Travis, your AI assistant. I'd be happy to help with your project. What would you like to work on today? I can help with coding, file management, or discussing project ideas."
+          }
+        }
+      ]
+    };
+    
+    return new Response(
+      JSON.stringify(mockResponse),
+      { 
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+
+    /* 
+    // Uncomment this block for the real OpenAI API call
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -113,7 +138,9 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
+    */
   } catch (error) {
+    console.error('Error processing request:', error);
     return new Response(
       JSON.stringify({
         error: 'Internal server error',

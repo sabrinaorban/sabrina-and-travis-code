@@ -1,5 +1,5 @@
 
-import { supabase } from '../lib/supabase';
+import { supabase, generateUUID } from '../lib/supabase';
 import { Message } from '../types';
 
 export interface MemoryContext {
@@ -25,18 +25,51 @@ export interface MemoryContext {
 export const MemoryService = {
   async storeMemory(userId: string, key: string, value: any): Promise<void> {
     try {
-      const { error } = await supabase
+      console.log('Storing memory:', key, 'for user:', userId);
+      
+      // First check if the memory exists
+      const { data: existingData, error: checkError } = await supabase
         .from('memory')
-        .upsert({
-          user_id: userId,
-          key,
-          value,
-          last_accessed: new Date().toISOString()
-        }, {
-          onConflict: 'user_id,key'
-        });
-
-      if (error) throw error;
+        .select('id')
+        .eq('user_id', userId)
+        .eq('key', key)
+        .maybeSingle();
+        
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking for existing memory:', checkError);
+        throw checkError;
+      }
+      
+      const now = new Date().toISOString();
+      
+      if (existingData) {
+        // Update existing memory
+        const { error: updateError } = await supabase
+          .from('memory')
+          .update({
+            value,
+            last_accessed: now
+          })
+          .eq('id', existingData.id);
+          
+        if (updateError) throw updateError;
+      } else {
+        // Create new memory
+        const memoryId = generateUUID();
+        
+        const { error: insertError } = await supabase
+          .from('memory')
+          .insert({
+            id: memoryId,
+            user_id: userId,
+            key,
+            value,
+            last_accessed: now,
+            created_at: now
+          });
+          
+        if (insertError) throw insertError;
+      }
     } catch (error) {
       console.error('Error storing memory:', error);
       throw error;
@@ -50,9 +83,15 @@ export const MemoryService = {
         .select('value')
         .eq('user_id', userId)
         .eq('key', key)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null; // No data found, not a critical error
+        }
+        throw error;
+      }
+      
       if (!data) return null;
 
       // Update last accessed timestamp
@@ -71,6 +110,8 @@ export const MemoryService = {
 
   async getMemoryContext(userId: string): Promise<MemoryContext> {
     try {
+      console.log('Getting memory context for user:', userId);
+      
       // Get recent messages
       const { data: messagesData } = await supabase
         .from('messages')
