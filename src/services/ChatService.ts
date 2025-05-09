@@ -1,7 +1,26 @@
 
-// Export all services for easy importing
+// Export API services
 export * from './api/MessageApiService';
+
+// Export AI services
 export * from './ai/OpenAIService';
-export * from './utils/FileSystemUtils';
-export * from './utils/ConversationUtils';
-export * from './chat/FileOperationService';
+
+// Export utility services
+export { 
+  ensureFolderExists,
+  handleFileOperation 
+} from './utils/FileSystemUtils';
+
+export { 
+  extractTopicFromMessages,
+  simulateAssistantResponse,
+  generateConversationSummary,
+  isFileOperationRequest
+} from './utils/ConversationUtils';
+
+// Export file operation services
+export { 
+  processFileOperations as processFileOps,
+  getProjectStructure as getProjectFileStructure
+} from './chat/FileOperationService';
+

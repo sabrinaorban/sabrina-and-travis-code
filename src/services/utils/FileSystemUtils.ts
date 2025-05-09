@@ -2,8 +2,8 @@
 import { FileOperation } from '../../types/chat';
 import { FileSystemContextType } from '../../types/fileSystem';
 
-// Function to get project structure
-export const getProjectStructure = async (fileSystem: FileSystemContextType): Promise<string> => {
+// Function to get project structure (renamed to avoid conflicts)
+export const getSimpleProjectStructure = async (fileSystem: FileSystemContextType): Promise<string> => {
   if (!fileSystem || !fileSystem.fileSystem) {
     return 'File system not available';
   }
@@ -25,7 +25,7 @@ export const getProjectStructure = async (fileSystem: FileSystemContextType): Pr
   return structure;
 };
 
-// Handle file operations from the assistant
+// Handle file operation from the assistant
 export const handleFileOperation = async (
   fileSystem: any,
   operation: string,
@@ -114,8 +114,8 @@ export const ensureFolderExists = async (fileSystem: any, folderPath: string): P
   }
 };
 
-// Process file operations
-export const processFileOperations = async (
+// Renamed to avoid conflicts
+export const processSimpleFileOperations = async (
   fileSystem: any,
   fileOperations: FileOperation[]
 ): Promise<FileOperation[]> => {

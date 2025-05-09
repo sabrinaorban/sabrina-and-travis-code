@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { Message } from '../types';
 import { useToast } from '@/hooks/use-toast';
@@ -16,8 +17,8 @@ import {
   extractTopicFromMessages,
   simulateAssistantResponse,
   generateConversationSummary,
-  getProjectStructure,
-  processFileOperations,
+  getProjectFileStructure,
+  processFileOps,
   isFileOperationRequest
 } from '../services/ChatService';
 import { ChatContextType, FileOperation } from '../types/chat';

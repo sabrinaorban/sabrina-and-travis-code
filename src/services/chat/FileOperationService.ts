@@ -24,7 +24,7 @@ export const processFileOperations = async (
   
   // First, create any directories needed
   const dirOperations = fileOperations.filter(op => 
-    (op.operation === 'create' || op.operation === 'mkdir') && 
+    (op.operation === 'create' || op.operation === 'mkdir' || op.operation === 'write') && 
     (!op.content || op.content === null)
   );
   
@@ -85,7 +85,6 @@ export const processFileOperations = async (
           break;
           
         case 'write':
-          // Fall through to create case for writes to existing files
           // Handle file writes/updates
           if (fileSystem.getFileByPath(op.path)) {
             await fileSystem.updateFileByPath(op.path, op.content || '');
