@@ -1,4 +1,3 @@
-
 import { OpenAIMessage, Message, FileEntry } from '../types';
 import { MemoryContext } from './MemoryService';
 import { FileSystemContextType } from '../types/fileSystem';
@@ -7,10 +6,12 @@ import { supabase } from '@/integrations/supabase/client';
 // Function to fetch chat messages from Supabase Edge Function
 export const fetchMessages = async (userId: string): Promise<Message[]> => {
   try {
-    // Fix: Pass userId in the body rather than using the query parameter
+    // Fix: Use query parameters instead of body for GET requests
     const { data, error } = await supabase.functions.invoke('messages', {
       method: 'GET',
-      body: { userId }
+      headers: {
+        'x-user-id': userId
+      }
     });
     
     if (error) throw error;

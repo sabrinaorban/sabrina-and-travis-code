@@ -48,7 +48,7 @@ serve(async (req) => {
         .select('*')
         .eq('user_id', user.id)
         .order('timestamp', { ascending: false })
-        .limit(20),
+        .limit(50),
         
       // Get recent files
       supabaseAdmin
@@ -57,7 +57,7 @@ serve(async (req) => {
         .eq('user_id', user.id)
         .eq('type', 'file')
         .order('last_modified', { ascending: false })
-        .limit(10),
+        .limit(20),
         
       // Get user profile
       supabaseAdmin
@@ -72,6 +72,10 @@ serve(async (req) => {
         .select('*')
         .eq('user_id', user.id)
     ]);
+    
+    console.log('Messages found:', messagesResponse.data?.length || 0);
+    console.log('Files found:', filesResponse.data?.length || 0);
+    console.log('Memory items found:', memoryResponse.data?.length || 0);
     
     // Prepare context object
     const context = {

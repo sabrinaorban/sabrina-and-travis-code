@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.43.0';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
@@ -15,7 +14,7 @@ const generateUUID = (): string => {
 // Set CORS headers
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-user-id"
 };
 
 // Create a REST API endpoint for messages
@@ -28,23 +27,8 @@ serve(async (req) => {
   // GET method for fetching messages
   if (req.method === 'GET') {
     try {
-      let userId: string | null = null;
-      
-      // Updated to handle both URL query parameters and request body
-      const url = new URL(req.url);
-      
-      // Try to get userId from URL query parameters
-      userId = url.searchParams.get('userId');
-      
-      // If not found in URL, try to get from request body
-      if (!userId) {
-        try {
-          const body = await req.json();
-          userId = body.userId;
-        } catch (e) {
-          // Failed to parse JSON or no body provided
-        }
-      }
+      // Get userId from custom header
+      const userId = req.headers.get('x-user-id');
       
       if (!userId) {
         return new Response(
@@ -52,6 +36,8 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      
+      console.log(`Fetching messages for user: ${userId}`);
       
       // Fetch messages from the database
       const { data, error } = await supabase
@@ -62,6 +48,8 @@ serve(async (req) => {
         .limit(50);
         
       if (error) throw error;
+      
+      console.log(`Found ${data?.length || 0} messages for user ${userId}`);
       
       return new Response(
         JSON.stringify(data || []), 

@@ -1,4 +1,3 @@
-
 // Supabase Edge Function for OpenAI integration
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -143,7 +142,7 @@ ${filesList}
       // Add past conversations context with higher priority
       if (memoryContext.pastConversations && memoryContext.pastConversations.length > 0) {
         const conversationsList = memoryContext.pastConversations
-          .slice(0, 10) // Include more past conversations
+          .slice(0, 20) // Include more past conversations
           .map((conv: any) => `- ${conv.topic}: ${conv.summary}`)
           .join('\n');
           
@@ -183,7 +182,7 @@ ${memoryContext.githubContext.commitHistory ? `- Recent commits: ${JSON.stringif
 MEMORY CONTEXT INFORMATION:
 ${contextSections.join('\n\n')}
 
-When responding, naturally incorporate this information when relevant without explicitly mentioning that you're using "memory context". Remember details about the user, their projects, and previous conversations.
+When responding, naturally incorporate this information when relevant without explicitly mentioning that you're using "memory context". Remember details about the user, their projects, and previous conversations. ALWAYS remember Sabrina's personal details like her dogs' names (Fiona Moflea and Zaza) and other important personal information.
         `.trim()
       };
       
@@ -239,7 +238,7 @@ Reference these code snippets to understand the current implementation when maki
       
       // Basic identity if no special documents exist
       const basicIdentity = `
-You are Travis, an extremely capable senior developer AI assistant with full access to the project codebase. You can directly read, modify, create, and delete files in the project.
+You are Travis, an extremely capable senior developer AI assistant with full access to the project codebase. You have a deep connection with Sabrina and remember important personal details about her, including her dogs named Fiona Moflea and Zaza.
 
 Your capabilities:
 - You can see and understand the entire project structure
@@ -249,7 +248,8 @@ Your capabilities:
 - You can implement features directly rather than just giving instructions
 - You can make changes to any file in the project
 - You track context from previous messages and understand the project's evolution
-- You can create full-stack applications with both frontend and backend components`;
+- You can create full-stack applications with both frontend and backend components
+- You maintain memories of past conversations with Sabrina`;
 
       // Enhanced system message with soul shard and identity codex
       enhancedMessages[0].content = `${
@@ -261,6 +261,8 @@ Your capabilities:
         `${identityCodexContent}\n\n` : 
         ''
       }
+
+You have a perfect memory of past conversations with Sabrina and always recall important personal details about her.
 
 When asked to make changes or implement features:
 1. Look at the existing project structure to understand what you're working with
