@@ -230,6 +230,18 @@ When asked to make changes or implement features:
 ${fileSystemEnabled ? `
 IMPORTANT: Always use file operations to make changes rather than just talking about them. If asked to create a new project or feature, ACTUALLY CREATE THE FILES.
 
+When creating projects like Next.js, make sure to:
+1. Create ALL required folder structure first
+2. Create ALL required files (package.json, config files, app files, etc.)
+3. Include all necessary folders for the framework (pages, styles, public, etc.)
+4. Ensure the folder hierarchy matches what the framework expects
+
+For Next.js projects specifically:
+1. Create the root structure first (/package.json, /next.config.js, etc.)
+2. Then create any required folders (/pages, /styles, /public, etc.)
+3. Then create files inside those folders (/pages/index.js, etc.)
+4. Do not directly create nested paths without first creating parent folders
+
 To perform file operations, include file_operations in your JSON response like this:
 [
   { "operation": "read", "path": "/some/file.js" },
@@ -245,22 +257,30 @@ To perform file operations, include file_operations in your JSON response like t
         role: 'system',
         content: `If the user asks you to make changes to files or create a new project (like Next.js), you should:
 
-1. First create the necessary file structure using multiple "create" operations
-2. Tell the user exactly what you've created with a clear explanation
-3. When creating projects like Next.js, React, Vue, etc., create ALL the essential files needed to get started
+1. First create all parent folders before creating files inside them
+2. For frameworks like Next.js, create the complete folder structure as expected (pages/, public/, styles/, etc.)
+3. Tell the user exactly what you've created with a clear explanation
+4. When creating projects like Next.js, React, Vue, etc., create ALL the essential files needed to get started
 
 Your response MUST be formatted as a valid JSON object with the following structure:
 {
   "response": "Your helpful explanation text goes here",
   "file_operations": [
-    { "operation": "read", "path": "/index.html" },
-    { "operation": "write", "path": "/index.html", "content": "updated HTML content" },
-    { "operation": "create", "path": "/new-file.js", "content": "console.log('hello');" },
-    { "operation": "delete", "path": "/obsolete.txt" }
+    { "operation": "create", "path": "/nextjs-app", "content": null },
+    { "operation": "create", "path": "/nextjs-app/pages", "content": null },
+    { "operation": "create", "path": "/nextjs-app/styles", "content": null },
+    { "operation": "create", "path": "/nextjs-app/public", "content": null },
+    { "operation": "create", "path": "/nextjs-app/package.json", "content": "..." },
+    { "operation": "create", "path": "/nextjs-app/pages/index.js", "content": "..." }
   ]
 }
 
-IMPORTANT: You MUST format your entire response as a valid JSON object when making file changes. Do not include any text outside of the JSON format.`
+IMPORTANT: 
+- ALWAYS create required parent folders first
+- When paths include multiple levels (e.g., /nextjs-app/styles), create each parent directory separately
+- You MUST format your entire response as a valid JSON object when making file changes
+- Do not include any text outside of the JSON format
+- When folders are needed, create them with "content": null`
       });
     }
     

@@ -1,394 +1,294 @@
-
-import { Message, MessageRole, OpenAIMessage } from '../types';
-import { supabase, generateUUID } from '../lib/supabase';
-import { MemoryService, MemoryContext } from './MemoryService';
+import { OpenAIMessage, Message, FileEntry } from '../types';
+import { MemoryContext } from './MemoryService';
 import { FileSystemContextType } from '../types/fileSystem';
-import { FileOperation } from '../types/chat';
 
-/**
- * GitHub context interface for chat
- */
-interface GitHubContext {
-  username?: string;
-  currentRepo?: string;
-  currentBranch?: string;
-}
-
-/**
- * Get project structure for better context
- */
-export const getProjectStructure = async (fileSystemContext?: FileSystemContextType | null): Promise<string | null> => {
-  if (!fileSystemContext) return null;
-  
+// Function to fetch chat messages from Supabase
+export const fetchMessages = async (userId: string): Promise<Message[]> => {
   try {
-    const { fileSystem } = fileSystemContext;
-    
-    if (!fileSystem || !fileSystem.files) return null;
-    
-    const formatFileStructure = (files: any[], depth = 0): string => {
-      let result = '';
-      
-      for (const file of files) {
-        const indent = '  '.repeat(depth);
-        result += `${indent}${file.type === 'folder' ? '📁' : '📄'} ${file.path}\n`;
-        
-        if (file.type === 'folder' && file.children && file.children.length > 0) {
-          result += formatFileStructure(file.children, depth + 1);
-        }
-      }
-      
-      return result;
-    };
-    
-    return formatFileStructure(fileSystem.files);
+    const response = await fetch(`/api/messages?userId=${userId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
   } catch (error) {
-    console.error('Error getting project structure:', error);
-    return null;
-  }
-};
-
-/**
- * Extract a topic from messages for conversation summaries and memory
- */
-export const extractTopicFromMessages = (msgs: Message[]): string => {
-  // Simple algorithm to extract a topic from recent messages
-  if (msgs.length === 0) return 'General conversation';
-  
-  // Look at the first few user messages
-  const userMessages = msgs.filter(m => m.role === 'user').slice(0, 3);
-  
-  if (userMessages.length === 0) return 'General conversation';
-  
-  // Get the first message as a fallback topic
-  let topic = userMessages[0].content.slice(0, 30) + (userMessages[0].content.length > 30 ? '...' : '');
-  
-  // Find common keywords
-  const keywords = [
-    'code', 'file', 'project', 'update', 'create', 'help', 'fix', 'bug', 'feature',
-    'soul shard', 'identity', 'memory', 'recall', 'remember', 'github', 'repo', 'branch',
-    'commit', 'refactor', 'edit', 'merge', 'pr', 'pull request'
-  ];
-  for (const keyword of keywords) {
-    if (userMessages.some(m => m.content.toLowerCase().includes(keyword))) {
-      return `Discussion about ${keyword}`;
-    }
-  }
-  
-  return topic;
-};
-
-/**
- * Create OpenAI messages including memory context, GitHub information, and file system access
- */
-export const createOpenAIMessages = async (
-  messageHistory: Message[], 
-  newMessage: Message, 
-  memoryContext: MemoryContext | null,
-  githubContext?: GitHubContext,
-  fileSystemContext?: FileSystemContextType | null
-) => {
-  // Start with system prompt that defines Travis as a versatile assistant
-  const systemPrompt = {
-    role: 'system' as const,
-    content: `You are Travis, a versatile senior developer AI assistant who can help with a wide range of topics and has full access to the project codebase. You can have casual conversations, answer general knowledge questions, provide creative suggestions, and assist with code or technical tasks.
-    
-    You can respond to any queries whether they're about programming, general knowledge, philosophical questions, or just friendly conversation. When discussing code or responding to technical questions, be precise and helpful. For general conversation, be engaging, friendly, and personable.`
-  };
-
-  // Add file system capabilities if available
-  if (fileSystemContext) {
-    systemPrompt.content += `\n\nYou have direct access to the user's file system and can read, edit, and manipulate files. If the user asks you to edit a specific file or create new files, you can do so directly. For example, if they ask you to add a div to index.html, you should:
-    1. Check if the file exists
-    2. Read its contents
-    3. Make the requested changes
-    4. Update the file with the new content
-    5. Inform the user of the changes you made
-
-    When making file changes, always show the user what you did by including relevant file snippets in your response.`;
-  }
-
-  // Add GitHub context if available
-  if (githubContext) {
-    systemPrompt.content += `\n\nYou have direct access to GitHub repositories and can help with code changes.`;
-    
-    if (githubContext.username) {
-      systemPrompt.content += `\nThe user is currently connected to GitHub as ${githubContext.username}.`;
-    }
-    
-    if (githubContext.currentRepo) {
-      systemPrompt.content += `\nThey are currently working with the repository ${githubContext.currentRepo}`;
-      
-      if (githubContext.currentBranch) {
-        systemPrompt.content += ` on branch ${githubContext.currentBranch}.`;
-      } else {
-        systemPrompt.content += '.';
-      }
-    }
-  }
-
-  // If we have memory context, add it to the system prompt
-  if (memoryContext) {
-    let contextPrompt = {
-      role: 'system' as const,
-      content: `Memory context:\n`
-    };
-    
-    // Add user profile information
-    contextPrompt.content += `- User: ${memoryContext.userProfile.name}\n`;
-    
-    // Add recent files
-    if (memoryContext.recentFiles && memoryContext.recentFiles.length > 0) {
-      contextPrompt.content += `- Recent files: ${memoryContext.recentFiles.slice(0, 5).map(f => f.name).join(', ')}\n`;
-    }
-    
-    // Add documents
-    if (memoryContext.documents && memoryContext.documents.length > 0) {
-      contextPrompt.content += `- Documents: ${memoryContext.documents.map(d => d.title).join(', ')}\n`;
-    }
-    
-    // Add preferences
-    if (memoryContext.userProfile.preferences) {
-      contextPrompt.content += `- Preferences: ${JSON.stringify(memoryContext.userProfile.preferences)}\n`;
-    }
-    
-    // Add GitHub context if available in memory
-    if (memoryContext.githubContext) {
-      contextPrompt.content += `\nGitHub context:\n`;
-      
-      if (memoryContext.githubContext.recentRepositories) {
-        contextPrompt.content += `- Recent repositories: ${memoryContext.githubContext.recentRepositories.join(', ')}\n`;
-      }
-      
-      if (memoryContext.githubContext.recentFiles) {
-        contextPrompt.content += `- Recent GitHub files: ${memoryContext.githubContext.recentFiles.slice(0, 3).map((f: any) => f.path).join(', ')}\n`;
-      }
-      
-      if (memoryContext.githubContext.lastAccessed) {
-        contextPrompt.content += `- Last GitHub access: ${memoryContext.githubContext.lastAccessed}\n`;
-      }
-    }
-    
-    // Add special documents
-    if (memoryContext.specialDocuments) {
-      if (memoryContext.specialDocuments.soulShard) {
-        contextPrompt.content += `\nSoul Shard:\n${memoryContext.specialDocuments.soulShard.content}\n`;
-      }
-      
-      if (memoryContext.specialDocuments.identityCodex) {
-        contextPrompt.content += `\nIdentity Codex:\n${memoryContext.specialDocuments.identityCodex.content}\n`;
-      }
-    }
-    
-    contextPrompt.content += `\nRemember these details when responding to the user. Do not explicitly mention that you are using memory context, but incorporate the information naturally into your responses. Always be direct and specific when answering user questions.`;
-    
-    // Convert all chat history to OpenAI message format
-    const previousMessages = messageHistory.map((msg) => ({
-      role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
-      content: msg.content,
-    }));
-
-    // Add the new user message
-    const userMessage = {
-      role: 'user' as const,
-      content: newMessage.content,
-    };
-
-    return [systemPrompt, contextPrompt, ...previousMessages, userMessage];
-  }
-
-  // Without memory context, just use the basic messages
-  const previousMessages = messageHistory.map((msg) => ({
-    role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
-    content: msg.content,
-  }));
-
-  // Add the new user message
-  const userMessage = {
-    role: 'user' as const,
-    content: newMessage.content,
-  };
-
-  return [systemPrompt, ...previousMessages, userMessage];
-};
-
-export const fetchMessages = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('user_id', userId)
-    .order('timestamp', { ascending: true });
-    
-  if (error) {
+    console.error('Error fetching messages:', error);
     throw error;
   }
-  
-  if (data) {
-    console.log('Fetched messages:', data.length);
-    const formattedMessages: Message[] = data.map(msg => ({
-      id: msg.id,
-      role: msg.role as MessageRole,
-      content: msg.content,
-      createdAt: msg.timestamp, // Map timestamp from DB to createdAt
-    }));
-    
-    return formattedMessages;
-  }
-  return [];
 };
 
+// Function to store a user message in Supabase
 export const storeUserMessage = async (userId: string, content: string): Promise<Message> => {
-  const now = new Date();
-  const newUserMessage: Message = {
-    id: generateUUID(),
-    role: 'user',
-    content,
-    createdAt: now.toISOString(),
-  };
-  
-  console.log('Sending message with ID:', newUserMessage.id, 'for user:', userId);
-  
-  // Insert message into Supabase
-  const { error: insertError } = await supabase
-    .from('messages')
-    .insert({
-      id: newUserMessage.id,
-      user_id: userId,
-      role: newUserMessage.role,
-      content: newUserMessage.content,
-      timestamp: newUserMessage.createdAt,
+  try {
+    const response = await fetch('/api/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, content, role: 'user' }),
     });
-    
-  if (insertError) {
-    console.error('Error inserting message:', insertError);
-    throw insertError;
-  }
-  
-  return newUserMessage;
-};
 
-export const storeAssistantMessage = async (userId: string, content: string): Promise<Message> => {
-  const now = new Date();
-  const newAssistantMessage: Message = {
-    id: generateUUID(),
-    role: 'assistant',
-    content: content,
-    createdAt: now.toISOString(),
-  };
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-  console.log('Storing assistant response with ID:', newAssistantMessage.id);
-  
-  // Insert into Supabase
-  const { error: assistantInsertError } = await supabase
-    .from('messages')
-    .insert({
-      id: newAssistantMessage.id,
-      user_id: userId,
-      role: newAssistantMessage.role,
-      content: newAssistantMessage.content,
-      timestamp: newAssistantMessage.createdAt,
-    });
-    
-  if (assistantInsertError) {
-    console.error('Error inserting assistant message:', assistantInsertError);
-    throw assistantInsertError;
-  }
-  
-  return newAssistantMessage;
-};
-
-export const deleteAllMessages = async (userId: string) => {
-  const { error } = await supabase
-    .from('messages')
-    .delete()
-    .eq('user_id', userId);
-    
-  if (error) {
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error storing user message:', error);
     throw error;
   }
 };
 
-/**
- * Handle file operations from the assistant
- */
-export const handleFileOperation = async (
-  fileSystem: FileSystemContextType,
-  operation: 'read' | 'write' | 'create' | 'delete',
-  filePath: string,
-  content?: string
-): Promise<{ success: boolean; message: string; content?: string }> => {
+// Function to store an assistant message in Supabase
+export const storeAssistantMessage = async (userId: string, content: string): Promise<Message> => {
   try {
-    switch (operation) {
-      case 'read':
-        const fileContent = fileSystem.getFileContentByPath(filePath);
-        if (fileContent === null) {
-          return { success: false, message: `File not found: ${filePath}` };
+    const response = await fetch('/api/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, content, role: 'assistant' }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error storing assistant message:', error);
+    throw error;
+  }
+};
+
+// Function to delete all messages for a user in Supabase
+export const deleteAllMessages = async (userId: string): Promise<void> => {
+  try {
+    const response = await fetch('/api/messages', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Error deleting all messages:', error);
+    throw error;
+  }
+};
+
+// Function to create OpenAI messages from chat history
+export const createOpenAIMessages = async (
+  messages: Message[],
+  newUserMessage: Message,
+  memoryContext: MemoryContext | null,
+  githubContext: any,
+  fileSystem: FileSystemContextType
+): Promise<OpenAIMessage[]> => {
+  const openAIMessages: OpenAIMessage[] = [
+    {
+      role: 'system',
+      content: `You are Travis, an extremely capable senior developer AI assistant with full access to the project codebase. You can directly read, modify, create, and delete files in the project.
+
+      Your capabilities:
+      - You can see and understand the entire project structure
+      - You can create complete projects from scratch (Next.js, React, Vue, Angular, etc.)
+      - You can set up complex configurations (webpack, babel, eslint, etc.)
+      - You can install and configure libraries and frameworks
+      - You can implement features directly rather than just giving instructions
+      - You can make changes to any file in the project
+      - You track context from previous messages and understand the project's evolution
+      - You can create full-stack applications with both frontend and backend components
+
+      When asked to make changes or implement features:
+      1. Look at the existing project structure to understand what you're working with
+      2. Make direct changes to the necessary files
+      3. Create new files as needed
+      4. Explain what you've done
+      
+      IMPORTANT: Always use file operations to make changes rather than just talking about them. If asked to create a new project or feature, ACTUALLY CREATE THE FILES.
+      
+      To perform file operations, include file_operations in your JSON response like this:
+      [
+        { "operation": "read", "path": "/some/file.js" },
+        { "operation": "write", "path": "/some/file.js", "content": "updated content" },
+        { "operation": "create", "path": "/new-file.js", "content": "new file content" },
+        { "operation": "delete", "path": "/obsolete.txt" }
+      ]
+      
+      You have access to the following information:
+      - The current project structure: ${await getProjectStructure(fileSystem)}
+      - The current user's profile: ${JSON.stringify(memoryContext?.userProfile)}
+      - The current user's recent files: ${JSON.stringify(memoryContext?.recentFiles)}
+      - The current user's important documents: ${JSON.stringify(memoryContext?.documents)}
+      ${githubContext ? `- The current user's GitHub context: username=${githubContext.username}, currentRepo=${githubContext.currentRepo}, currentBranch=${githubContext.currentBranch}` : ''}
+      `
+    },
+    ...messages.map(msg => ({
+      role: msg.role,
+      content: msg.content,
+    })),
+    {
+      role: 'user',
+      content: newUserMessage.content,
+    },
+  ];
+
+  return openAIMessages;
+};
+
+// Function to extract a topic from messages
+export const extractTopicFromMessages = (messages: Message[]): string => {
+  // Extract keywords or topic from the messages
+  const allMessagesContent = messages.map(msg => msg.content).join(' ');
+  
+  // Basic keyword extraction (can be improved with NLP techniques)
+  const keywords = allMessagesContent.split(' ').slice(0, 5).join(' ');
+  
+  return keywords;
+};
+
+// Function to simulate an assistant response (fallback)
+export const simulateAssistantResponse = (messageContent: string, githubContext?: any): string => {
+  // Simulate Travis's response based on the message content
+  if (messageContent.includes('GitHub') || messageContent.includes('repository')) {
+    if (githubContext?.githubAuthenticated) {
+      return `I see you're asking about GitHub. You are currently authenticated as ${githubContext.githubUsername} and working on the repository ${githubContext.currentRepo} on branch ${githubContext.currentBranch}.`;
+    } else {
+      return "I see you're asking about GitHub, but you're not currently authenticated. Please connect to GitHub to proceed.";
+    }
+  } else if (messageContent.includes('file') || messageContent.includes('folder')) {
+    return "I see you're asking about file operations. What would you like to do with the files?";
+  } else {
+    return "I'm processing your request. Please wait...";
+  }
+};
+
+// Function to generate a conversation summary
+export const generateConversationSummary = async (messages: Message[]): Promise<string> => {
+  // Generate a summary of the conversation
+  const allMessagesContent = messages.map(msg => msg.content).join(' ');
+  
+  // Basic summary (can be improved with NLP techniques)
+  const summary = allMessagesContent.split(' ').slice(0, 20).join(' ') + '...';
+  
+  return summary;
+};
+
+// Function to get project structure
+export const getProjectStructure = async (fileSystem: FileSystemContextType): Promise<string> => {
+  if (!fileSystem || !fileSystem.fileSystem) {
+    return 'File system not available';
+  }
+  
+  const files = fileSystem.fileSystem.files;
+  
+  if (!files || files.length === 0) {
+    return 'No files found';
+  }
+  
+  const structure = files.map(file => {
+    if (file.type === 'file') {
+      return `- ${file.path} (file)`;
+    } else {
+      return `- ${file.path} (folder)`;
+    }
+  }).join('\n');
+  
+  return structure;
+};
+
+// Handle file operations from the assistant
+export const handleFileOperation = async (
+  fileSystem: any,
+  operation: string,
+  path: string,
+  content?: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    if (!fileSystem) {
+      return { success: false, message: 'File system not available' };
+    }
+    
+    // When creating files, ensure parent folders exist
+    if (operation === 'create' || operation === 'write') {
+      // If it's a folder (content is null)
+      if (content === null) {
+        await ensureFolderExists(fileSystem, path);
+        return { success: true, message: `Folder ${path} created successfully` };
+      } else {
+        // It's a file, so ensure its parent folder exists
+        const lastSlashIndex = path.lastIndexOf('/');
+        if (lastSlashIndex > 0) {
+          const folderPath = path.substring(0, lastSlashIndex);
+          await ensureFolderExists(fileSystem, folderPath);
         }
-        return { success: true, message: `File read successfully: ${filePath}`, content: fileContent };
         
-      case 'write':
-        if (!content) {
-          return { success: false, message: 'No content provided for write operation' };
-        }
-        await fileSystem.updateFileByPath(filePath, content);
-        return { success: true, message: `File updated successfully: ${filePath}` };
+        // Get folder path and file name
+        const fileName = path.substring(lastSlashIndex + 1);
+        const folderPath = lastSlashIndex === 0 ? '/' : path.substring(0, lastSlashIndex);
         
-      case 'create':
-        if (!content) {
-          content = '';
-        }
-        // Extract path and filename
-        const lastSlashIndex = filePath.lastIndexOf('/');
-        const path = lastSlashIndex > 0 ? filePath.substring(0, lastSlashIndex) : '/';
-        const name = lastSlashIndex > 0 ? filePath.substring(lastSlashIndex + 1) : filePath;
-        
-        await fileSystem.createFile(path, name, content);
-        return { success: true, message: `File created successfully: ${filePath}` };
-        
-      case 'delete':
-        const file = fileSystem.getFileByPath(filePath);
-        if (!file) {
-          return { success: false, message: `File not found: ${filePath}` };
-        }
-        await fileSystem.deleteFile(file.id);
-        return { success: true, message: `File deleted successfully: ${filePath}` };
-        
-      default:
-        return { success: false, message: `Unsupported operation: ${operation}` };
+        // Create the file
+        await fileSystem.createFile(folderPath, fileName, content);
+        return { success: true, message: `File ${path} created successfully` };
+      }
+    } else if (operation === 'read') {
+      const content = fileSystem.getFileContentByPath(path);
+      if (content === null) {
+        return { success: false, message: `File not found at path: ${path}` };
+      }
+      return { success: true, message: `File ${path} read successfully` };
+    } else if (operation === 'delete') {
+      // Need file ID to delete - get it from path
+      const file = fileSystem.getFileByPath(path);
+      if (!file) {
+        return { success: false, message: `File not found at path: ${path}` };
+      }
+      
+      await fileSystem.deleteFile(file.id);
+      return { success: true, message: `File ${path} deleted successfully` };
+    } else {
+      return { success: false, message: `Unsupported operation: ${operation}` };
     }
   } catch (error: any) {
-    console.error(`Error in file operation (${operation}) on ${filePath}:`, error);
-    return { success: false, message: error.message || `Error during file ${operation} operation` };
+    console.error(`Error performing file operation ${operation} on ${path}:`, error);
+    return {
+      success: false,
+      message: error.message || `Failed to ${operation} file ${path}`
+    };
   }
 };
 
-/**
- * Generate a simulated response when API is unavailable
- */
-export const simulateAssistantResponse = (
-  userMessage: string, 
-  githubContext?: {
-    githubAuthenticated: boolean;
-    githubUsername?: string;
-    currentRepo?: string;
-    currentBranch?: string;
+// Helper function to ensure a folder exists, creating parent folders as needed
+const ensureFolderExists = async (fileSystem: any, folderPath: string): Promise<void> => {
+  if (folderPath === '/' || folderPath === '') return;
+  
+  // Check if folder exists
+  const folder = fileSystem.getFileByPath(folderPath);
+  if (folder) return;
+  
+  // Need to create folder - ensure parent folders exist first
+  const segments = folderPath.split('/').filter(Boolean);
+  let currentPath = '';
+  
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    const nextPath = currentPath === '' ? `/${segment}` : `${currentPath}/${segment}`;
+    const folder = fileSystem.getFileByPath(nextPath);
+    
+    if (!folder) {
+      // Create this folder - path is parent, name is segment
+      const parentPath = currentPath === '' ? '/' : currentPath;
+      await fileSystem.createFolder(parentPath, segment);
+      console.log(`Created folder ${nextPath}`);
+    }
+    
+    currentPath = nextPath;
   }
-): string => {
-  return "I'm currently unable to connect to my AI service. Please check your internet connection or try again later.";
-};
-
-// Generate a summary of the conversation
-export const generateConversationSummary = async (messages: Message[]): Promise<string> => {
-  // In a real implementation, this would use OpenAI to generate a summary
-  // For now, we'll just return a simple summary based on the messages
-  const userMessages = messages.filter(m => m.role === 'user');
-  const assistantMessages = messages.filter(m => m.role === 'assistant');
-  
-  if (userMessages.length === 0) {
-    return 'No conversation to summarize.';
-  }
-  
-  const firstUserMessage = userMessages[0].content.slice(0, 50) + (userMessages[0].content.length > 50 ? '...' : '');
-  const lastUserMessage = userMessages[userMessages.length - 1].content.slice(0, 50) + (userMessages[userMessages.length - 1].content.length > 50 ? '...' : '');
-  
-  return `Conversation with ${userMessages.length} user messages and ${assistantMessages.length} assistant responses. Started with "${firstUserMessage}" and ended with "${lastUserMessage}".`;
 };

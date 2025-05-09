@@ -26,12 +26,25 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       const files = await fetchFiles();
       
-      setFileSystem({
-        files,
-        selectedFile: null
+      // Preserve modification flags when refreshing
+      const updatedFiles = files.map(newFile => {
+        const existingFile = fileSystem.files.find(f => f.id === newFile.id);
+        if (existingFile && existingFile.isModified) {
+          return {
+            ...newFile,
+            isModified: true,
+            lastModified: existingFile.lastModified
+          };
+        }
+        return newFile;
       });
       
-      console.log('Files refreshed:', files.length);
+      setFileSystem(prev => ({
+        files: updatedFiles,
+        selectedFile: prev.selectedFile && updatedFiles.find(f => f.id === prev.selectedFile?.id) || null
+      }));
+      
+      console.log('Files refreshed:', updatedFiles.length);
     } catch (error) {
       // Error handling is done in fetchFiles
       // Initialize with empty file system on error
@@ -151,6 +164,21 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     
     await updateFileOp(file.id, content, fileSystem.files, setFileSystem);
+    
+    // Mark file as modified after path update
+    setFileSystem(prev => ({
+      ...prev,
+      files: prev.files.map(f => {
+        if (f.id === file.id) {
+          return {
+            ...f,
+            isModified: true,
+            lastModified: Date.now()
+          };
+        }
+        return f;
+      })
+    }));
   };
 
   return (
