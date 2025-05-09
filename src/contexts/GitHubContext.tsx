@@ -139,42 +139,44 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Function to authenticate with GitHub
-  const authenticate = async (code: string) => {
-    setIsLoading(true);
+  const authenticate = async (token: string) => {
+    setAuthState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/github/callback?code=${code}`);
+      // Validate the token by fetching user info
+      const response = await fetch('https://api.github.com/user', {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github.v3+json'
+        }
+      });
+      
       if (!response.ok) {
         throw new Error(`Authentication failed: ${response.status}`);
       }
-      const data = await response.json();
       
-      if (data.access_token && data.username) {
+      const userData = await response.json();
+      
+      if (userData && userData.login) {
         setAuthState({
           isAuthenticated: true,
-          token: data.access_token,
-          username: data.username,
+          token: token,
+          username: userData.login,
           loading: false,
           error: null
         });
         
         // Save token to Supabase
-        await saveToken(data.access_token, data.username);
+        await saveToken(token, userData.login);
         
         // Fetch user repos
-        fetchUserRepos(data.access_token);
-      } else {
-        setAuthState({
-          isAuthenticated: false,
-          token: null,
-          username: null,
-          loading: false,
-          error: 'Failed to retrieve access token'
-        });
+        fetchUserRepos(token);
+        
         toast({
-          title: 'Error',
-          description: 'Failed to retrieve access token from GitHub.',
-          variant: 'destructive',
+          title: 'Success',
+          description: 'Successfully connected to GitHub!',
         });
+      } else {
+        throw new Error('Failed to retrieve user information');
       }
     } catch (error: any) {
       console.error('Authentication error:', error);
@@ -190,8 +192,6 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         description: error.message || 'Authentication failed.',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -418,21 +418,21 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     <GitHubContext.Provider value={{
       authState,
       authenticate,
-      repositories, // Changed from repos
+      repositories,
       branches,
-      availableBranches: branches, // Alias for the branches state
+      availableBranches: branches,
       currentRepo,
       currentBranch,
       files,
       selectedFile,
       setSelectedFile,
-      selectRepository, // Changed from selectRepo
+      selectRepository,
       selectBranch,
-      fetchRepositories, // Added
+      fetchRepositories,
       fetchFileContent,
       isLoading,
       saveFileToRepo,
-      syncRepoToFileSystem, // Added
+      syncRepoToFileSystem,
       logout
     }}>
       {children}
