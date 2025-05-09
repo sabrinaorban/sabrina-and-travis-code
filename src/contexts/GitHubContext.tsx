@@ -16,6 +16,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const { refreshFiles, createFile, createFolder } = useFileSystem();
   const { user } = useAuth();
   const tokenSavedRef = useRef(false);
+  const authInitializedRef = useRef(false);
   
   // Use our custom hooks for GitHub functionality
   const { authState, authenticate, logout } = useGithubAuth();
@@ -38,12 +39,13 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Load saved GitHub token when user changes
   useEffect(() => {
     const loadSavedToken = async () => {
-      if (user && user.id) {
+      if (user && user.id && !authInitializedRef.current) {
         try {
           const tokenData = await GithubTokenService.loadToken(user.id);
           if (tokenData && tokenData.token) {
             console.log('Found saved GitHub token, restoring session');
-            authenticate(tokenData.token);
+            await authenticate(tokenData.token);
+            authInitializedRef.current = true;
           }
         } catch (error) {
           console.error('Error loading GitHub token:', error);
@@ -70,9 +72,10 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     if (authState.isAuthenticated && authState.token) {
       saveToken();
-    } else {
-      // Reset the flag when logged out
+    } else if (!authState.isAuthenticated) {
+      // Reset the flags when logged out
       tokenSavedRef.current = false;
+      authInitializedRef.current = false;
     }
   }, [authState.isAuthenticated, authState.token, authState.username, user]);
 
@@ -88,6 +91,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         await GithubTokenService.deleteToken(user.id);
         tokenSavedRef.current = false; // Reset the token saved flag
+        authInitializedRef.current = false; // Reset the auth initialized flag
       } catch (error) {
         console.error('Error deleting GitHub token:', error);
       }

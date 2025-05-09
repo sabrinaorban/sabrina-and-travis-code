@@ -1,7 +1,9 @@
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { GitHubRepo, GitHubBranch, GitHubFile } from '@/types/github';
 import { GithubApiService } from '@/services/github/githubApiService';
+import { GithubRepositoryService } from '@/services/github/githubRepositoryService';
+import { GithubSyncService } from '@/services/github/githubSyncService';
 import { useToast } from '@/hooks/use-toast';
 
 export const useGithubRepos = (token: string | null) => {
@@ -11,17 +13,18 @@ export const useGithubRepos = (token: string | null) => {
   const [currentBranch, setCurrentBranch] = useState<string | null>(null);
   const [files, setFiles] = useState<GitHubFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const syncInProgressRef = useRef(false);
   
   const { toast } = useToast();
   const apiService = new GithubApiService({ token });
+  const repositoryService = new GithubRepositoryService(apiService, toast);
+  const syncService = new GithubSyncService(apiService, toast);
 
   const fetchRepositories = async () => {
     if (!token) return [];
     
     setIsLoading(true);
     try {
-      const repos = await apiService.fetchRepositories();
+      const repos = await repositoryService.fetchRepositories();
       setRepositories(repos);
       return repos;
     } finally {
@@ -34,7 +37,7 @@ export const useGithubRepos = (token: string | null) => {
     
     setIsLoading(true);
     try {
-      const branchList = await apiService.fetchBranches(repoFullName);
+      const branchList = await repositoryService.fetchBranches(repoFullName);
       setBranches(branchList);
       return branchList;
     } finally {
@@ -47,7 +50,7 @@ export const useGithubRepos = (token: string | null) => {
     
     setIsLoading(true);
     try {
-      const filesList = await apiService.fetchFiles(repoFullName, branchName);
+      const filesList = await repositoryService.fetchFiles(repoFullName, branchName);
       setFiles(filesList);
       return filesList;
     } finally {
@@ -72,7 +75,11 @@ export const useGithubRepos = (token: string | null) => {
     
     setIsLoading(true);
     try {
-      return await apiService.fetchFileContent(currentRepo.full_name, filePath, currentBranch);
+      return await repositoryService.fetchFileContent(
+        currentRepo.full_name, 
+        filePath, 
+        currentBranch
+      );
     } finally {
       setIsLoading(false);
     }
@@ -83,7 +90,7 @@ export const useGithubRepos = (token: string | null) => {
     
     setIsLoading(true);
     try {
-      return await apiService.saveFileToRepo(
+      return await repositoryService.saveFileToRepo(
         currentRepo.full_name, 
         filePath, 
         content, 
@@ -104,171 +111,17 @@ export const useGithubRepos = (token: string | null) => {
   ) => {
     if (!token) return false;
     
-    // Prevent multiple syncs from running simultaneously
-    if (syncInProgressRef.current) {
-      console.log('Sync already in progress, skipping new request');
-      toast({
-        title: 'Sync in progress',
-        description: 'Please wait for the current sync to complete',
-      });
-      return false;
-    }
-    
-    syncInProgressRef.current = true;
     setIsLoading(true);
-    let createdFolders = 0;
-    let createdFiles = 0;
-    let errors = 0;
-    
     try {
-      console.log(`Starting sync of ${owner}/${repo} (${branch}) to file system...`);
-      
-      // Fetch all repository contents recursively
-      const allContents = await apiService.fetchDirectoryContents(owner, repo, '', branch);
-      console.log(`Fetched ${allContents.length} items from repository`);
-      
-      // Create a map to track folder creation status
-      const folderCreationStatus = new Map<string, boolean>();
-      folderCreationStatus.set('/', true); // Root folder always exists
-      
-      // First create all folders in depth order (sort by path length/depth)
-      const folders = allContents
-        .filter(item => item.type === 'folder')
-        .sort((a, b) => {
-          // Sort by path depth (count of slashes)
-          const depthA = (a.path.match(/\//g) || []).length;
-          const depthB = (b.path.match(/\//g) || []).length;
-          return depthA - depthB;
-        });
-        
-      console.log(`Creating ${folders.length} folders in order of depth`);
-      
-      // Create each folder
-      for (const folder of folders) {
-        const folderPath = '/' + folder.path;
-        const lastSlashIndex = folderPath.lastIndexOf('/');
-        const parentPath = lastSlashIndex > 0 ? folderPath.substring(0, lastSlashIndex) : '/';
-        const folderName = folderPath.substring(lastSlashIndex + 1);
-        
-        // Skip if this exact folder was already created
-        if (folderCreationStatus.get(folderPath)) {
-          continue;
-        }
-        
-        // Ensure all parent folders exist
-        if (folderCreationStatus.get(parentPath)) {
-          try {
-            await createFolder(parentPath, folderName);
-            folderCreationStatus.set(folderPath, true);
-            createdFolders++;
-            console.log(`Created folder: ${folderPath}`);
-          } catch (error) {
-            console.warn(`Folder ${folderName} at ${parentPath} might already exist, continuing...`);
-            folderCreationStatus.set(folderPath, true); // Assume it exists if creation fails
-          }
-        } else {
-          console.warn(`Cannot create folder ${folderPath} because parent ${parentPath} doesn't exist`);
-          // Try to create parent folder first
-          const parentLastSlashIndex = parentPath.lastIndexOf('/');
-          const parentParentPath = parentLastSlashIndex > 0 ? parentPath.substring(0, parentLastSlashIndex) : '/';
-          const parentFolderName = parentPath.substring(parentLastSlashIndex + 1);
-          
-          if (folderCreationStatus.get(parentParentPath)) {
-            try {
-              await createFolder(parentParentPath, parentFolderName);
-              folderCreationStatus.set(parentPath, true);
-              createdFolders++;
-              console.log(`Created parent folder: ${parentPath}`);
-              
-              // Now try to create the original folder
-              await createFolder(parentPath, folderName);
-              folderCreationStatus.set(folderPath, true);
-              createdFolders++;
-              console.log(`Created folder: ${folderPath}`);
-            } catch (error) {
-              console.error(`Failed to create parent folder ${parentPath}:`, error);
-              errors++;
-            }
-          }
-        }
-      }
-      
-      // Then create all files
-      const files = allContents.filter(item => item.type === 'file');
-      console.log(`Creating ${files.length} files`);
-      
-      for (const file of files) {
-        const filePath = '/' + file.path;
-        const lastSlashIndex = filePath.lastIndexOf('/');
-        const parentPath = lastSlashIndex > 0 ? filePath.substring(0, lastSlashIndex) : '/';
-        const fileName = filePath.substring(lastSlashIndex + 1);
-        
-        // Ensure parent folder exists
-        if (!folderCreationStatus.get(parentPath)) {
-          // Create missing parent folder
-          const parentLastSlashIndex = parentPath.lastIndexOf('/');
-          const parentParentPath = parentLastSlashIndex > 0 ? parentPath.substring(0, parentLastSlashIndex) : '/';
-          const parentFolderName = parentPath.substring(parentLastSlashIndex + 1);
-          
-          try {
-            await createFolder(parentParentPath, parentFolderName);
-            folderCreationStatus.set(parentPath, true);
-            createdFolders++;
-            console.log(`Created missing parent folder: ${parentPath}`);
-          } catch (error) {
-            console.warn(`Failed to create parent folder ${parentPath}, continuing...`);
-            folderCreationStatus.set(parentPath, true); // Assume it exists anyway and try to create file
-          }
-        }
-        
-        // Fetch file content before creating the file
-        let content = '';
-        try {
-          content = await apiService.fetchFileContent(
-            `${owner}/${repo}`, 
-            file.path, 
-            branch
-          ) || '';
-        } catch (error) {
-          console.error(`Error fetching content for file ${file.path}:`, error);
-          // Continue with empty content
-        }
-        
-        // Now create the file
-        if (folderCreationStatus.get(parentPath)) {
-          try {
-            await createFile(parentPath, fileName, content);
-            createdFiles++;
-            console.log(`Created file: ${filePath} with content length: ${content.length}`);
-          } catch (error: any) {
-            console.error(`Error creating file ${fileName} at ${parentPath}:`, error);
-            errors++;
-          }
-        } else {
-          console.warn(`Skipping file ${fileName} because parent ${parentPath} wasn't created`);
-          errors++;
-        }
-      }
-      
-      console.log(`Synced ${createdFolders} folders and ${createdFiles} files from ${owner}/${repo} (${branch}) to file system. ${errors} errors.`);
-      
-      toast({
-        title: 'Repository Synced',
-        description: `Imported ${createdFiles} files and ${createdFolders} folders${errors > 0 ? ` (${errors} errors)` : ''}`,
-      });
-      
-      return true;
-    } catch (error: any) {
-      console.error('Error syncing repo:', error);
-      toast({
-        title: 'Sync Failed',
-        description: `Failed to sync repository: ${error.message}`,
-        variant: 'destructive',
-      });
-      return false;
+      return await syncService.syncRepoToFileSystem(
+        owner,
+        repo,
+        branch,
+        createFile,
+        createFolder
+      );
     } finally {
       setIsLoading(false);
-      syncInProgressRef.current = false;
     }
   };
 
