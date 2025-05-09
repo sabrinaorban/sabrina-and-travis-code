@@ -65,10 +65,10 @@ export interface GitHubContextType {
   setSelectedFile: (file: FileEntry | null) => void;
   selectRepository: (repo: GitHubRepo) => Promise<void>; // Changed from selectRepo
   selectBranch: (branchName: string) => Promise<void>;
-  fetchRepositories: () => Promise<void>; // Added
+  fetchRepositories: () => Promise<GitHubRepo[]>; // Updated to match implementation
   fetchFileContent: (filePath: string) => Promise<string | null>;
   isLoading: boolean;
-  saveFileToRepo: (filePath: string, content: string, commitMessage: string) => Promise<void>;
+  saveFileToRepo: (filePath: string, content: string, commitMessage: string) => Promise<boolean>; // Updated to match implementation
   syncRepoToFileSystem: (owner: string, repo: string, branch: string) => Promise<void>; // Added
   logout: () => void;
 }
