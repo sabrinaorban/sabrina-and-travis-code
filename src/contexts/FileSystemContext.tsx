@@ -5,6 +5,7 @@ import { FileSystemContextType } from '../types/fileSystem';
 import { useAuth } from './AuthContext';
 import { useFileFetcher } from '../hooks/useFileFetcher';
 import { useFileOperations } from '../hooks/useFileOperations';
+import { supabase } from '../lib/supabase';
 
 const FileSystemContext = createContext<FileSystemContextType | null>(null);
 
@@ -75,6 +76,38 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return deleteFileOp(id, fileSystem.files);
   };
 
+  // Delete all files - implementation for replacement of repository files
+  const deleteAllFiles = async () => {
+    if (!user) return Promise.resolve();
+    
+    setIsLoading(true);
+    try {
+      // Delete all files from the Supabase database
+      const { error } = await supabase
+        .from('files')
+        .delete()
+        .eq('user_id', user.id);
+        
+      if (error) {
+        throw error;
+      }
+      
+      // Reset local file system state
+      setFileSystem({
+        files: [],
+        selectedFile: null
+      });
+      
+      console.log('All files deleted');
+    } catch (error) {
+      console.error('Error deleting all files:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+    return Promise.resolve();
+  };
+
   // Select a file for viewing/editing
   const selectFile = (file: FileEntry | null) => {
     setFileSystem(prev => ({
@@ -99,7 +132,8 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         selectFile,
         getFileByPath: getFileByPathWrapper,
         isLoading,
-        refreshFiles
+        refreshFiles,
+        deleteAllFiles
       }}
     >
       {children}

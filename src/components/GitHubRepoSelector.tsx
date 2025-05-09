@@ -5,13 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFileSystem } from '@/contexts/FileSystemContext';
-import { Loader2, RefreshCw, GitBranch, Code } from 'lucide-react';
+import { Loader2, RefreshCw, GitBranch, Code, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export const GitHubRepoSelector: React.FC = () => {
   const { authState, repositories, currentRepo, currentBranch, availableBranches, 
           isLoading, fetchRepositories, selectRepository, selectBranch, syncRepoToFileSystem } = useGitHub();
-  const { refreshFiles, isLoading: fileSystemLoading } = useFileSystem();
+  const { refreshFiles, isLoading: fileSystemLoading, deleteAllFiles } = useFileSystem();
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   
@@ -42,6 +42,10 @@ export const GitHubRepoSelector: React.FC = () => {
     
     setIsSyncing(true);
     try {
+      // First delete all existing files
+      await deleteAllFiles();
+      
+      // Then sync the new repository
       const [owner, repo] = currentRepo.full_name.split('/');
       await syncRepoToFileSystem(owner, repo, currentBranch);
       await refreshFiles();
@@ -143,24 +147,28 @@ export const GitHubRepoSelector: React.FC = () => {
       <Dialog open={isSyncDialogOpen} onOpenChange={setIsSyncDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sync Repository Files</DialogTitle>
+            <DialogTitle>Replace Project Files with Repository</DialogTitle>
             <DialogDescription>
-              This will import all files from <strong>{currentRepo?.full_name}</strong> branch <strong>{currentBranch}</strong> into your workspace. Existing files with the same paths will be overwritten.
+              This will <strong>replace all existing files</strong> in your workspace with files from <strong>{currentRepo?.full_name}</strong> branch <strong>{currentBranch}</strong>. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsSyncDialogOpen(false)} disabled={isSyncing}>Cancel</Button>
             <Button 
+              variant="destructive"
               onClick={handleSync}
               disabled={isSyncing || isLoading || fileSystemLoading}
             >
               {isSyncing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Syncing...
+                  Replacing Files...
                 </>
               ) : (
-                'Sync Files'
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Replace All Files
+                </>
               )}
             </Button>
           </DialogFooter>
