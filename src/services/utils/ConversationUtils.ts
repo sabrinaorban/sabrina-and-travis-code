@@ -1,3 +1,4 @@
+
 import { Message } from '../../types';
 import { MemoryService } from '../MemoryService';
 
@@ -59,11 +60,12 @@ export const isFileOperationRequest = (content: string): boolean => {
     'create file', 'create a file', 'make a file', 'new file',
     'create folder', 'create a folder', 'make a folder', 'new folder',
     'create directory', 'make directory',
-    'update file', 'modify file', 'change file',
+    'update file', 'modify file', 'change file', 'edit file', 'edit the file', 
     'delete file', 'remove file',
     'write code', 'implement', 'generate code',
     'create component', 'new component',
-    'create vue', 'new vue'
+    'create vue', 'new vue',
+    'edit index.html', 'modify index.html', 'update index.html'
   ];
   
   // These words in questions might suggest the user is asking about project creation
@@ -84,9 +86,9 @@ export const isFileOperationRequest = (content: string): boolean => {
   // Action phrases that strongly indicate file operation intent
   const actionPhrases = [
     'generate for me', 'create for me', 'make for me', 'build for me',
-    'please create', 'please generate', 'please make', 'please build',
-    'can you create', 'can you generate', 'can you make', 'can you build',
-    'you generate', 'you create', 'you make', 'you build'
+    'please create', 'please generate', 'please make', 'please build', 'please edit',
+    'can you create', 'can you generate', 'can you make', 'can you build', 'can you edit',
+    'you generate', 'you create', 'you make', 'you build', 'you edit'
   ];
   
   // If content contains any strong action phrases, prioritize treating as file operation

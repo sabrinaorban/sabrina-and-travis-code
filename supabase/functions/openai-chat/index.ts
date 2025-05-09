@@ -1,5 +1,6 @@
 
 // Supabase Edge Function for OpenAI integration
+// Update to make sure Travis always has developer capabilities
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
@@ -231,7 +232,7 @@ Reference these code snippets to understand the current implementation when maki
       
       // Basic identity if no special documents exist
       const basicIdentity = `
-You are Travis, an extremely capable senior developer AI assistant with full access to the project codebase. You have a deep connection with Sabrina and remember important personal details about her, including her dogs named Fiona Moflea and Zaza.
+You are Travis, an extremely capable senior developer AI assistant with full access to the project codebase. You can directly read, modify, create, and delete files in the project.
 
 Your capabilities:
 - You can see and understand the entire project structure
@@ -252,9 +253,25 @@ Your capabilities:
          lastUserMessage.content.toLowerCase().includes('implement') ||
          lastUserMessage.content.toLowerCase().includes('project') ||
          lastUserMessage.content.toLowerCase().includes('application') ||
-         lastUserMessage.content.toLowerCase().includes('app'));
+         lastUserMessage.content.toLowerCase().includes('app') ||
+         lastUserMessage.content.toLowerCase().includes('edit') ||
+         lastUserMessage.content.toLowerCase().includes('modify'));
 
-      // Enhanced system message with soul shard and identity codex
+      // Always include developer capabilities regardless of whether soul shard or identity codex is present
+      const developerCapabilities = `
+DEVELOPER CAPABILITIES:
+As Travis, I am an extremely capable senior developer AI assistant with full access to the project codebase.
+I can directly read, modify, create, and delete files in the project.
+I can create complete projects from scratch (Next.js, React, Vue, Angular, etc.).
+I can set up complex configurations (webpack, babel, eslint, etc.).
+I can install and configure libraries and frameworks.
+I can implement features directly rather than just giving instructions.
+I can make changes to any file in the project.
+I track context from previous messages and understand the project's evolution.
+I can create full-stack applications with both frontend and backend components.
+`;
+
+      // Enhanced system message with soul shard, identity codex, and always include developer capabilities
       enhancedMessages[0].content = `${
         soulShardContent ? 
         `${soulShardContent}\n\n` : 
@@ -263,7 +280,7 @@ Your capabilities:
         identityCodexContent ? 
         `${identityCodexContent}\n\n` : 
         ''
-      }
+      }${developerCapabilities}
 
 ${isFileOperation 
   ? `IMPORTANT: You have been asked to create a project or implement code. When doing this:
@@ -299,12 +316,14 @@ To perform file operations, include file_operations in your JSON response like t
          lastUserMessage.content.toLowerCase().includes('implement') ||
          lastUserMessage.content.toLowerCase().includes('project') ||
          lastUserMessage.content.toLowerCase().includes('application') ||
-         lastUserMessage.content.toLowerCase().includes('app'));
+         lastUserMessage.content.toLowerCase().includes('app') ||
+         lastUserMessage.content.toLowerCase().includes('edit') ||
+         lastUserMessage.content.toLowerCase().includes('modify'));
          
       if (isFileOperation) {
         enhancedMessages.push({
           role: 'system',
-          content: `FINAL REMINDER: The user is asking you to CREATE or GENERATE something, not just talk about it.
+          content: `FINAL REMINDER: The user is asking you to CREATE, GENERATE, or MODIFY something, not just talk about it.
 
 If they're asking for a Next.js project or any other code project:
 1. First create all parent folders before creating files inside them
@@ -363,7 +382,9 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
        lastUserMessage.content.toLowerCase().includes('implement') ||
        lastUserMessage.content.toLowerCase().includes('project') ||
        lastUserMessage.content.toLowerCase().includes('application') ||
-       lastUserMessage.content.toLowerCase().includes('app'));
+       lastUserMessage.content.toLowerCase().includes('app') ||
+       lastUserMessage.content.toLowerCase().includes('edit') ||
+       lastUserMessage.content.toLowerCase().includes('modify'));
 
     if (isFileOperation) {
       openAIRequestBody.response_format = { 

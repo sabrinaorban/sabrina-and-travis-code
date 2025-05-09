@@ -37,10 +37,12 @@ export const handleFileOperation = async (
       return { success: false, message: 'File system not available' };
     }
     
+    console.log(`Processing file operation: ${operation} on ${path}`);
+    
     // When creating files, ensure parent folders exist
     if (operation === 'create' || operation === 'write') {
       // If it's a folder (content is null)
-      if (content === null) {
+      if (content === null && (path.endsWith('/') || !path.includes('.'))) {
         await ensureFolderExists(fileSystem, path);
         return { success: true, message: `Folder ${path} created successfully` };
       } else {
@@ -55,9 +57,13 @@ export const handleFileOperation = async (
         const fileName = path.substring(lastSlashIndex + 1);
         const folderPath = lastSlashIndex === 0 ? '/' : path.substring(0, lastSlashIndex);
         
-        // Create the file
-        await fileSystem.createFile(folderPath, fileName, content);
-        return { success: true, message: `File ${path} created successfully` };
+        if (operation === 'create') {
+          await fileSystem.createFile(folderPath, fileName, content || '');
+          return { success: true, message: `File ${path} created successfully` };
+        } else {
+          await fileSystem.updateFileByPath(path, content || '');
+          return { success: true, message: `File ${path} updated successfully` };
+        }
       }
     } else if (operation === 'read') {
       const content = fileSystem.getFileContentByPath(path);
@@ -93,6 +99,8 @@ export const ensureFolderExists = async (fileSystem: any, folderPath: string): P
   // Check if folder exists
   const folder = fileSystem.getFileByPath(folderPath);
   if (folder) return;
+  
+  console.log(`Creating folder: ${folderPath}`);
   
   // Need to create folder - ensure parent folders exist first
   const segments = folderPath.split('/').filter(Boolean);

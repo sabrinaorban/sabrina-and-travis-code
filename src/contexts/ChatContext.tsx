@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { Message } from '../types';
 import { useToast } from '@/hooks/use-toast';
@@ -16,9 +17,9 @@ import {
   extractTopicFromMessages,
   simulateAssistantResponse,
   generateConversationSummary,
+  isFileOperationRequest,
   getProjectFileStructure,
-  processFileOps,
-  isFileOperationRequest
+  processFileOps
 } from '../services/ChatService';
 import { ChatContextType, FileOperation } from '../types/chat';
 
@@ -284,13 +285,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Process any file operations requested by the assistant
         if (fileOperations.length > 0) {
-          console.log('Processing file operations:', fileOperations.length);
+          console.log('Processing file operations:', fileOperations.length, fileOperations);
           const processedOperations = await processFileOps(fileSystem, fileOperations);
           
-          // Update file operation results for UI feedback - with type cast to ensure compatibility
-          if (processedOperations.length > 0) {
-            // Cast the result to FileOperation[] since we've made the types compatible
-            setFileOperationResults(processedOperations as unknown as FileOperation[]);
+          // Update file operation results for UI feedback
+          if (processedOperations && processedOperations.length > 0) {
+            setFileOperationResults(processedOperations as FileOperation[]);
             
             // Refresh files after operations
             await fileSystem.refreshFiles();
