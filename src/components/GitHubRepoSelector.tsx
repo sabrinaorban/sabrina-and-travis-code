@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export const GitHubRepoSelector: React.FC = () => {
-  const { authState, repositories, currentRepo, currentBranch, availableBranches, 
+  const { authState, repositories, currentRepo, currentBranch, branches, 
           isLoading, fetchRepositories, selectRepository, selectBranch, syncRepoToFileSystem } = useGitHub();
   const { refreshFiles, isLoading: fileSystemLoading, deleteAllFiles } = useFileSystem();
   
@@ -30,9 +30,9 @@ export const GitHubRepoSelector: React.FC = () => {
     console.log('GitHubRepoSelector - Repos count:', repositories.length);
     console.log('GitHubRepoSelector - Current repo:', currentRepo?.full_name);
     console.log('GitHubRepoSelector - Current branch:', currentBranch);
-    console.log('GitHubRepoSelector - Branches count:', availableBranches.length);
+    console.log('GitHubRepoSelector - Branches count:', branches.length);
     console.log('GitHubRepoSelector - Loading states:', { isLoading, fileSystemLoading, isSyncing, isFetchingBranches });
-  }, [authState, repositories, currentRepo, currentBranch, availableBranches, isLoading, fileSystemLoading, isSyncing, isFetchingBranches]);
+  }, [authState, repositories, currentRepo, currentBranch, branches, isLoading, fileSystemLoading, isSyncing, isFetchingBranches]);
   
   // Fetch repositories when authenticated
   useEffect(() => {
@@ -220,13 +220,13 @@ export const GitHubRepoSelector: React.FC = () => {
                 <Select 
                   onValueChange={handleBranchChange} 
                   value={currentBranch || ''}
-                  disabled={isLoading || isFetchingBranches || availableBranches.length === 0}
+                  disabled={isLoading || isFetchingBranches || branches.length === 0}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableBranches.length === 0 && !isLoading && !isFetchingBranches && (
+                    {branches.length === 0 && !isLoading && !isFetchingBranches && (
                       <SelectItem value="no-branches" disabled>
                         No branches found
                       </SelectItem>
@@ -236,7 +236,7 @@ export const GitHubRepoSelector: React.FC = () => {
                         Loading branches...
                       </SelectItem>
                     )}
-                    {availableBranches.map((branch) => (
+                    {branches.map((branch) => (
                       <SelectItem key={branch.name} value={branch.name}>
                         {branch.name}
                       </SelectItem>

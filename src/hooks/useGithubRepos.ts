@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
+
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { GitHubRepo, GitHubBranch, GitHubFile } from '@/types/github';
 import { GithubApiService } from '@/services/github/githubApiService';
 import { GithubRepositoryService } from '@/services/github/githubRepositoryService';
@@ -25,13 +26,13 @@ export const useGithubRepos = (token: string | null) => {
   console.log('useGithubRepos - Initialized with token:', token ? 'present' : 'missing');
   
   // Create API service with both token and userId if available
-  const apiService = new GithubApiService({ 
+  const apiService = useMemo(() => new GithubApiService({ 
     token,
     userId: user?.id 
-  });
+  }), [token, user?.id]);
   
-  const repositoryService = new GithubRepositoryService(apiService, toast);
-  const syncService = new GithubSyncService(apiService, toast);
+  const repositoryService = useMemo(() => new GithubRepositoryService(apiService, toast), [apiService, toast]);
+  const syncService = useMemo(() => new GithubSyncService(apiService, toast), [apiService, toast]);
 
   // Helper to check if we should throttle operations
   const shouldThrottle = () => {
@@ -39,7 +40,7 @@ export const useGithubRepos = (token: string | null) => {
     return now - lastOperationTimeRef.current < COOLDOWN_MS;
   };
 
-  const fetchRepositories = async () => {
+  const fetchRepositories = useCallback(async () => {
     if (!token) {
       console.log('useGithubRepos - Cannot fetch repos: no token');
       return [];
@@ -79,7 +80,7 @@ export const useGithubRepos = (token: string | null) => {
       setIsLoading(false);
       isFetchingRef.current = false;
     }
-  };
+  }, [token, repositories, repositoryService, toast]);
 
   const fetchBranches = useCallback(async (repoFullName: string) => {
     if (!token) {
@@ -123,7 +124,7 @@ export const useGithubRepos = (token: string | null) => {
     }
   }, [token, branches, repositoryService, toast]);
 
-  const fetchFiles = async (repoFullName: string, branchName: string) => {
+  const fetchFiles = useCallback(async (repoFullName: string, branchName: string) => {
     if (!token) {
       console.log('useGithubRepos - Cannot fetch files: no token');
       return [];
@@ -163,9 +164,9 @@ export const useGithubRepos = (token: string | null) => {
       setIsLoading(false);
       isFetchingRef.current = false;
     }
-  };
+  }, [token, files, repositoryService, toast]);
 
-  const selectRepository = async (repo: GitHubRepo) => {
+  const selectRepository = useCallback(async (repo: GitHubRepo) => {
     console.log(`useGithubRepos - Selecting repository: ${repo.full_name}`);
     
     // Set the current repository first
@@ -178,9 +179,9 @@ export const useGithubRepos = (token: string | null) => {
     
     // Don't wait - immediately fetch branches
     fetchBranches(repo.full_name);
-  };
+  }, [fetchBranches]);
 
-  const selectBranch = async (branchName: string) => {
+  const selectBranch = useCallback(async (branchName: string) => {
     console.log(`useGithubRepos - Selecting branch: ${branchName}`);
     
     // Set the current branch
@@ -193,9 +194,9 @@ export const useGithubRepos = (token: string | null) => {
       // Fetch files for the selected branch
       fetchFiles(currentRepo.full_name, branchName);
     }
-  };
+  }, [currentRepo, fetchFiles]);
 
-  const fetchFileContent = async (filePath: string): Promise<string | null> => {
+  const fetchFileContent = useCallback(async (filePath: string): Promise<string | null> => {
     if (!token || !currentRepo || !currentBranch) {
       console.log('useGithubRepos - Cannot fetch file content: missing data');
       return null;
@@ -230,9 +231,9 @@ export const useGithubRepos = (token: string | null) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [token, currentRepo, currentBranch, repositoryService, toast]);
 
-  const saveFileToRepo = async (filePath: string, content: string, commitMessage: string) => {
+  const saveFileToRepo = useCallback(async (filePath: string, content: string, commitMessage: string) => {
     if (!token || !currentRepo || !currentBranch) {
       console.log('useGithubRepos - Cannot save file: missing data');
       return false;
@@ -273,9 +274,9 @@ export const useGithubRepos = (token: string | null) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [token, currentRepo, currentBranch, repositoryService, toast]);
 
-  const syncRepoToFileSystem = async (
+  const syncRepoToFileSystem = useCallback(async (
     owner: string, 
     repo: string, 
     branch: string,
@@ -339,9 +340,9 @@ export const useGithubRepos = (token: string | null) => {
         console.log('useGithubRepos - Sync cooldown complete');
       }, COOLDOWN_MS * 2);
     }
-  };
+  }, [token, syncService, toast]);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     console.log('useGithubRepos - Resetting state');
     setRepositories([]);
     setBranches([]);
@@ -349,7 +350,24 @@ export const useGithubRepos = (token: string | null) => {
     setCurrentBranch(null);
     setFiles([]);
     isFetchingRef.current = false;
-  };
+  }, []);
+
+  // Add more robust error handling for the hook
+  useEffect(() => {
+    // Add event listeners for unhandled errors
+    const handleError = (event: ErrorEvent) => {
+      console.error('useGithubRepos - Unhandled error:', event.error);
+      // Reset the fetching state to prevent getting stuck
+      isFetchingRef.current = false;
+      setIsLoading(false);
+    };
+    
+    window.addEventListener('error', handleError);
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+    };
+  }, []);
 
   return {
     repositories,
@@ -367,3 +385,6 @@ export const useGithubRepos = (token: string | null) => {
     reset
   };
 };
+
+// Add missing import
+import { useMemo } from 'react';
