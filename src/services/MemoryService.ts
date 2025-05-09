@@ -27,7 +27,37 @@ export const MemoryService = {
     try {
       console.log('Storing memory:', key, 'for user:', userId);
       
-      // First check if the memory exists
+      // First check if the user exists in the users table
+      const { data: userExists, error: userCheckError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+        
+      if (userCheckError) {
+        console.error('Error checking if user exists:', userCheckError);
+        throw userCheckError;
+      }
+      
+      // Create user if they don't exist
+      if (!userExists) {
+        console.log('User not found in users table, creating user record');
+        const { error: createUserError } = await supabase
+          .from('users')
+          .insert({
+            id: userId,
+            name: 'User',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+          
+        if (createUserError) {
+          console.error('Error creating user record:', createUserError);
+          throw createUserError;
+        }
+      }
+      
+      // Check if memory exists
       const { data: existingData, error: checkError } = await supabase
         .from('memory')
         .select('id')
@@ -112,6 +142,36 @@ export const MemoryService = {
     try {
       console.log('Getting memory context for user:', userId);
       
+      // First check if the user exists in the users table
+      const { data: userExists, error: userCheckError } = await supabase
+        .from('users')
+        .select('id, name')
+        .eq('id', userId)
+        .maybeSingle();
+        
+      if (userCheckError) {
+        console.error('Error checking if user exists:', userCheckError);
+        // Continue with the function but handle the potential issues
+      }
+      
+      // Create user if they don't exist
+      if (!userExists) {
+        console.log('User not found in users table, creating user record');
+        const { error: createUserError } = await supabase
+          .from('users')
+          .insert({
+            id: userId,
+            name: 'User',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+          
+        if (createUserError) {
+          console.error('Error creating user record:', createUserError);
+          // Continue with the function but handle the potential issues
+        }
+      }
+      
       // Get recent messages
       const { data: messagesData } = await supabase
         .from('messages')
@@ -140,7 +200,12 @@ export const MemoryService = {
       const documents = await this.retrieveMemory(userId, 'documents') || [];
 
       return {
-        recentMessages: messagesData || [],
+        recentMessages: messagesData?.map(msg => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: new Date(msg.timestamp).getTime()
+        })) || [],
         recentFiles: filesData?.map(file => ({
           path: file.path,
           name: file.name,
@@ -151,12 +216,12 @@ export const MemoryService = {
           name: userData?.name || 'User',
           preferences: preferences || {}
         },
-        documents: documents.map((doc: any) => ({
+        documents: Array.isArray(documents) ? documents.map((doc: any) => ({
           id: doc.id,
           title: doc.title,
           summary: doc.summary,
           lastAccessed: doc.lastAccessed
-        }))
+        })) : []
       };
     } catch (error) {
       console.error('Error getting memory context:', error);

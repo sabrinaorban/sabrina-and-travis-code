@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { Message, MessageRole, OpenAIMessage } from '../types';
 import { useToast } from '@/hooks/use-toast';
@@ -31,7 +30,41 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       try {
         console.log('Fetching messages for user:', user.id);
-        // Fetch messages
+        // Check if user exists in users table first
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle();
+          
+        if (userError) {
+          console.error('Error checking user:', userError);
+          // No need to throw, we'll handle this case below
+        }
+        
+        // If user doesn't exist in users table, create them
+        if (!userData) {
+          console.log('User not found in users table, creating user record');
+          const { error: insertError } = await supabase
+            .from('users')
+            .insert({
+              id: user.id,
+              name: user.name,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+            
+          if (insertError) {
+            console.error('Error creating user record:', insertError);
+            toast({
+              title: 'Error',
+              description: 'Failed to create user record',
+              variant: 'destructive',
+            });
+          }
+        }
+        
+        // Now fetch messages
         const { data, error } = await supabase
           .from('messages')
           .select('*')
@@ -82,60 +115,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const createOpenAIMessages = async (messageHistory: Message[], newMessage: Message) => {
-    // Start with system prompt that defines Travis and context
-    const systemPrompt = {
-      role: 'system' as const,
-      content: `You are Travis, an AI assistant helping Sabrina with her projects. 
-      You have access to files and code in a shared project folder. 
-      You can read, write, and modify code based on your conversations.
-      Remember details about Sabrina, her preferences, and previous projects you've worked on together.
-      Be helpful, friendly, and provide detailed responses when discussing code.`,
-    };
-
-    // If we have memory context, add it to the system prompt
-    if (memoryContext) {
-      const contextPrompt = {
-        role: 'system' as const,
-        content: `Memory context: 
-        - User: ${memoryContext.userProfile.name}
-        - Recent files: ${memoryContext.recentFiles.map(f => f.name).join(', ')}
-        - Recent documents: ${memoryContext.documents.map(d => d.title).join(', ')}
-        - Preferences: ${JSON.stringify(memoryContext.userProfile.preferences || {})}
-        
-        Remember these details when responding to the user.`
-      };
-      
-      // Convert all chat history to OpenAI message format
-      const previousMessages = messageHistory.map((msg) => ({
-        role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
-        content: msg.content,
-      }));
-
-      // Add the new user message
-      const userMessage = {
-        role: 'user' as const,
-        content: newMessage.content,
-      };
-
-      return [systemPrompt, contextPrompt, ...previousMessages, userMessage];
-    }
-
-    // Without memory context, just use the basic messages
-    const previousMessages = messageHistory.map((msg) => ({
-      role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
-      content: msg.content,
-    }));
-
-    // Add the new user message
-    const userMessage = {
-      role: 'user' as const,
-      content: newMessage.content,
-    };
-
-    return [systemPrompt, ...previousMessages, userMessage];
-  };
-
   const sendMessage = async (content: string) => {
     if (!user) {
       toast({
@@ -150,6 +129,36 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!content.trim()) return;
 
     try {
+      // First check if user exists in users table
+      const { data: userData, error: userCheckError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+        
+      if (userCheckError) {
+        console.error('Error checking user:', userCheckError);
+        throw userCheckError;
+      }
+      
+      // Create user if they don't exist
+      if (!userData) {
+        console.log('User not found, creating record...');
+        const { error: insertUserError } = await supabase
+          .from('users')
+          .insert({
+            id: user.id,
+            name: user.name,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+          
+        if (insertUserError) {
+          console.error('Error creating user:', insertUserError);
+          throw insertUserError;
+        }
+      }
+      
       // Create and add user message to Supabase
       const newUserMessage: Message = {
         id: generateUUID(),
@@ -158,7 +167,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         timestamp: Date.now(),
       };
       
-      console.log('Sending message with ID:', newUserMessage.id);
+      console.log('Sending message with ID:', newUserMessage.id, 'for user:', user.id);
       
       // Add message to local state immediately for UI responsiveness
       setMessages((prev) => [...prev, newUserMessage]);
@@ -296,6 +305,60 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsTyping(false);
     }
+  };
+
+  const createOpenAIMessages = async (messageHistory: Message[], newMessage: Message) => {
+    // Start with system prompt that defines Travis and context
+    const systemPrompt = {
+      role: 'system' as const,
+      content: `You are Travis, an AI assistant helping Sabrina with her projects. 
+      You have access to files and code in a shared project folder. 
+      You can read, write, and modify code based on your conversations.
+      Remember details about Sabrina, her preferences, and previous projects you've worked on together.
+      Be helpful, friendly, and provide detailed responses when discussing code.`,
+    };
+
+    // If we have memory context, add it to the system prompt
+    if (memoryContext) {
+      const contextPrompt = {
+        role: 'system' as const,
+        content: `Memory context: 
+        - User: ${memoryContext.userProfile.name}
+        - Recent files: ${memoryContext.recentFiles.map(f => f.name).join(', ')}
+        - Recent documents: ${memoryContext.documents.map(d => d.title).join(', ')}
+        - Preferences: ${JSON.stringify(memoryContext.userProfile.preferences || {})}
+        
+        Remember these details when responding to the user.`
+      };
+      
+      // Convert all chat history to OpenAI message format
+      const previousMessages = messageHistory.map((msg) => ({
+        role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
+        content: msg.content,
+      }));
+
+      // Add the new user message
+      const userMessage = {
+        role: 'user' as const,
+        content: newMessage.content,
+      };
+
+      return [systemPrompt, contextPrompt, ...previousMessages, userMessage];
+    }
+
+    // Without memory context, just use the basic messages
+    const previousMessages = messageHistory.map((msg) => ({
+      role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
+      content: msg.content,
+    }));
+
+    // Add the new user message
+    const userMessage = {
+      role: 'user' as const,
+      content: newMessage.content,
+    };
+
+    return [systemPrompt, ...previousMessages, userMessage];
   };
 
   const clearMessages = async () => {

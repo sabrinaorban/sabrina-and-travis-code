@@ -28,27 +28,14 @@ export const generateUUID = (): string => {
 // Helper function to create or get a user profile
 export const getOrCreateUserProfile = async (userId: string, email?: string): Promise<any> => {
   try {
-    // First, check if users table exists by querying it
-    const { error: tableCheckError } = await supabase
-      .from('users')
-      .select('count')
-      .limit(1)
-      .single();
-      
-    // If table doesn't exist, we need to handle that gracefully
-    if (tableCheckError && tableCheckError.code === '42P01') { // relation does not exist
-      console.warn('Users table does not exist, returning default profile');
-      return { id: userId, name: email ? email.split('@')[0] : 'Guest', isAuthenticated: true };
-    }
-    
-    // If table exists, check if user profile exists
+    // First check if user exists in the users table
     const { data: existingUser, error: fetchError } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
       
-    if (fetchError && fetchError.code !== 'PGRST116') {
+    if (fetchError) {
       console.error('Error checking for existing user:', fetchError);
       throw fetchError;
     }
@@ -69,19 +56,14 @@ export const getOrCreateUserProfile = async (userId: string, email?: string): Pr
         { 
           id: userId, 
           name: name,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         }
       ])
       .select()
       .single();
       
     if (insertError) {
-      // Special handling for RLS policy violations
-      if (insertError.code === '42501') {
-        console.warn('RLS policy prevented user creation, returning default profile');
-        return { id: userId, name: email ? email.split('@')[0] : 'Guest', isAuthenticated: true };
-      }
-      
       console.error('Error creating user profile:', insertError);
       throw insertError;
     }

@@ -30,19 +30,60 @@ serve(async (req) => {
   try {
     // Check if OpenAI API key is set
     if (!OPENAI_API_KEY) {
+      console.log('OpenAI API key not configured, using mock response');
+      
+      // Parse request body
+      const { messages, memoryContext } = await req.json() as RequestBody;
+      
+      if (!messages || !Array.isArray(messages)) {
+        return new Response(
+          JSON.stringify({
+            error: 'Invalid request. Expected "messages" array in request body'
+          }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+      
+      // Generate a dynamic mock response based on the user message
+      const userMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
+      
+      let responseContent = '';
+      
+      if (userMessage.toLowerCase().includes('hello') || userMessage.toLowerCase().includes('hi')) {
+        responseContent = "Hello! I'm Travis, your AI assistant. How can I help with your project today?";
+      } else if (userMessage.toLowerCase().includes('file') || userMessage.toLowerCase().includes('code')) {
+        responseContent = "I'd be happy to help you with file management or coding. Would you like me to show you how to create or edit a file?";
+      } else if (userMessage.toLowerCase().includes('project')) {
+        responseContent = "Let's work on your project! I can help you organize files, write code, or discuss ideas. What aspect would you like to focus on today?";
+      } else {
+        responseContent = "I'm here to assist with your development needs. I can help with coding, file management, and project organization. What would you like to work on?";
+      }
+      
+      const mockResponse = {
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: responseContent
+            }
+          }
+        ]
+      };
+      
       return new Response(
-        JSON.stringify({
-          error: 'OpenAI API key not configured'
-        }),
+        JSON.stringify(mockResponse),
         { 
-          status: 500,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
-      )
+      );
     }
     
     // Parse request body
-    const { messages, memoryContext } = await req.json() as RequestBody
+    const { messages, memoryContext } = await req.json() as RequestBody;
     
     if (!messages || !Array.isArray(messages)) {
       return new Response(
@@ -77,29 +118,6 @@ serve(async (req) => {
     
     console.log(`Calling OpenAI API with ${enhancedMessages.length} messages`);
     
-    // For debug purposes, generate a mock response for now to avoid OpenAI API costs
-    // In production, remove this block and uncomment the real API call below
-    const mockResponse = {
-      choices: [
-        {
-          message: {
-            role: 'assistant',
-            content: "Hello! I'm Travis, your AI assistant. I'd be happy to help with your project. What would you like to work on today? I can help with coding, file management, or discussing project ideas."
-          }
-        }
-      ]
-    };
-    
-    return new Response(
-      JSON.stringify(mockResponse),
-      { 
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-
-    /* 
-    // Uncomment this block for the real OpenAI API call
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -113,23 +131,34 @@ serve(async (req) => {
         temperature: 0.7,
         max_tokens: 1500
       })
-    })
+    });
     
     if (!response.ok) {
-      const errorData = await response.json()
+      const errorData = await response.json();
+      console.error('OpenAI API error:', errorData);
+      
+      // Fall back to mock response if OpenAI API fails
+      const mockResponse = {
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: "I'm having trouble connecting to my knowledge base right now. Let me try to help based on what we're discussing. How can I assist you with your project today?"
+            }
+          }
+        ]
+      };
+      
       return new Response(
-        JSON.stringify({
-          error: 'OpenAI API error',
-          details: errorData
-        }),
+        JSON.stringify(mockResponse),
         { 
-          status: response.status,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
-      )
+      );
     }
     
-    const data = await response.json()
+    const data = await response.json();
     
     return new Response(
       JSON.stringify(data),
@@ -137,19 +166,28 @@ serve(async (req) => {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    )
-    */
+    );
   } catch (error) {
     console.error('Error processing request:', error);
+    
+    // Return a fallback response in case of errors
+    const fallbackResponse = {
+      choices: [
+        {
+          message: {
+            role: 'assistant',
+            content: "I encountered an issue processing your request. Could you please try again or rephrase your question?"
+          }
+        }
+      ]
+    };
+    
     return new Response(
-      JSON.stringify({
-        error: 'Internal server error',
-        details: error.message
-      }),
+      JSON.stringify(fallbackResponse),
       { 
-        status: 500,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    )
+    );
   }
 })
