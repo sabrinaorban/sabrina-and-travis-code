@@ -1,8 +1,11 @@
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useGitHub } from '@/contexts/github';
 import { useFileSystem } from '@/contexts/FileSystemContext';
-import { GitHubRepo } from '@/types/github';
+import { useToast } from '@/hooks/use-toast';
+import { useRepoSync } from '@/hooks/github/useRepoSync';
+import { useRepositorySelection } from '@/hooks/github/useRepositorySelection';
+import { useSyncDialog } from '@/hooks/github/useSyncDialog';
 
 export const useGitHubRepoSelector = () => {
   const { 
@@ -17,27 +20,61 @@ export const useGitHubRepoSelector = () => {
     selectBranch, 
     syncRepoToFileSystem,
     isSyncing: contextIsSyncing,
-    getLastSyncState 
   } = useGitHub();
   
-  const { refreshFiles, isLoading: fileSystemLoading, deleteAllFiles } = useFileSystem();
-  
-  const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [isFetchingBranches, setIsFetchingBranches] = useState(false);
-  
-  // Track the last sync attempt time to prevent rapid clicking
-  const lastSyncAttemptRef = useRef(0);
-  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const syncCooldownMs = 10000; // 10 seconds cooldown
-  
-  // Track repo selection to prevent race conditions
-  const selectingRepoRef = useRef(false);
-  const branchSelectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { isLoading: fileSystemLoading, deleteAllFiles } = useFileSystem();
+  const { toast } = useToast();
   
   // Flag to prevent multiple repository fetches
   const hasInitializedRef = useRef(false);
+
+  // Use our custom hooks for repository selection, sync dialog and sync operations
+  const { 
+    isFetchingBranches,
+    selectingRepoRef,
+    handleRepositoryChange: baseHandleRepositoryChange,
+    handleBranchChange,
+    cleanup: cleanupRepositorySelection
+  } = useRepositorySelection(selectRepository, selectBranch);
+  
+  const {
+    isSyncDialogOpen,
+    setIsSyncDialogOpen,
+    openSyncDialog
+  } = useSyncDialog();
+  
+  const {
+    isSyncing,
+    syncError,
+    handleSync: baseHandleSync,
+    cleanup: cleanupRepoSync
+  } = useRepoSync(syncRepoToFileSystem, deleteAllFiles);
+
+  // Wrap handleRepositoryChange to provide repositories
+  const handleRepositoryChange = (repoFullName: string) => {
+    baseHandleRepositoryChange(repoFullName, repositories || []);
+  };
+  
+  // Wrap handleSync to provide current repo and branch
+  const handleSync = async () => {
+    if (!currentRepo?.full_name || !currentBranch) {
+      toast({
+        title: "Cannot sync",
+        description: "No repository or branch selected",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const result = await baseHandleSync(currentRepo.full_name, currentBranch);
+    
+    // Close dialog on success after a short delay
+    if (result) {
+      setTimeout(() => {
+        setIsSyncDialogOpen(false);
+      }, 1000);
+    }
+  };
 
   // Debug logging
   useEffect(() => {
@@ -51,145 +88,21 @@ export const useGitHubRepoSelector = () => {
     });
   }, [authState?.isAuthenticated, repositories, currentRepo, currentBranch, isLoading, isSyncing]);
 
-  // Synchronize internal isSyncing state with context state
-  useEffect(() => {
-    setIsSyncing(contextIsSyncing);
-  }, [contextIsSyncing]);
-  
   // Clean up timeouts when component unmounts
   useEffect(() => {
     return () => {
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-      }
-      if (branchSelectionTimeoutRef.current) {
-        clearTimeout(branchSelectionTimeoutRef.current);
-      }
+      cleanupRepositorySelection();
+      cleanupRepoSync();
     };
   }, []);
-
-  // Handle repository selection with debounce for UI feedback
-  const handleRepositoryChange = async (repoFullName: string) => {
-    try {
-      // Prevent multiple concurrent repo selections
-      if (selectingRepoRef.current) {
-        console.log('GitHubRepoSelector - Repository selection in progress, debouncing...');
-        return;
-      }
-      
-      // Reset sync error when changing repositories
-      setSyncError(null);
-      setIsFetchingBranches(true);
-      selectingRepoRef.current = true;
-      
-      console.log('GitHubRepoSelector - Repository selected:', repoFullName);
-      const repo = repositories?.find(r => r.full_name === repoFullName);
-      
-      if (repo) {
-        await selectRepository(repo);
-        
-        // Clean up any existing timeout
-        if (branchSelectionTimeoutRef.current) {
-          clearTimeout(branchSelectionTimeoutRef.current);
-        }
-        
-        // Add a small delay to allow branches to load
-        branchSelectionTimeoutRef.current = setTimeout(() => {
-          setIsFetchingBranches(false);
-          selectingRepoRef.current = false;
-        }, 1500);
-      } else {
-        setIsFetchingBranches(false);
-        selectingRepoRef.current = false;
-      }
-    } catch (error) {
-      console.error('GitHubRepoSelector - Error in handleRepositoryChange:', error);
-      setIsFetchingBranches(false);
-      selectingRepoRef.current = false;
-    }
-  };
-
-  // Handle branch selection with error handling
-  const handleBranchChange = async (branch: string) => {
-    try {
-      // Reset sync error when changing branches
-      setSyncError(null);
-      
-      console.log('GitHubRepoSelector - Branch selected:', branch);
-      await selectBranch(branch);
-    } catch (error) {
-      console.error('GitHubRepoSelector - Error in handleBranchChange:', error);
-    }
-  };
-
-  // Handle sync with robust error handling
-  const handleSync = async () => {
-    try {
-      if (!currentRepo || !currentBranch) {
-        console.error('GitHubRepoSelector - Cannot sync: missing repo or branch');
-        setSyncError('No repository or branch selected');
-        return;
-      }
-      
-      // Prevent multiple rapid sync attempts with a cooldown
-      const now = Date.now();
-      if (now - lastSyncAttemptRef.current < syncCooldownMs) {
-        console.log('GitHubRepoSelector - Sync attempted too quickly, debouncing...');
-        setSyncError(`Please wait ${syncCooldownMs / 1000} seconds between sync attempts`);
-        return;
-      }
-      
-      // Don't allow if already syncing
-      if (isSyncing) {
-        console.log('GitHubRepoSelector - Already syncing, ignoring request');
-        return;
-      }
-      
-      // Reset error state
-      setSyncError(null);
-      lastSyncAttemptRef.current = now;
-      
-      // First delete all existing files
-      console.log('GitHubRepoSelector - Deleting all existing files before syncing...');
-      try {
-        await deleteAllFiles();
-      } catch (deleteError) {
-        console.error('GitHubRepoSelector - Error deleting files:', deleteError);
-        setSyncError('Failed to delete existing files');
-        return;
-      }
-      
-      // Then sync the new repository
-      const [owner, repo] = currentRepo.full_name.split('/');
-      console.log(`GitHubRepoSelector - Syncing repository ${owner}/${repo} (${currentBranch})...`);
-      
-      // The syncRepoToFileSystem function now takes care of setting the isSyncing state
-      const result = await syncRepoToFileSystem(owner, repo, currentBranch);
-      
-      // Check result
-      if (result === true) {
-        console.log('GitHubRepoSelector - Sync successful');
-        // Close dialog on success after a short delay
-        setTimeout(() => {
-          setIsSyncDialogOpen(false);
-        }, 1000);
-      } else {
-        console.error('GitHubRepoSelector - Sync failed or no files were created');
-        setSyncError('Sync failed or no files were created');
-      }
-    } catch (error: any) {
-      console.error('GitHubRepoSelector - Error in sync process:', error);
-      setSyncError(error.message || 'Unknown error during sync');
-    }
-  };
   
   // Initialize repositories only once when authenticated
   useEffect(() => {
     if (authState?.isAuthenticated && !hasInitializedRef.current && !repositories?.length) {
       hasInitializedRef.current = true;
-      console.log("GitHubRepoSelector - Loading repositories on first authentication");
+      console.log("useGitHubRepoSelector - Loading repositories on first authentication");
       fetchRepositories().catch(error => {
-        console.error("GitHubRepoSelector - Error fetching repositories:", error);
+        console.error("useGitHubRepoSelector - Error fetching repositories:", error);
         hasInitializedRef.current = false; // Reset flag to allow retry
       });
     }
@@ -203,7 +116,7 @@ export const useGitHubRepoSelector = () => {
     branches,
     isLoading,
     fileSystemLoading,
-    isSyncing,
+    isSyncing: isSyncing || contextIsSyncing,
     isFetchingBranches,
     isSyncDialogOpen,
     syncError,
