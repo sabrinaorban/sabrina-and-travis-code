@@ -20,3 +20,12 @@ export interface ChatContextType {
   refreshMemoryContext: () => Promise<MemoryContext | null>;
   fileOperationResults?: FileOperation[];
 }
+
+export interface ProjectStructure {
+  files: string[];
+  directories: string[];
+  fileTypes: Record<string, number>;
+  totalFiles: number;
+  totalDirectories: number;
+  rootPath: string;
+}

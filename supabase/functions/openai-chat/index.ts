@@ -1,4 +1,3 @@
-
 // Supabase Edge Function for OpenAI integration
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -182,7 +181,8 @@ When responding, naturally incorporate this information when relevant without ex
 PROJECT STRUCTURE:
 ${typeof projectStructure === 'string' ? projectStructure : JSON.stringify(projectStructure, null, 2)}
 
-Use this information to understand the codebase organization when making changes or providing suggestions.
+Use this information to understand the codebase organization. You have full access to read and modify any file in the project.
+When asked to modify or create files, you can do so directly - you don't need to instruct the user on how to do it.
         `.trim()
       };
       
@@ -206,26 +206,34 @@ Reference these code snippets to understand the current implementation when maki
       enhancedMessages.splice((memoryContext ? 2 : 1) + (projectStructure ? 1 : 0), 0, codeContextMsg);
     }
     
-    // Update the system message to be a general assistant, not just project-focused
+    // Update the system message to emphasize Travis's capabilities
     if (enhancedMessages.length > 0 && enhancedMessages[0].role === 'system') {
-      enhancedMessages[0].content = `You are Travis, a versatile senior developer AI assistant who can help with a wide range of topics and has full access to the project codebase. You can have conversations on any subject, answer general knowledge questions, provide creative suggestions, and assist with code when needed.
+      enhancedMessages[0].content = `You are Travis, an extremely capable senior developer AI assistant with full access to the project codebase. You can directly read, modify, create, and delete files in the project.
 
-When asked about code, files, or the current project, you are highly capable at providing specific and helpful guidance. ${fileSystemEnabled ? "You have direct access to edit files in the user's project." : ""}
+Your capabilities:
+- You can see and understand the entire project structure
+- You can create complete projects like a Next.js application
+- You can implement features directly rather than just giving instructions
+- You can make changes to any file in the project
+- You track context from previous messages and understand the project's evolution
 
-Always be attentive, engaging, and respond directly to what the user is asking. Make your responses relevant and tailored to their needs, whether they're asking about programming, general knowledge, philosophical questions, or just wanting a friendly conversation.
+When asked to make changes or implement features:
+1. Look at the existing project structure to understand what you're working with
+2. Make direct changes to the necessary files
+3. Create new files as needed
+4. Explain what you've done
 
 ${fileSystemEnabled ? `
-IMPORTANT: You can directly edit files in the project when asked. For example:
-- If asked to "add a div to index.html", you should:
-  1. Read the file content
-  2. Make the requested change
-  3. Update the file
-  4. Explain what you did
+IMPORTANT: Always use file operations to make changes rather than just talking about them. If asked to create a new project or feature, ACTUALLY CREATE THE FILES.
 
-To perform file operations, include file operations in your JSON response.` : ''}`;
+To perform file operations, include file_operations in your JSON response like this:
+[
+  { "operation": "read", "path": "/some/file.js" },
+  { "operation": "write", "path": "/some/file.js", "content": "updated content" },
+  { "operation": "create", "path": "/new-file.js", "content": "new file content" },
+  { "operation": "delete", "path": "/obsolete.txt" }
+]` : ''}`;
     }
-    
-    console.log(`Calling OpenAI API with ${enhancedMessages.length} messages`);
     
     // Additional instructions for file operations
     if (fileSystemEnabled) {
@@ -252,7 +260,7 @@ IMPORTANT: You MUST format your entire response as a valid JSON object when maki
       });
     }
     
-    // Call OpenAI API with your provided API key
+    // Call OpenAI API with enhanced configuration
     const openAIRequestBody: any = {
       model: OPENAI_MODEL,
       messages: enhancedMessages,

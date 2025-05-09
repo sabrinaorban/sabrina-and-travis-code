@@ -1,15 +1,19 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGitHub } from '@/contexts/GitHubContext';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, GitCommit } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Loader2, GitCommit, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { FileEntry } from '@/types';
 
 export const GitHubCommitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
+  const [editedFiles, setEditedFiles] = useState<FileEntry[]>([]);
   const { toast } = useToast();
 
   // Get GitHub context safely
@@ -20,6 +24,17 @@ export const GitHubCommitPanel: React.FC = () => {
   const fileSystem = useFileSystem();
   const { fileSystem: fileSystemData } = fileSystem;
   
+  // Track which files have been edited since last commit
+  useEffect(() => {
+    if (fileSystemData?.files) {
+      // Filter for modified files (can be expanded with more sophisticated tracking)
+      const modified = fileSystemData.files.filter(file => 
+        file.type === 'file' && file.isModified
+      );
+      setEditedFiles(modified);
+    }
+  }, [fileSystemData?.files]);
+
   // Only render when all required data is available
   if (!authState?.isAuthenticated || !currentRepo || !currentBranch || !fileSystemData) {
     return null;
@@ -28,38 +43,54 @@ export const GitHubCommitPanel: React.FC = () => {
   const selectedFile = fileSystemData.selectedFile;
 
   const handleCommit = async () => {
-    if (!selectedFile || !commitMessage.trim()) return;
+    if (!commitMessage.trim()) return;
     
     try {
-      // Get the GitHub path for this file (strip the leading slash)
-      const githubPath = selectedFile.path.startsWith('/') 
-        ? selectedFile.path.substring(1) 
-        : selectedFile.path;
+      let successCount = 0;
+      let failCount = 0;
       
-      console.log(`Committing file: ${githubPath}`);
+      // Process each edited file
+      for (const file of editedFiles) {
+        // Get the GitHub path for this file (strip the leading slash)
+        const githubPath = file.path.startsWith('/') 
+          ? file.path.substring(1) 
+          : file.path;
+        
+        console.log(`Committing file: ${githubPath}`);
+        
+        const result = await saveFileToRepo(
+          githubPath,
+          file.content || '',
+          commitMessage
+        );
+        
+        if (result) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      }
       
-      const result = await saveFileToRepo(
-        githubPath,
-        selectedFile.content || '',
-        commitMessage
-      );
-      
-      if (result) {
+      if (successCount > 0) {
         toast({
           title: "Success",
-          description: `Changes pushed to ${currentRepo.full_name} (${currentBranch})`,
+          description: `${successCount} files pushed to ${currentRepo.full_name} (${currentBranch})`,
         });
-      } else {
+        // Reset edited files tracking (ideally this should be handled by the file system)
+        setEditedFiles([]);
+      }
+      
+      if (failCount > 0) {
         toast({
-          title: "Error",
-          description: "Failed to push changes",
+          title: "Warning",
+          description: `${failCount} files failed to push`,
           variant: "destructive"
         });
       }
       
       setCommitMessage('');
     } catch (error) {
-      console.error("Error committing file:", error);
+      console.error("Error committing files:", error);
       toast({
         title: "Error",
         description: "Failed to push changes",
@@ -79,20 +110,44 @@ export const GitHubCommitPanel: React.FC = () => {
           Push your changes to {currentRepo.full_name} ({currentBranch})
         </CardDescription>
       </CardHeader>
-      <CardContent className="pb-2">
+      <CardContent className="pb-2 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium">
+            {editedFiles.length} file{editedFiles.length !== 1 ? 's' : ''} to commit
+          </span>
+          {editedFiles.length > 0 && (
+            <Badge variant="outline" className="text-xs">
+              {editedFiles.length}
+            </Badge>
+          )}
+        </div>
+        
+        {editedFiles.length > 0 && (
+          <ScrollArea className="h-24 w-full rounded-md border">
+            <div className="p-2">
+              {editedFiles.map((file) => (
+                <div key={file.id} className="flex items-center text-xs py-1">
+                  <FileText className="h-3 w-3 mr-1 flex-shrink-0" />
+                  <span className="truncate">{file.path}</span>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+        
         <Textarea
           placeholder="Commit message"
           value={commitMessage}
           onChange={(e) => setCommitMessage(e.target.value)}
           rows={2}
           className="text-sm"
-          disabled={!selectedFile || isLoading}
+          disabled={editedFiles.length === 0 || isLoading}
         />
       </CardContent>
       <CardFooter>
         <Button 
           className="w-full"
-          disabled={!selectedFile || !commitMessage.trim() || isLoading}
+          disabled={editedFiles.length === 0 || !commitMessage.trim() || isLoading}
           onClick={handleCommit}
         >
           {isLoading ? (
@@ -101,7 +156,7 @@ export const GitHubCommitPanel: React.FC = () => {
               Pushing...
             </>
           ) : (
-            'Commit & Push'
+            `Commit & Push (${editedFiles.length})`
           )}
         </Button>
       </CardFooter>

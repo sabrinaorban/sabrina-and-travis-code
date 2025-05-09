@@ -15,3 +15,9 @@ export interface FileSystemContextType {
   isLoading: boolean;
   refreshFiles: () => Promise<void>;
 }
+
+// Extend the FileEntry interface to track modifications
+export interface ExtendedFileEntry extends FileEntry {
+  isModified?: boolean;
+  lastModified?: number;
+}

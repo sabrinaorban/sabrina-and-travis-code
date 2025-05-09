@@ -128,13 +128,17 @@ const Dashboard: React.FC = () => {
                       variant="ghost" 
                       size="icon" 
                       title="Refresh files"
+                      onClick={() => fileSystem.refreshFiles()}
                     >
                       <RefreshCw size={16} />
                     </Button>
                   </div>
                 </div>
                 <FileSystemControls currentPath={currentPath} setCurrentPath={setCurrentPath} />
-                <FileExplorer />
+                <div className="flex-1 overflow-auto">
+                  <FileExplorer />
+                </div>
+                {/* CRITICAL: Always include the GitHub commit panel here */}
                 <GitHubCommitPanel />
               </div>
             )}
@@ -151,7 +155,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* New File Dialog */}
+          {/* Dialogs */}
           <Dialog open={isNewFileDialogOpen} onOpenChange={setIsNewFileDialogOpen}>
             <DialogContent>
               <DialogHeader>
