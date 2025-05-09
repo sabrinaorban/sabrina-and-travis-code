@@ -42,8 +42,15 @@ CRITICAL INSTRUCTIONS FOR FILE OPERATIONS: Before making ANY file changes, ALWAY
 4. Always check if a file exists before trying to modify or delete it
 5. Preserve all existing project files (like index.html, style.css) even when creating new folders or files
 6. NEVER delete files that aren't directly mentioned by the user
+7. WHEN UPDATING FILES, you must read them first, then create modified versions preserving their original content
 
 EXTREMELY IMPORTANT: When asked to create new files or folders, or move files, you must NOT delete or modify ANY OTHER files in the project. Files like index.html and style.css should NEVER be deleted unless specifically asked to do so.
+
+When moving files between folders:
+1. FIRST read the source file to get its content
+2. THEN create the file in the new location with that content
+3. ONLY AFTER verifying the new file exists, delete the original file
+4. NEVER delete unrelated files during this process
 
 When asked to create projects or implement features, you MUST:
 1. Look at the existing project structure to understand what you're working with
@@ -151,6 +158,12 @@ export const isFileOperationRequest = (message: string): boolean => {
     'add folder',
     'make directory',
     'make folder',
+    'move file',
+    'move folder',
+    'copy file',
+    'copy folder',
+    'rename file',
+    'rename folder',
     'next.js',
     'nextjs',
     'simple app',
@@ -171,11 +184,7 @@ export const isFileOperationRequest = (message: string): boolean => {
     'add html',
     'edit html',
     'update html',
-    'modify html',
-    'move file',
-    'move folder',
-    'rename file',
-    'rename folder'
+    'modify html'
   ];
   
   // Check for exact matches of keywords
@@ -186,7 +195,7 @@ export const isFileOperationRequest = (message: string): boolean => {
   }
   
   // Check for combinations of actions and targets
-  const actions = ['create', 'make', 'generate', 'build', 'implement', 'add', 'setup', 'develop', 'edit', 'change', 'update', 'modify', 'insert', 'move', 'rename'];
+  const actions = ['create', 'make', 'generate', 'build', 'implement', 'add', 'setup', 'develop', 'edit', 'change', 'update', 'modify', 'insert', 'move', 'rename', 'copy'];
   const targets = ['nextjs', 'next.js', 'react', 'app', 'application', 'project', 'component', 'website', 'file', 'code', 'html', 'css', 'javascript', 'js', 'index', 'div', 'section', 'page', 'folder', 'directory'];
   
   for (const action of actions) {

@@ -31,12 +31,15 @@ export const getProjectStructure = async (fileSystem: any): Promise<string> => {
   return formatStructure(files);
 };
 
+// Special files that should never be deleted without explicit instruction
+const PROTECTED_FILES = ['/index.html', '/style.css', '/script.js', '/main.js', '/app.js'];
+
 // Track state of operations to prevent accidental deletions
 const operationState = {
-  createdFiles: new Set<string>(),
-  readFiles: new Map<string, string>(),
-  // Add a set to track specifically which files should be deleted
-  safeToDeleteFiles: new Set<string>()
+  createdFiles: new Map<string, string>(), // path -> fileId
+  readFiles: new Map<string, string>(), // path -> content
+  safeToDeleteFiles: new Set<string>(), // Files explicitly marked safe to delete
+  fileIdMap: new Map<string, string>() // path -> fileId - to preserve file identity
 };
 
 // Reset operation state between each batch of operations
@@ -44,6 +47,7 @@ const resetOperationState = () => {
   operationState.createdFiles.clear();
   operationState.readFiles.clear();
   operationState.safeToDeleteFiles.clear();
+  operationState.fileIdMap.clear();
 };
 
 // Process file operations with improved handling of file moves and copies
@@ -68,7 +72,12 @@ export const processFileOperations = async (
   
   const results: FileOperation[] = [];
   
-  // First, sort operations to ensure proper order (read first, create, then delete)
+  // Sort operations to ensure proper order:
+  // 1. Read operations first
+  // 2. Folder creations
+  // 3. File creations/writes
+  // 4. Moves
+  // 5. Deletes last
   const sortedOperations = [...operations].sort((a, b) => {
     // First priority: read operations
     if (a.operation === 'read' && b.operation !== 'read') return -1;
@@ -78,6 +87,10 @@ export const processFileOperations = async (
     if (a.operation === 'create' && !a.path.includes('.') && b.operation === 'create' && b.path.includes('.')) return -1;
     if (b.operation === 'create' && !b.path.includes('.') && a.operation === 'create' && a.path.includes('.')) return 1;
     
+    // Third priority: file creations
+    if (a.operation === 'create' && b.operation === 'delete') return -1;
+    if (b.operation === 'create' && a.operation === 'delete') return 1;
+    
     // Last priority: delete operations (should come after reads and creates)
     if (a.operation === 'delete' && b.operation !== 'delete') return 1;
     if (b.operation === 'delete' && a.operation !== 'delete') return -1;
@@ -85,13 +98,36 @@ export const processFileOperations = async (
     return 0;
   });
   
-  // STEP 1: First, do all read operations to understand the current state
+  // STEP 1: First, build a map of all file IDs to prevent accidental deletion
+  // Get all files and map their paths to IDs
+  const mapAllFilesRecursive = (files: FileEntry[]) => {
+    for (const file of files) {
+      operationState.fileIdMap.set(file.path, file.id);
+      if (file.type === 'folder' && file.children) {
+        mapAllFilesRecursive(file.children);
+      }
+    }
+  };
+  
+  // Create initial mapping of all file IDs
+  mapAllFilesRecursive(fileSystem.fileSystem?.files || []);
+  
+  // STEP 2: Process all read operations to understand the current state
   const readOperations = sortedOperations.filter(op => op.operation === 'read');
   for (const op of readOperations) {
     try {
       console.log(`[FileOperationService] Reading file: ${op.path}`);
       const normalizedPath = op.path.startsWith('/') ? op.path : `/${op.path}`;
       const cleanPath = normalizedPath.replace(/\/+$/, '');
+      
+      // Get the file object to include metadata
+      const file = fileSystem.getFileByPath(cleanPath);
+      
+      // Ensure we track existing file IDs to prevent accidental deletion
+      if (file) {
+        operationState.fileIdMap.set(cleanPath, file.id);
+        console.log(`[FileOperationService] Tracked file ID for ${cleanPath}: ${file.id}`);
+      }
       
       const readResult = await fileSystem.getFileContentByPath(cleanPath);
       console.log(`[FileOperationService] Read result for ${cleanPath}:`, readResult ? 'Content received' : 'No content');
@@ -101,17 +137,14 @@ export const processFileOperations = async (
         operationState.readFiles.set(cleanPath, readResult);
       }
       
-      // Get the file object to include metadata
-      const fileInfo = fileSystem.getFileByPath(cleanPath);
-      
       results.push({
         ...op,
         content: readResult,
-        fileInfo: fileInfo ? {
-          name: fileInfo.name,
-          path: fileInfo.path,
-          type: fileInfo.type,
-          lastModified: fileInfo.lastModified
+        fileInfo: file ? {
+          name: file.name,
+          path: file.path,
+          type: file.type,
+          lastModified: file.lastModified
         } : undefined,
         success: readResult !== null,
         message: readResult !== null ? `File ${cleanPath} read successfully` : `File not found or empty at ${cleanPath}`
@@ -126,286 +159,388 @@ export const processFileOperations = async (
     }
   }
   
-  // STEP 2: Process create and write operations
-  const createWriteOperations = sortedOperations.filter(op => 
-    op.operation === 'create' || op.operation === 'write' || op.operation === 'move' || op.operation === 'copy'
+  // STEP 3: Process folder creation operations first
+  const folderCreationOperations = sortedOperations.filter(op => 
+    op.operation === 'create' && (op.content === null || op.path.endsWith('/') || !op.path.includes('.'))
   );
   
-  for (const op of createWriteOperations) {
+  for (const op of folderCreationOperations) {
     try {
-      console.log(`[FileOperationService] Processing ${op.operation} operation on path: ${op.path}`);
-      
-      // Normalize path: ensure it starts with / and remove trailing slashes
+      console.log(`[FileOperationService] Creating folder: ${op.path}`);
       const normalizedPath = op.path.startsWith('/') ? op.path : `/${op.path}`;
       const cleanPath = normalizedPath.replace(/\/+$/, '');
       
-      console.log(`[FileOperationService] Normalized path: ${cleanPath}`);
+      const pathWithoutTrailingSlash = cleanPath.replace(/\/$/, '');
+      const pathParts = pathWithoutTrailingSlash.split('/').filter(Boolean);
+      const folderName = pathParts.pop() || '';
+      const parentPath = pathParts.length === 0 ? '/' : `/${pathParts.join('/')}`;
       
-      // Check if fileSystem methods exist
-      if (!fileSystem.createFile || !fileSystem.createFolder || !fileSystem.updateFileByPath || !fileSystem.getFileByPath) {
-        console.error('[FileOperationService] File system methods are missing or incomplete');
-        throw new Error('File system methods are incomplete');
-      }
-      
-      // Ensure parent directories exist for any file operation
-      if (op.operation === 'create' || op.operation === 'write' || op.operation === 'move' || op.operation === 'copy') {
-        // Skip folder creation step if this operation itself is creating a folder
-        const isCreateFolder = op.operation === 'create' && 
-                              (op.content === null || op.path.endsWith('/') || !op.path.includes('.'));
-                              
-        if (!isCreateFolder) {
-          const pathParts = cleanPath.split('/');
-          pathParts.pop(); // Remove file name
-          const dirPath = pathParts.join('/');
-          
-          if (dirPath) {
-            console.log(`[FileOperationService] Ensuring folder exists: ${dirPath}`);
-            await ensureFolderExists(fileSystem, dirPath);
-          }
-        }
-      }
-      
-      // Execute operation based on type
-      switch (op.operation) {
-        case 'write':
-          console.log(`[FileOperationService] Writing file: ${cleanPath}, content length: ${(op.content || '').length}`);
-          const fileExists = fileSystem.getFileByPath(cleanPath);
-          
-          if (fileExists) {
-            await fileSystem.updateFileByPath(cleanPath, op.content || '');
-            console.log(`[FileOperationService] File updated: ${cleanPath}`);
-          } else {
-            // Handle case where file doesn't exist - create it
-            const pathParts = cleanPath.split('/');
-            const fileName = pathParts.pop() || '';
-            const parentPath = pathParts.length === 0 ? '/' : `/${pathParts.join('/')}`;
-            
-            console.log(`[FileOperationService] Creating file: ${fileName} in ${parentPath}`);
-            await fileSystem.createFile(parentPath, fileName, op.content || '');
-            console.log(`[FileOperationService] New file created: ${cleanPath}`);
-          }
-          
-          // Track successful file creation/update
-          operationState.createdFiles.add(cleanPath);
-          
-          results.push({
-            ...op,
-            success: true,
-            message: fileExists ? `File ${cleanPath} updated` : `File ${cleanPath} created`
-          });
-          break;
+      // Check if folder already exists to avoid errors
+      const folderExists = fileSystem.getFileByPath(pathWithoutTrailingSlash);
+      if (folderExists && folderExists.type === 'folder') {
+        console.log(`[FileOperationService] Folder already exists: ${pathWithoutTrailingSlash}`);
+        results.push({
+          ...op,
+          success: true,
+          message: `Folder ${cleanPath} already exists`
+        });
+      } else {
+        console.log(`[FileOperationService] Creating folder: ${folderName} in ${parentPath}`);
+        await fileSystem.createFolder(parentPath, folderName);
+        console.log(`[FileOperationService] Folder creation completed`);
         
-        case 'create':
-          if (op.content === null || cleanPath.endsWith('/') || !cleanPath.includes('.')) {
-            // It's a folder
-            const pathWithoutTrailingSlash = cleanPath.replace(/\/$/, '');
-            const pathParts = pathWithoutTrailingSlash.split('/').filter(Boolean);
-            const folderName = pathParts.pop() || '';
-            const parentPath = pathParts.length === 0 ? '/' : `/${pathParts.join('/')}`;
-            
-            // Check if folder already exists to avoid errors
-            const folderExists = fileSystem.getFileByPath(pathWithoutTrailingSlash);
-            if (folderExists && folderExists.type === 'folder') {
-              console.log(`[FileOperationService] Folder already exists: ${pathWithoutTrailingSlash}`);
-              results.push({
-                ...op,
-                success: true,
-                message: `Folder ${cleanPath} already exists`
-              });
-            } else {
-              console.log(`[FileOperationService] Creating folder: ${folderName} in ${parentPath}`);
-              await fileSystem.createFolder(parentPath, folderName);
-              console.log(`[FileOperationService] Folder creation completed`);
-              
-              results.push({
-                ...op,
-                success: true,
-                message: `Folder ${cleanPath} created`
-              });
-            }
-          } else {
-            // It's a file
-            const pathParts = cleanPath.split('/');
-            const fileName = pathParts.pop() || '';
-            const parentPath = pathParts.length === 0 ? '/' : `/${pathParts.join('/')}`;
-            
-            // Check if file already exists to avoid duplicate creation
-            const fileExists = fileSystem.getFileByPath(cleanPath);
-            if (fileExists && fileExists.type === 'file') {
-              console.log(`[FileOperationService] File already exists: ${cleanPath}, updating it instead`);
-              await fileSystem.updateFileByPath(cleanPath, op.content || '');
-              
-              results.push({
-                ...op,
-                success: true,
-                message: `File ${cleanPath} already existed and was updated`
-              });
-            } else {
-              console.log(`[FileOperationService] Creating file: ${fileName} in ${parentPath} with content length: ${(op.content || '').length}`);
-              await fileSystem.createFile(parentPath, fileName, op.content || '');
-              console.log(`[FileOperationService] File creation completed`);
-              
-              // Track successful file creation
-              operationState.createdFiles.add(cleanPath);
-              
-              results.push({
-                ...op,
-                success: true,
-                message: `File ${cleanPath} created`
-              });
-            }
-          }
-          break;
-          
-        case 'move':
-        case 'copy':
-          // Implement move and copy operations as a combination of read, create, and delete
-          if (!op.targetPath) {
-            throw new Error(`${op.operation} operation requires a targetPath`);
-          }
-          
-          const normalizedTargetPath = op.targetPath.startsWith('/') ? op.targetPath : `/${op.targetPath}`;
-          const cleanTargetPath = normalizedTargetPath.replace(/\/+$/, '');
-          
-          console.log(`[FileOperationService] ${op.operation} from ${cleanPath} to ${cleanTargetPath}`);
-          
-          // Try to get content from prior read operation or read it now
-          let content = operationState.readFiles.get(cleanPath);
-          if (!content) {
-            content = await fileSystem.getFileContentByPath(cleanPath);
-            if (content) {
-              operationState.readFiles.set(cleanPath, content);
-            }
-          }
-          
-          if (!content && op.content) {
-            // Use provided content if available (for convenience)
-            content = op.content;
-          }
-          
-          if (!content) {
-            throw new Error(`Could not get content for ${op.operation} operation from ${cleanPath}`);
-          }
-          
-          // Create file at target path
-          const targetParts = cleanTargetPath.split('/');
-          const targetFileName = targetParts.pop() || '';
-          const targetParentPath = targetParts.length === 0 ? '/' : `/${targetParts.join('/')}`;
-          
-          // Ensure target parent directory exists
-          await ensureFolderExists(fileSystem, targetParentPath);
-          
-          // Create the file at target location  
-          await fileSystem.createFile(targetParentPath, targetFileName, content);
-          
-          // Track successful file creation
-          operationState.createdFiles.add(cleanTargetPath);
-          console.log(`[FileOperationService] Successfully created file at ${cleanTargetPath}`);
-          
-          results.push({
-            operation: 'create',
-            path: cleanTargetPath,
-            content,
-            success: true,
-            message: `File created at ${cleanTargetPath} as part of ${op.operation} operation`
-          });
-          
-          // For move operations, mark source file as safe to delete only if target was successfully created
-          if (op.operation === 'move' && operationState.createdFiles.has(cleanTargetPath)) {
-            // Mark this specific file as safe to delete
-            operationState.safeToDeleteFiles.add(cleanPath);
-            console.log(`[FileOperationService] Marked ${cleanPath} as safe to delete after successful move to ${cleanTargetPath}`);
-            
-            // Schedule deletion with extra safety properties
-            results.push({
-              operation: 'delete',
-              path: cleanPath,
-              targetPath: cleanTargetPath, // Track relationship between source and target
-              originOperation: 'move',     // Mark as part of a move operation
-              isSafeToDelete: true,        // Flag this file as explicitly safe to delete
-              success: true,
-              message: `Source file ${cleanPath} scheduled for deletion after successful move to ${cleanTargetPath}`
-            });
-          }
-          break;
+        results.push({
+          ...op,
+          success: true,
+          message: `Folder ${cleanPath} created`
+        });
       }
     } catch (error: any) {
-      console.error(`[FileOperationService] Error in file operation ${op.operation} for path ${op.path}:`, error);
+      console.error(`[FileOperationService] Error creating folder ${op.path}:`, error);
       results.push({
         ...op,
         success: false,
-        message: error.message || 'Operation failed'
+        message: error.message || 'Folder creation failed'
       });
     }
   }
   
-  // STEP 3: Finally process delete operations, but with enhanced safety checks
-  const deleteOperations = sortedOperations.filter(op => op.operation === 'delete');
+  // STEP 4: Process file creations and writes
+  const fileCreationOperations = sortedOperations.filter(op => 
+    op.operation === 'create' && op.content !== null && op.path.includes('.') && !op.path.endsWith('/')
+  );
   
-  if (deleteOperations.length > 0) {
-    console.log(`[FileOperationService] Processing ${deleteOperations.length} delete operations with extra safety`);
-    
-    for (const op of deleteOperations) {
-      try {
-        console.log(`[FileOperationService] Deleting file: ${op.path}`);
-        const normalizedPath = op.path.startsWith('/') ? op.path : `/${op.path}`;
-        const cleanPath = normalizedPath.replace(/\/+$/, '');
+  for (const op of fileCreationOperations) {
+    try {
+      console.log(`[FileOperationService] Creating file: ${op.path}`);
+      const normalizedPath = op.path.startsWith('/') ? op.path : `/${op.path}`;
+      const cleanPath = normalizedPath.replace(/\/+$/, '');
+      
+      // Ensure parent directories exist
+      const pathParts = cleanPath.split('/');
+      const fileName = pathParts.pop() || '';
+      const parentPath = pathParts.length === 0 ? '/' : `/${pathParts.join('/')}`;
+      
+      await ensureFolderExists(fileSystem, parentPath);
+      
+      // Check if file already exists to avoid duplicate creation
+      const existingFile = fileSystem.getFileByPath(cleanPath);
+      if (existingFile && existingFile.type === 'file') {
+        console.log(`[FileOperationService] File already exists: ${cleanPath}, updating it instead`);
+        await fileSystem.updateFileByPath(cleanPath, op.content || '');
         
-        // ENHANCED SAFETY CHECK #1: Is this file marked as safe to delete from a move operation?
-        const isSafeToDelete = operationState.safeToDeleteFiles.has(cleanPath) || op.isSafeToDelete === true;
+        // Track that this file was updated
+        operationState.createdFiles.set(cleanPath, existingFile.id);
         
-        // ENHANCED SAFETY CHECK #2: If this is part of a move operation, verify target exists
-        if (op.targetPath && op.originOperation === 'move') {
-          const targetExists = operationState.createdFiles.has(op.targetPath);
-          if (!targetExists) {
-            console.error(`[FileOperationService] Cannot delete ${cleanPath} because target ${op.targetPath} was not created successfully`);
-            results.push({
-              ...op,
-              success: false,
-              message: `Delete aborted: target file not created successfully for ${cleanPath}`
-            });
-            continue;
-          }
+        results.push({
+          ...op,
+          success: true,
+          message: `File ${cleanPath} already existed and was updated`
+        });
+      } else {
+        console.log(`[FileOperationService] Creating new file: ${fileName} in ${parentPath}`);
+        const newFile = await fileSystem.createFile(parentPath, fileName, op.content || '');
+        
+        // If we get a file id back, track it
+        if (newFile && newFile.id) {
+          operationState.createdFiles.set(cleanPath, newFile.id);
+          console.log(`[FileOperationService] Tracked new file ID for ${cleanPath}: ${newFile.id}`);
         }
         
-        // ENHANCED SAFETY CHECK #3: Only delete if explicitly marked as safe or direct user deletion
-        if (!isSafeToDelete && op.originOperation === 'move') {
-          console.error(`[FileOperationService] Refusing to delete ${cleanPath} - not marked as safe to delete`);
-          results.push({
-            ...op,
-            success: false,
-            message: `Delete aborted: safety check failed for ${cleanPath}`
-          });
-          continue;
+        results.push({
+          ...op,
+          success: true,
+          message: `File ${cleanPath} created`
+        });
+      }
+    } catch (error: any) {
+      console.error(`[FileOperationService] Error creating file ${op.path}:`, error);
+      results.push({
+        ...op,
+        success: false,
+        message: error.message || 'File creation failed'
+      });
+    }
+  }
+  
+  // STEP 5: Process write operations
+  const writeOperations = sortedOperations.filter(op => op.operation === 'write');
+  
+  for (const op of writeOperations) {
+    try {
+      console.log(`[FileOperationService] Writing file: ${op.path}`);
+      const normalizedPath = op.path.startsWith('/') ? op.path : `/${op.path}`;
+      const cleanPath = normalizedPath.replace(/\/+$/, '');
+      
+      // Ensure parent directories exist
+      const pathParts = cleanPath.split('/');
+      const fileName = pathParts.pop() || '';
+      const parentPath = pathParts.length === 0 ? '/' : `/${pathParts.join('/')}`;
+      
+      await ensureFolderExists(fileSystem, parentPath);
+      
+      // Check if file already exists
+      const existingFile = fileSystem.getFileByPath(cleanPath);
+      if (existingFile && existingFile.type === 'file') {
+        console.log(`[FileOperationService] Updating existing file: ${cleanPath}`);
+        await fileSystem.updateFileByPath(cleanPath, op.content || '');
+        
+        // Update tracked file
+        operationState.createdFiles.set(cleanPath, existingFile.id);
+        
+        results.push({
+          ...op,
+          success: true,
+          message: `File ${cleanPath} updated`
+        });
+      } else {
+        // File doesn't exist, create it
+        console.log(`[FileOperationService] File doesn't exist, creating: ${fileName} in ${parentPath}`);
+        const newFile = await fileSystem.createFile(parentPath, fileName, op.content || '');
+        
+        // Track the new file
+        if (newFile && newFile.id) {
+          operationState.createdFiles.set(cleanPath, newFile.id);
         }
         
-        // If all safety checks pass, proceed with deletion
-        const file = fileSystem.getFileByPath(cleanPath);
-        if (file) {
-          console.log(`[FileOperationService] Safety checks passed, deleting file: ${cleanPath} (id: ${file.id})`);
-          await fileSystem.deleteFile(file.id);
-          console.log(`[FileOperationService] Delete completed for ${cleanPath}`);
-          results.push({
-            ...op,
-            success: true,
-            message: `File ${cleanPath} deleted`
-          });
-        } else {
-          console.error(`[FileOperationService] File not found for deletion: ${cleanPath}`);
-          results.push({
-            ...op,
-            success: false,
-            message: `File not found at path: ${cleanPath}`
-          });
+        results.push({
+          ...op,
+          success: true,
+          message: `File ${cleanPath} created because it didn't exist`
+        });
+      }
+    } catch (error: any) {
+      console.error(`[FileOperationService] Error writing file ${op.path}:`, error);
+      results.push({
+        ...op,
+        success: false,
+        message: error.message || 'Write operation failed'
+      });
+    }
+  }
+  
+  // STEP 6: Process move operations (special handling)
+  const moveOperations = sortedOperations.filter(op => 
+    op.operation === 'move' || op.operation === 'copy'
+  );
+  
+  for (const op of moveOperations) {
+    try {
+      if (!op.targetPath) {
+        throw new Error(`${op.operation} operation requires a targetPath`);
+      }
+      
+      const normalizedSourcePath = op.path.startsWith('/') ? op.path : `/${op.path}`;
+      const cleanSourcePath = normalizedSourcePath.replace(/\/+$/, '');
+      
+      const normalizedTargetPath = op.targetPath.startsWith('/') ? op.targetPath : `/${op.targetPath}`;
+      const cleanTargetPath = normalizedTargetPath.replace(/\/+$/, '');
+      
+      console.log(`[FileOperationService] ${op.operation} from ${cleanSourcePath} to ${cleanTargetPath}`);
+      
+      // Check source file exists
+      const sourceFile = fileSystem.getFileByPath(cleanSourcePath);
+      if (!sourceFile) {
+        throw new Error(`Source file not found: ${cleanSourcePath}`);
+      }
+      
+      // Remember the source file ID to preserve identity
+      const sourceFileId = sourceFile.id;
+      operationState.fileIdMap.set(cleanSourcePath, sourceFileId);
+      
+      // Get content from read operation cache or read it now
+      let content = operationState.readFiles.get(cleanSourcePath);
+      if (!content) {
+        content = await fileSystem.getFileContentByPath(cleanSourcePath);
+        if (content) {
+          operationState.readFiles.set(cleanSourcePath, content);
         }
-      } catch (error: any) {
-        console.error(`[FileOperationService] Error deleting file ${op.path}:`, error);
+      }
+      
+      // Use provided content as fallback
+      if (!content && op.content) {
+        content = op.content;
+      }
+      
+      if (!content) {
+        throw new Error(`Could not get content for ${op.operation} operation from ${cleanSourcePath}`);
+      }
+      
+      // Ensure target parent directory exists
+      const targetParts = cleanTargetPath.split('/');
+      const targetFileName = targetParts.pop() || '';
+      const targetParentPath = targetParts.length === 0 ? '/' : `/${targetParts.join('/')}`;
+      
+      await ensureFolderExists(fileSystem, targetParentPath);
+      
+      // Create the file at target location  
+      console.log(`[FileOperationService] Creating file at target: ${targetFileName} in ${targetParentPath}`);
+      const newFile = await fileSystem.createFile(targetParentPath, targetFileName, content);
+      
+      // Track the new file's ID
+      if (newFile && newFile.id) {
+        operationState.createdFiles.set(cleanTargetPath, newFile.id);
+        console.log(`[FileOperationService] Created file at target with ID: ${newFile.id}`);
+      }
+      
+      results.push({
+        operation: 'create',
+        path: cleanTargetPath,
+        content,
+        preserveFileId: sourceFileId, // Track original file ID
+        success: true,
+        message: `File created at ${cleanTargetPath} as part of ${op.operation} operation`
+      });
+      
+      // For move operations, mark source file as safe to delete
+      if (op.operation === 'move') {
+        operationState.safeToDeleteFiles.add(cleanSourcePath);
+        console.log(`[FileOperationService] Marked ${cleanSourcePath} as safe to delete after successful move`);
+        
+        // Add delete operation with safety flags
+        results.push({
+          operation: 'delete',
+          path: cleanSourcePath,
+          targetPath: cleanTargetPath, 
+          originOperation: 'move',
+          sourceFile: sourceFileId,
+          isSafeToDelete: true,
+          success: true,
+          message: `Source file ${cleanSourcePath} scheduled for deletion after move`
+        });
+      }
+    } catch (error: any) {
+      console.error(`[FileOperationService] Error in ${op.operation} operation:`, error);
+      results.push({
+        ...op,
+        success: false,
+        message: error.message || `${op.operation} operation failed`
+      });
+    }
+  }
+  
+  // STEP 7: Process delete operations with enhanced safety checks
+  const deleteOperations = sortedOperations.filter(op => op.operation === 'delete');
+  const manualDeleteOperations = deleteOperations.filter(op => op.originOperation !== 'move');
+  const moveDeleteOperations = deleteOperations.filter(op => op.originOperation === 'move');
+  
+  // First process move-related deletions
+  for (const op of moveDeleteOperations) {
+    try {
+      const normalizedPath = op.path.startsWith('/') ? op.path : `/${op.path}`;
+      const cleanPath = normalizedPath.replace(/\/+$/, '');
+      
+      // Don't delete protected files
+      if (PROTECTED_FILES.includes(cleanPath) && !op.isSafeToDelete) {
+        console.error(`[FileOperationService] Refusing to delete protected file: ${cleanPath}`);
         results.push({
           ...op,
           success: false,
-          message: error.message || 'Delete operation failed'
+          message: `Protected file ${cleanPath} cannot be deleted without explicit confirmation`
+        });
+        continue;
+      }
+      
+      console.log(`[FileOperationService] Processing move-deletion for ${cleanPath}`);
+      
+      // SAFETY CHECK: Verify that the target file exists before deleting the source
+      if (op.targetPath) {
+        const targetExists = fileSystem.getFileByPath(op.targetPath);
+        if (!targetExists) {
+          console.error(`[FileOperationService] Cannot delete ${cleanPath} - target ${op.targetPath} not found`);
+          results.push({
+            ...op,
+            success: false,
+            message: `Delete aborted: target file not found at ${op.targetPath}`
+          });
+          continue;
+        }
+      }
+      
+      // Verify this file is marked as safe to delete
+      if (!operationState.safeToDeleteFiles.has(cleanPath)) {
+        console.error(`[FileOperationService] File ${cleanPath} not marked as safe to delete`);
+        results.push({
+          ...op,
+          success: false,
+          message: `Delete aborted: safety check failed for ${cleanPath}`
+        });
+        continue;
+      }
+      
+      // Get file by path for deletion
+      const fileToDelete = fileSystem.getFileByPath(cleanPath);
+      if (fileToDelete) {
+        console.log(`[FileOperationService] Deleting file after move: ${cleanPath} (ID: ${fileToDelete.id})`);
+        await fileSystem.deleteFile(fileToDelete.id);
+        
+        results.push({
+          ...op,
+          success: true,
+          message: `File ${cleanPath} deleted after successful move`
+        });
+      } else {
+        console.log(`[FileOperationService] File not found for deletion: ${cleanPath}`);
+        results.push({
+          ...op,
+          success: false,
+          message: `File not found at path: ${cleanPath}`
         });
       }
+    } catch (error: any) {
+      console.error(`[FileOperationService] Error deleting file ${op.path}:`, error);
+      results.push({
+        ...op,
+        success: false,
+        message: error.message || 'Delete operation failed'
+      });
+    }
+  }
+  
+  // Then process manual delete operations
+  for (const op of manualDeleteOperations) {
+    try {
+      const normalizedPath = op.path.startsWith('/') ? op.path : `/${op.path}`;
+      const cleanPath = normalizedPath.replace(/\/+$/, '');
+      
+      // Extra protection for critical files
+      if (PROTECTED_FILES.includes(cleanPath)) {
+        console.error(`[FileOperationService] Refusing to delete protected file: ${cleanPath}`);
+        results.push({
+          ...op,
+          success: false,
+          message: `Protected file ${cleanPath} cannot be deleted`
+        });
+        continue;
+      }
+      
+      console.log(`[FileOperationService] Processing manual deletion for ${cleanPath}`);
+      
+      const fileToDelete = fileSystem.getFileByPath(cleanPath);
+      if (fileToDelete) {
+        console.log(`[FileOperationService] Deleting file: ${cleanPath} (ID: ${fileToDelete.id})`);
+        await fileSystem.deleteFile(fileToDelete.id);
+        
+        results.push({
+          ...op,
+          success: true,
+          message: `File ${cleanPath} deleted`
+        });
+      } else {
+        console.log(`[FileOperationService] File not found for deletion: ${cleanPath}`);
+        results.push({
+          ...op,
+          success: false,
+          message: `File not found at path: ${cleanPath}`
+        });
+      }
+    } catch (error: any) {
+      console.error(`[FileOperationService] Error deleting file ${op.path}:`, error);
+      results.push({
+        ...op,
+        success: false,
+        message: error.message || 'Delete operation failed'
+      });
     }
   }
   

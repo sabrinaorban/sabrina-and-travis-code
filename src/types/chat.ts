@@ -16,4 +16,8 @@ export interface FileOperation {
   originOperation?: string;
   // Flag to prevent deletion of unrelated files
   isSafeToDelete?: boolean;
+  // Track source file for move operations
+  sourceFile?: string;
+  // Preserve file history
+  preserveFileId?: string;
 }

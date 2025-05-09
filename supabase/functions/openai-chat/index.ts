@@ -20,6 +20,7 @@ interface FileOperation {
   message?: string
   originOperation?: string  // Track where the operation came from (e.g., "move")
   isSafeToDelete?: boolean  // Explicit safety flag
+  targetPath?: string      // For move operations
 }
 
 interface RequestBody {
@@ -306,7 +307,11 @@ ${isFileOperation || fileSystemEnabled
 3. USE file operations to actually create or update the necessary files
 4. RESPOND to the user with what specific changes you made and why
 5. NEVER DELETE OR ALTER FILES NOT MENTIONED BY THE USER
-6. ESPECIALLY DO NOT DELETE index.html, style.css or other important files`
+6. ESPECIALLY DO NOT DELETE index.html, style.css or other important files
+7. When moving files, ALWAYS:
+   - First READ the source file to get its content
+   - Create the file at the new location using that content
+   - Only AFTER verifying the new file exists, delete the original file`
   : `IMPORTANT: This seems to be a general conversation. You should:
 1. Respond conversationally while staying aware of the project structure
 2. Draw on your memory of past conversations with Sabrina
@@ -458,25 +463,41 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
             
             // Extract file operations if they exist
             if (contentObj && contentObj.file_operations) {
-              // Add explicit safety flags to file operations
+              // Special enhancements for file operations
               const enhancedFileOps = contentObj.file_operations.map(op => {
-                // Add safety flags for delete operations as part of move
+                // Special handling for delete operations that may be part of moves
                 if (op.operation === 'delete') {
-                  // Check if this is part of a move operation by looking for a matching create
+                  // Check if this is part of a move operation by looking for related operations
                   const isPartOfMove = contentObj.file_operations.some(
-                    otherOp => otherOp.operation === 'create' && 
-                    otherOp.path !== op.path && 
-                    otherOp.content && 
-                    contentObj.file_operations.some(
-                      readOp => readOp.operation === 'read' && readOp.path === op.path
-                    )
+                    otherOp => otherOp.operation === 'create' && otherOp.path !== op.path
+                  ) && contentObj.file_operations.some(
+                    readOp => readOp.operation === 'read' && readOp.path === op.path
                   );
                   
+                  // Protect critical files from deletion
+                  const isProtectedFile = ['/index.html', '/style.css'].includes(op.path);
+                  
                   if (isPartOfMove) {
+                    // For move operations, find the target path
+                    const relatedCreate = contentObj.file_operations.find(
+                      createOp => createOp.operation === 'create' && 
+                      createOp.content && 
+                      contentObj.file_operations.some(
+                        readOp => readOp.operation === 'read' && readOp.path === op.path
+                      )
+                    );
+                    
                     return {
                       ...op,
                       originOperation: 'move',  // Mark the delete as part of a move
-                      isSafeToDelete: true      // Explicitly mark as safe to delete
+                      isSafeToDelete: true,     // Explicitly mark as safe to delete
+                      targetPath: relatedCreate?.path  // Track the target path
+                    };
+                  } else if (isProtectedFile) {
+                    // Don't allow deletion of protected files unless explicitly part of a move
+                    return {
+                      ...op,
+                      isSafeToDelete: false
                     };
                   }
                 }
