@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ChatHistory } from '@/components/ChatHistory';
 import { ChatInput } from '@/components/ChatInput';
@@ -16,7 +17,7 @@ import { GitHubProvider, useGitHub } from '@/contexts/github';
 import { TestButton } from '@/components/TestButton';
 import { GitHubCommitPanelContainer } from '@/components/github/commit/GitHubCommitPanelContainer';
 import { 
-  Loader2, Menu, FolderPlus, FilePlus, Github 
+  Loader2, Menu, FolderPlus, FilePlus, Github, RefreshCw
 } from 'lucide-react';
 
 // Component to handle file creation
