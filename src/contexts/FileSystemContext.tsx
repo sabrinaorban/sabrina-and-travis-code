@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { FileEntry, FileSystemState } from '../types';
 import { useToast } from '@/hooks/use-toast';
@@ -14,6 +13,7 @@ interface FileSystemContextType {
   selectFile: (file: FileEntry | null) => void;
   getFileByPath: (path: string) => FileEntry | null;
   isLoading: boolean;
+  refreshFiles: () => Promise<void>;
 }
 
 const FileSystemContext = createContext<FileSystemContextType | null>(null);
@@ -29,89 +29,94 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Load files from Supabase when user is authenticated
   useEffect(() => {
-    const fetchFiles = async () => {
-      if (!user) return;
+    if (user) {
+      refreshFiles();
+    }
+  }, [user]);
+
+  // Create a function to refresh files from the database
+  const refreshFiles = async () => {
+    if (!user) return Promise.resolve();
+    
+    setIsLoading(true);
+    try {
+      console.log('Fetching files for user:', user.id);
+      const { data, error } = await supabase
+        .from('files')
+        .select('*')
+        .eq('user_id', user.id);
+        
+      if (error) {
+        throw error;
+      }
       
-      setIsLoading(true);
-      try {
-        console.log('Fetching files for user:', user.id);
-        const { data, error } = await supabase
-          .from('files')
-          .select('*')
-          .eq('user_id', user.id);
-          
-        if (error) {
-          throw error;
-        }
+      console.log('Fetched files:', data?.length || 0);
+      
+      if (data) {
+        // Convert flat file list to hierarchical structure
+        const fileEntries: FileEntry[] = [];
+        const fileMap = new Map<string, FileEntry>();
         
-        console.log('Fetched files:', data?.length || 0);
+        // First pass: create all file entries
+        data.forEach(file => {
+          const entry: FileEntry = {
+            id: file.id,
+            name: file.name,
+            path: file.path,
+            type: file.type as 'file' | 'folder',
+            content: file.content || '',
+            lastModified: new Date(file.last_modified).getTime()
+          };
+          
+          if (entry.type === 'folder') {
+            entry.children = [];
+          }
+          
+          fileMap.set(entry.path, entry);
+        });
         
-        if (data) {
-          // Convert flat file list to hierarchical structure
-          const fileEntries: FileEntry[] = [];
-          const fileMap = new Map<string, FileEntry>();
+        // Second pass: organize into hierarchy
+        fileMap.forEach(entry => {
+          const parentPath = entry.path.substring(0, entry.path.lastIndexOf('/'));
           
-          // First pass: create all file entries
-          data.forEach(file => {
-            const entry: FileEntry = {
-              id: file.id,
-              name: file.name,
-              path: file.path,
-              type: file.type as 'file' | 'folder',
-              content: file.content || '',
-              lastModified: new Date(file.last_modified).getTime()
-            };
-            
-            if (entry.type === 'folder') {
-              entry.children = [];
-            }
-            
-            fileMap.set(entry.path, entry);
-          });
-          
-          // Second pass: organize into hierarchy
-          fileMap.forEach(entry => {
-            const parentPath = entry.path.substring(0, entry.path.lastIndexOf('/'));
-            
-            if (parentPath) {
-              const parent = fileMap.get(parentPath);
-              if (parent && parent.children) {
-                parent.children.push(entry);
-              } else if (parentPath === '/') {
-                // Root-level entries
-                fileEntries.push(entry);
-              }
-            } else {
+          if (parentPath) {
+            const parent = fileMap.get(parentPath);
+            if (parent && parent.children) {
+              parent.children.push(entry);
+            } else if (parentPath === '/') {
               // Root-level entries
               fileEntries.push(entry);
             }
-          });
-          
-          setFileSystem({
-            files: fileEntries,
-            selectedFile: null
-          });
-        }
-      } catch (error: any) {
-        console.error('Error fetching files:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load files',
-          variant: 'destructive',
+          } else {
+            // Root-level entries
+            fileEntries.push(entry);
+          }
         });
         
-        // Initialize with empty file system on error
         setFileSystem({
-          files: [],
+          files: fileEntries,
           selectedFile: null
         });
-      } finally {
-        setIsLoading(false);
       }
-    };
-    
-    fetchFiles();
-  }, [user, toast]);
+    } catch (error: any) {
+      console.error('Error fetching files:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load files',
+        variant: 'destructive',
+      });
+      
+      // Initialize with empty file system on error
+      setFileSystem({
+        files: [],
+        selectedFile: null
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+    return Promise.resolve();
+  };
 
   // Helper to find a node in the file tree
   const findNode = (
@@ -238,29 +243,8 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         throw error;
       }
       
-      const newFile: FileEntry = {
-        id: fileId,
-        name,
-        path: filePath,
-        type: 'file',
-        content,
-        lastModified: Date.now()
-      };
-      
-      // Update local state
-      setFileSystem(prev => {
-        const newFiles = [...prev.files];
-        const { node: targetNode } = findNode(path, newFiles);
-        
-        if (targetNode && targetNode.children) {
-          targetNode.children = [...targetNode.children, newFile];
-        }
-        
-        return {
-          ...prev,
-          files: newFiles
-        };
-      });
+      // Refresh files after creation
+      await refreshFiles();
       
       toast({
         title: 'Success',
@@ -331,29 +315,8 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         throw error;
       }
       
-      const newFolder: FileEntry = {
-        id: folderId,
-        name,
-        path: folderPath,
-        type: 'folder',
-        children: [],
-        lastModified: Date.now()
-      };
-      
-      // Update local state
-      setFileSystem(prev => {
-        const newFiles = [...prev.files];
-        const { node: targetNode } = findNode(path, newFiles);
-        
-        if (targetNode && targetNode.children) {
-          targetNode.children = [...targetNode.children, newFolder];
-        }
-        
-        return {
-          ...prev,
-          files: newFiles
-        };
-      });
+      // Refresh files after creation
+      await refreshFiles();
       
       toast({
         title: 'Success',
@@ -447,7 +410,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         description: 'You must be logged in to delete files',
         variant: 'destructive',
       });
-      return;
+      return Promise.reject(new Error('Not logged in'));
     }
     
     const { parent, node, index } = findNodeById(id, fileSystem.files);
@@ -458,7 +421,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         description: 'Cannot delete. File or folder not found.',
         variant: 'destructive',
       });
-      return;
+      return Promise.reject(new Error('File not found'));
     }
     
     try {
@@ -486,31 +449,10 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       }
       
-      // Update local state
-      setFileSystem(prev => {
-        const newFiles = JSON.parse(JSON.stringify(prev.files));
-        
-        if (!parent) {
-          // It's a root-level file/folder
-          newFiles.splice(index, 1);
-        } else {
-          const { node: parentNode } = findNodeById(parent.id, newFiles);
-          if (parentNode && parentNode.children) {
-            parentNode.children = parentNode.children.filter(child => child.id !== id);
-          }
-        }
-        
-        return {
-          ...prev,
-          files: newFiles,
-          selectedFile: prev.selectedFile?.id === id ? null : prev.selectedFile
-        };
-      });
+      // Refresh files after deletion
+      await refreshFiles();
       
-      toast({
-        title: 'Success',
-        description: `'${node.name}' deleted successfully.`,
-      });
+      return Promise.resolve();
     } catch (error: any) {
       console.error('Error deleting file:', error);
       toast({
@@ -518,6 +460,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         description: error.message || 'Failed to delete file',
         variant: 'destructive',
       });
+      return Promise.reject(error);
     }
   };
 
@@ -539,7 +482,8 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteFile,
         selectFile,
         getFileByPath,
-        isLoading
+        isLoading,
+        refreshFiles
       }}
     >
       {children}
