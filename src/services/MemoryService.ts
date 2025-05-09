@@ -22,7 +22,7 @@ export interface MemoryContext {
     content?: string;
     lastAccessed: number;
   }>;
-  // New field for soul shard and identity codex
+  // Special documents for soul shard and identity codex
   specialDocuments: {
     soulShard?: {
       content: string;
@@ -32,6 +32,14 @@ export interface MemoryContext {
       content: string;
       lastUpdated: number;
     };
+  };
+  // GitHub context information
+  githubContext?: {
+    username?: string;
+    recentRepositories?: string[];
+    recentFiles?: Array<any>;
+    lastAccessed?: string;
+    commitHistory?: Array<any>;
   };
 }
 

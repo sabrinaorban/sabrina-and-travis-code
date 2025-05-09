@@ -1,3 +1,4 @@
+
 import { Message, MessageRole, OpenAIMessage } from '../types';
 import { supabase, generateUUID } from '../lib/supabase';
 import { MemoryService, MemoryContext } from './MemoryService';
@@ -107,7 +108,7 @@ export const createOpenAIMessages = async (
       contextPrompt.content += `- Preferences: ${JSON.stringify(memoryContext.userProfile.preferences)}\n`;
     }
     
-    // Add GitHub context if available
+    // Add GitHub context if available in memory
     if (memoryContext.githubContext) {
       contextPrompt.content += `\nGitHub context:\n`;
       
