@@ -9,16 +9,31 @@ import { Loader2, GitCommit } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 export const GitHubCommitPanel: React.FC = () => {
-  const { authState, currentRepo, currentBranch, saveFileToRepo, isLoading } = useGitHub();
-  const { fileSystem } = useFileSystem();
   const [commitMessage, setCommitMessage] = useState('');
 
-  // Don't render if user is not authenticated with GitHub or no repo/branch selected
-  if (!authState.isAuthenticated || !currentRepo || !currentBranch) {
+  // Use try/catch to handle the potential error when the component is used outside of GitHubProvider
+  let gitHubContext;
+  let fileSystem;
+  
+  try {
+    gitHubContext = useGitHub();
+    fileSystem = useFileSystem();
+  } catch (error) {
+    console.error("GitHubCommitPanel error:", error);
+    // Return null if GitHubProvider is not available
+    return null;
+  }
+  
+  // Safely destructure after ensuring we have the context
+  const { authState, currentRepo, currentBranch, saveFileToRepo, isLoading } = gitHubContext || {};
+  const { fileSystem: fileSystemData } = fileSystem || {};
+
+  // Don't render if user is not authenticated with GitHub or no repo/branch selected or contexts not available
+  if (!authState?.isAuthenticated || !currentRepo || !currentBranch || !fileSystemData) {
     return null;
   }
 
-  const selectedFile = fileSystem.selectedFile;
+  const selectedFile = fileSystemData.selectedFile;
 
   const handleCommit = async () => {
     if (!selectedFile || !commitMessage.trim()) return;

@@ -39,10 +39,10 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const loadSavedToken = async () => {
       if (user && user.id) {
         try {
-          const { token, username } = await GithubTokenService.loadToken(user.id);
-          if (token) {
+          const tokenData = await GithubTokenService.loadToken(user.id);
+          if (tokenData.token) {
             console.log('Found saved GitHub token, restoring session');
-            authenticate(token, username);
+            authenticate(tokenData.token);
           }
         } catch (error) {
           console.error('Error loading GitHub token:', error);
