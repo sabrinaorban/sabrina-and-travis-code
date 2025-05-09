@@ -13,3 +13,8 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
   }
 });
+
+// Add a debug listener to monitor auth state changes globally
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Global auth state change:', event, session?.user?.id);
+});

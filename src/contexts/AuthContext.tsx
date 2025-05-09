@@ -19,20 +19,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if there's a user session
-    const checkSession = async () => {
-      setIsLoading(true);
+    console.log('AuthProvider: Setting up auth state listener and checking session');
+    
+    // First set up the auth listener to catch changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id);
       
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error checking auth session:', error);
-          setIsLoading(false);
-          return;
-        }
-        
-        if (session) {
+      if (event === 'SIGNED_IN' && session) {
+        try {
           const { data: userData, error: userError } = await supabase
             .from('users')
             .select('*')
@@ -50,8 +44,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             name: userData.name,
             isAuthenticated: true,
           });
+          
+          // Make sure loading is set to false after login
+          setIsLoading(false);
+        } catch (err) {
+          console.error('Error in auth state change handler:', err);
+          setIsLoading(false);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        console.log('User signed out, clearing state');
+        setUser(null);
+        setIsLoading(false);
+      }
+    });
+    
+    // Then check for an existing session
+    const checkSession = async () => {
+      try {
+        console.log('Checking for existing session');
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error checking auth session:', error);
+          setIsLoading(false);
+          return;
         }
         
+        if (session) {
+          console.log('Found existing session, fetching user data');
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (userError || !userData) {
+            console.error('Error fetching user data:', userError);
+            setIsLoading(false);
+            return;
+          }
+          
+          setUser({
+            id: userData.id,
+            name: userData.name,
+            isAuthenticated: true,
+          });
+        } else {
+          console.log('No active session found');
+        }
+        
+        // Always set loading to false after checking the session
         setIsLoading(false);
       } catch (err) {
         console.error('Unexpected error during auth check:', err);
@@ -61,41 +103,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     checkSession();
     
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.id);
-      
-      if (event === 'SIGNED_IN' && session) {
-        try {
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-            
-          if (userError || !userData) {
-            console.error('Error fetching user data:', userError);
-            return;
-          }
-          
-          setUser({
-            id: userData.id,
-            name: userData.name,
-            isAuthenticated: true,
-          });
-          
-          // Make sure loading is set to false after login
-          setIsLoading(false);
-        } catch (err) {
-          console.error('Error in auth state change handler:', err);
-          setIsLoading(false);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setIsLoading(false);
-      }
-    });
-    
     return () => {
       subscription.unsubscribe();
     };
@@ -104,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async () => {
     setIsLoading(true);
     try {
-      // Using the correct email for Sabrina
+      console.log('Attempting to log in');
       const { error } = await supabase.auth.signInWithPassword({
         email: 'sabrina.orban@gmail.com',
         password: 'password123',
@@ -118,7 +125,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         title: 'Logged in',
         description: 'Successfully logged in as Sabrina',
       });
+      
+      // Note: Don't set isLoading to false here, the auth state listener will handle it
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to login',
@@ -131,6 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     setIsLoading(true);
     try {
+      console.log('Attempting to log out');
       const { error } = await supabase.auth.signOut();
       
       if (error) {
@@ -144,6 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: 'Successfully logged out',
       });
     } catch (error: any) {
+      console.error('Logout error:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to logout',
@@ -153,6 +165,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   };
+
+  // Add debug output to help diagnose issues
+  useEffect(() => {
+    console.log('Current auth state:', { user, isLoading });
+  }, [user, isLoading]);
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isLoading }}>

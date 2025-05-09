@@ -8,9 +8,9 @@ import { Loader2 } from 'lucide-react';
 const Index = () => {
   const { user, isLoading } = useAuth();
   
-  // Add debugging
+  // Enhanced debugging
   useEffect(() => {
-    console.log('Auth state:', { user, isLoading });
+    console.log('Index render - Auth state:', { user, isLoading });
   }, [user, isLoading]);
   
   if (isLoading) {
@@ -23,9 +23,11 @@ const Index = () => {
   }
   
   if (!user) {
+    console.log('No user found, showing login page');
     return <Login />;
   }
   
+  console.log('User authenticated, showing dashboard');
   return <Dashboard />;
 };
 
