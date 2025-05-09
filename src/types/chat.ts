@@ -1,6 +1,4 @@
 
-import { FileEntry, Message } from '../types';
-
 export interface FileOperation {
   operation: 'read' | 'write' | 'create' | 'delete';
   path: string;
