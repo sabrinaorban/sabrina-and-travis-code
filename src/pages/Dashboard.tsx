@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ChatHistory } from '@/components/ChatHistory';
 import { ChatInput } from '@/components/ChatInput';
@@ -13,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { GitHubAuth } from '@/components/GitHubAuth';
 import { GitHubRepoSelector } from '@/components/GitHubRepoSelector';
 import { GitHubCommitPanel } from '@/components/GitHubCommitPanel';
-import { GitHubProvider, useGitHub } from '@/contexts/GitHubContext';
+import { GitHubProvider, useGitHub } from '@/contexts/github/GitHubContext';
 import { 
   Loader2, Menu, X, Upload, Download, Trash2, RefreshCw, 
   FolderPlus, FilePlus, Github 

@@ -6,7 +6,7 @@ import { FileSystemProvider } from './contexts/FileSystemContext';
 import { Toaster } from './components/ui/toaster';
 import Index from './pages/Index';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { GitHubProvider } from './contexts/GitHubContext';
+import { GitHubProvider } from './contexts/github/GitHubContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Create a client
