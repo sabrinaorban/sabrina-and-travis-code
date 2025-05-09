@@ -3,7 +3,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
-const OPENAI_API_KEY = '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'
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') // Get API key from environment variables
 const OPENAI_MODEL = 'gpt-4o' // Using the most powerful available model for best responses
 
 interface Message {
@@ -57,6 +57,19 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
+    }
+
+    // Check if API key is available
+    if (!OPENAI_API_KEY) {
+      return new Response(
+        JSON.stringify({
+          error: 'OpenAI API key not configured in environment variables'
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
     
     // Enhance with memory context
