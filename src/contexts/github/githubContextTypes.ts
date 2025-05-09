@@ -48,6 +48,3 @@ export interface GitHubContextType {
   syncRepoToFileSystem: (owner: string, repo: string, branch: string) => Promise<boolean>;
   logout: () => void;
 }
-
-// Re-export types from '@/types/github' to be used elsewhere
-export type { GitHubAuthState, GitHubRepo, GitHubBranch, GitHubFile };

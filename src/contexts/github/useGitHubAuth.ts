@@ -3,11 +3,12 @@ import { useState, useRef, useEffect } from 'react';
 import { GithubTokenService } from '@/services/github/githubTokenService';
 import { GitHubAuthState } from '@/types/github';
 import { useToast } from '@/hooks/use-toast';
+import { useGithubAuth } from '@/hooks/useGithubAuth';
 
 export const useGitHubAuth = (
-  user: { id: string } | null,
-  authState: GitHubAuthState,
-  logout: () => void
+  user?: { id: string } | null,
+  authState?: GitHubAuthState,
+  logoutFn?: () => void
 ) => {
   const { toast } = useToast();
   const tokenSavedRef = useRef(false);
@@ -18,19 +19,18 @@ export const useGitHubAuth = (
     username: null as string | null
   });
 
+  // When used without parameters, call the original hook
+  if (!user && !authState && !logoutFn) {
+    return useGithubAuth();
+  }
+
   // Handle saving token when authentication changes
   useEffect(() => {
+    if (!user || !user.id || !authState || !authState.isAuthenticated || !authState.token) {
+      return;
+    }
+    
     const saveToken = async () => {
-      if (!user || !user.id) {
-        console.log('useGitHubAuth - No user, skipping token save');
-        return;
-      }
-      
-      if (!authState.isAuthenticated || !authState.token) {
-        console.log('useGitHubAuth - Not authenticated or no token, skipping save');
-        return;
-      }
-      
       if (tokenSavedRef.current) {
         console.log('useGitHubAuth - Token already saved, skipping duplicate save');
         return;
@@ -63,26 +63,33 @@ export const useGitHubAuth = (
     };
     
     saveToken();
-  }, [authState.isAuthenticated, authState.token, authState.username, user, toast]);
+  }, [authState, user, toast]);
 
   // Handle logout with token cleanup
   const handleLogout = async () => {
-    if (user && user.id) {
-      try {
-        console.log('useGitHubAuth - Logging out user:', user.id);
-        await GithubTokenService.deleteToken(user.id);
-        tokenSavedRef.current = false; // Reset the token saved flag
-        authInitializedRef.current = false; // Reset the auth initialized flag
-        localStorage.removeItem('githubRepoInfo');
-        
-        // Clear GitHub-related memory
-        const MemoryService = (await import('@/services/MemoryService')).MemoryService;
-        await MemoryService.storeMemory(user.id, 'github_context', null);
-      } catch (error) {
-        console.error('useGitHubAuth - Error deleting GitHub token:', error);
-      }
+    if (!user || !user.id || !logoutFn) {
+      console.error('useGitHubAuth - Cannot logout: missing user or logout function');
+      return;
     }
-    logout();
+
+    try {
+      console.log('useGitHubAuth - Logging out user:', user.id);
+      await GithubTokenService.deleteToken(user.id);
+      tokenSavedRef.current = false; // Reset the token saved flag
+      authInitializedRef.current = false; // Reset the auth initialized flag
+      localStorage.removeItem('githubRepoInfo');
+      
+      // Clear GitHub-related memory
+      const MemoryService = (await import('@/services/MemoryService')).MemoryService;
+      await MemoryService.storeMemory(user.id, 'github_context', null);
+      
+      // Call the provided logout function
+      logoutFn();
+    } catch (error) {
+      console.error('useGitHubAuth - Error deleting GitHub token:', error);
+      // Still try to logout even if there was an error
+      if (logoutFn) logoutFn();
+    }
   };
 
   return {

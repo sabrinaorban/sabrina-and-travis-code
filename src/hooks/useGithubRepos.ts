@@ -1,4 +1,3 @@
-
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { GitHubRepo, GitHubBranch, GitHubFile } from '@/types/github';
 import { GithubApiService } from '@/services/github/githubApiService';
@@ -40,7 +39,7 @@ export const useGithubRepos = (token: string | null) => {
     return now - lastOperationTimeRef.current < COOLDOWN_MS;
   }, [COOLDOWN_MS]);
 
-  // Define fetchFiles early in the file to resolve "used before declaration" error
+  // Define all functions before using them to avoid "used before declaration" error
   const fetchFiles = useCallback(async (repoFullName: string, branchName: string) => {
     if (!token) {
       console.log('useGithubRepos - Cannot fetch files: no token');

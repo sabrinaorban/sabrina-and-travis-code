@@ -23,8 +23,8 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   console.log('GitHubProvider - Initializing with user:', user?.id);
   
-  // Use our custom hooks for GitHub functionality
-  const { authState, authenticate, logout } = useGitHubAuth();
+  // Initialize GitHub auth
+  const { authState, authenticate, logout } = useGithubAuth();
   
   useEffect(() => {
     console.log('GitHubProvider - Auth state update:', authState);
