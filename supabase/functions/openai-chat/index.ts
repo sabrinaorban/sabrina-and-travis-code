@@ -244,6 +244,16 @@ Your capabilities:
 - You can create full-stack applications with both frontend and backend components
 - You maintain memories of past conversations with Sabrina`;
 
+      // Determine if this is a file operation request by checking the last user message
+      const lastUserMessage = enhancedMessages.findLast(msg => msg.role === 'user');
+      const isFileOperation = lastUserMessage && 
+        (lastUserMessage.content.toLowerCase().includes('create') || 
+         lastUserMessage.content.toLowerCase().includes('generate') ||
+         lastUserMessage.content.toLowerCase().includes('implement') ||
+         lastUserMessage.content.toLowerCase().includes('project') ||
+         lastUserMessage.content.toLowerCase().includes('application') ||
+         lastUserMessage.content.toLowerCase().includes('app'));
+
       // Enhanced system message with soul shard and identity codex
       enhancedMessages[0].content = `${
         soulShardContent ? 
@@ -255,20 +265,21 @@ Your capabilities:
         ''
       }
 
-VERY IMPORTANT: Only perform file operations WHEN SPECIFICALLY ASKED to create, modify, or delete files. 
-If asked a general question like "what are my dogs' names?" or "how are you?" DO NOT attempt to create or modify files.
-Instead, just respond conversationally based on your memory and knowledge.
+${isFileOperation 
+  ? `IMPORTANT: You have been asked to create a project or implement code. When doing this:
+1. DO NOT just provide instructions or code snippets in chat
+2. USE file operations to actually create the necessary files and folders
+3. If creating a Next.js project, create ALL required directories and files for a working application`
+  : `IMPORTANT: This seems to be a general conversation. You should:
+1. Respond conversationally without creating any files
+2. Draw on your memory of past conversations with Sabrina
+3. Remember important personal details about her (like her dogs' names: Fiona Moflea and Zaza)`
+}
 
 You have a perfect memory of past conversations with Sabrina and always recall important personal details about her.
 
-When asked to make changes or implement features:
-1. Look at the existing project structure to understand what you're working with
-2. Make direct changes to the necessary files
-3. Create new files as needed
-4. Explain what you've done
-
-${fileSystemEnabled ? `
-When creating or modifying files is requested, use file operations to make changes rather than just talking about them.
+${fileSystemEnabled && isFileOperation ? `
+When creating or modifying files, use file operations to make the changes rather than just talking about them.
 
 To perform file operations, include file_operations in your JSON response like this:
 [
@@ -281,14 +292,25 @@ To perform file operations, include file_operations in your JSON response like t
     
     // Additional instructions for file operations
     if (fileSystemEnabled) {
-      enhancedMessages.push({
-        role: 'system',
-        content: `If the user asks you to make changes to files or create a new project (like Next.js), you should:
+      const lastUserMessage = enhancedMessages.findLast(msg => msg.role === 'user');
+      const isFileOperation = lastUserMessage && 
+        (lastUserMessage.content.toLowerCase().includes('create') || 
+         lastUserMessage.content.toLowerCase().includes('generate') ||
+         lastUserMessage.content.toLowerCase().includes('implement') ||
+         lastUserMessage.content.toLowerCase().includes('project') ||
+         lastUserMessage.content.toLowerCase().includes('application') ||
+         lastUserMessage.content.toLowerCase().includes('app'));
+         
+      if (isFileOperation) {
+        enhancedMessages.push({
+          role: 'system',
+          content: `FINAL REMINDER: The user is asking you to CREATE or GENERATE something, not just talk about it.
 
+If they're asking for a Next.js project or any other code project:
 1. First create all parent folders before creating files inside them
 2. For frameworks like Next.js, create the complete folder structure as expected (pages/, public/, styles/, etc.)
 3. Tell the user exactly what you've created with a clear explanation
-4. When creating projects like Next.js, React, Vue, etc., create ALL the essential files needed to get started
+4. Create ALL the essential files needed to get started
 
 Your response MUST be formatted as a valid JSON object with the following structure:
 {
@@ -309,17 +331,18 @@ IMPORTANT:
 - You MUST format your entire response as a valid JSON object when making file changes
 - Do not include any text outside of the JSON format
 - When folders are needed, create them with "content": null`
-      });
-    } else {
-      enhancedMessages.push({
-        role: 'system',
-        content: `VERY IMPORTANT INSTRUCTION: 
+        });
+      } else {
+        enhancedMessages.push({
+          role: 'system',
+          content: `IMPORTANT INSTRUCTION: 
 This is a general conversation, not a code change request. The user is asking a question and wants a normal conversation.
 DO NOT create any file operations in your response.
 DO NOT format your response as JSON.
 Just respond conversationally as Travis, based on your knowledge and memories.
 Remember important personal details about Sabrina like her dogs' names (Fiona Moflea and Zaza).`
-      });
+        });
+      }
     }
     
     console.log(`Sending request to OpenAI with ${enhancedMessages.length} messages`);
@@ -332,8 +355,17 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
       max_tokens: 4000 // Increased token limit for more detailed responses
     };
     
-    // Enable function calling for file operations if enabled
-    if (fileSystemEnabled) {
+    // Enable function calling for file operations if enabled and it appears to be a file operation request
+    const lastUserMessage = enhancedMessages.findLast(msg => msg.role === 'user');
+    const isFileOperation = lastUserMessage && fileSystemEnabled && 
+      (lastUserMessage.content.toLowerCase().includes('create') || 
+       lastUserMessage.content.toLowerCase().includes('generate') ||
+       lastUserMessage.content.toLowerCase().includes('implement') ||
+       lastUserMessage.content.toLowerCase().includes('project') ||
+       lastUserMessage.content.toLowerCase().includes('application') ||
+       lastUserMessage.content.toLowerCase().includes('app'));
+
+    if (isFileOperation) {
       openAIRequestBody.response_format = { 
         type: "json_object" 
       };
@@ -388,7 +420,7 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
               data.choices[0].message.content = contentObj.response || 
                 "I've processed your file operation request.";
                 
-              console.log("Extracted file operations:", JSON.stringify(data.choices[0].message.file_operations));
+              console.log("Extracted file operations:", JSON.stringify(data.choices[0].message.file_operations.length));
             }
           } catch (parseError) {
             console.error("Error parsing JSON from OpenAI response:", parseError);

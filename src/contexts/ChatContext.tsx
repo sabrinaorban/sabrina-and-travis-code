@@ -250,7 +250,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Refresh memory context before sending to OpenAI
         const context = await refreshMemoryContext();
         
-        // Determine if this is likely a file operation request
+        // Determine if this is likely a file operation request - with improved detection
         const shouldEnableFileOps = isFileOperationRequest(content);
         console.log('File operations enabled:', shouldEnableFileOps);
         
@@ -283,14 +283,19 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const fileOperations = response.choices[0].message.file_operations || [];
         
         // Process any file operations requested by the assistant
-        const processedOperations = await processFileOperations(fileSystem, fileOperations);
-        
-        // Update file operation results for UI feedback
-        if (processedOperations.length > 0) {
-          setFileOperationResults(processedOperations);
+        if (fileOperations.length > 0) {
+          console.log('Processing file operations:', fileOperations.length);
+          const processedOperations = await processFileOperations(fileSystem, fileOperations);
           
-          // Refresh files after operations
-          await fileSystem.refreshFiles();
+          // Update file operation results for UI feedback
+          if (processedOperations.length > 0) {
+            setFileOperationResults(processedOperations);
+            
+            // Refresh files after operations
+            await fileSystem.refreshFiles();
+          }
+        } else {
+          console.log('No file operations to process');
         }
         
         // Store the response
