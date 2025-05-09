@@ -3,25 +3,63 @@ import React, { useState, useEffect } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useFileSystem } from '../contexts/FileSystemContext';
-import { Save, FileText } from 'lucide-react';
+import { Save, Undo } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export const CodeEditor: React.FC = () => {
   const { fileSystem, updateFile } = useFileSystem();
   const [content, setContent] = useState<string>('');
+  const [history, setHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(0);
   const [isDirty, setIsDirty] = useState(false);
   const { toast } = useToast();
   
   useEffect(() => {
     if (fileSystem.selectedFile) {
-      setContent(fileSystem.selectedFile.content || '');
+      const initialContent = fileSystem.selectedFile.content || '';
+      setContent(initialContent);
+      setHistory([initialContent]);
+      setHistoryIndex(0);
       setIsDirty(false);
     }
   }, [fileSystem.selectedFile]);
   
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value);
+    const newContent = e.target.value;
+    setContent(newContent);
     setIsDirty(true);
+    
+    // Add to history when typing stops (debounce)
+    const timeoutId = setTimeout(() => {
+      if (newContent !== history[historyIndex]) {
+        // Add new content to history, removing any future history (if we've gone back)
+        const newHistory = [...history.slice(0, historyIndex + 1), newContent];
+        setHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+      }
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  };
+  
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      // Go back one step in history
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setContent(history[newIndex]);
+      setIsDirty(true);
+      
+      toast({
+        title: "Undone",
+        description: "Your last changes have been undone"
+      });
+    } else {
+      toast({
+        title: "No more history",
+        description: "Nothing to undo"
+      });
+    }
   };
   
   const handleSave = async () => {
@@ -57,21 +95,36 @@ export const CodeEditor: React.FC = () => {
     );
   }
   
+  const canUndo = historyIndex > 0;
+  
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-2 border-b bg-gray-50">
         <div className="font-medium truncate">
           {fileSystem.selectedFile.path}
         </div>
-        <Button 
-          size="sm" 
-          onClick={handleSave}
-          disabled={!isDirty}
-          className="flex items-center gap-1"
-        >
-          <Save size={14} />
-          <span>Save</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            size="sm" 
+            onClick={handleUndo}
+            disabled={!canUndo}
+            className="flex items-center gap-1"
+            title="Undo changes"
+            variant="outline"
+          >
+            <Undo size={14} />
+            <span>Undo</span>
+          </Button>
+          <Button 
+            size="sm" 
+            onClick={handleSave}
+            disabled={!isDirty}
+            className="flex items-center gap-1"
+          >
+            <Save size={14} />
+            <span>Save</span>
+          </Button>
+        </div>
       </div>
       <Textarea
         value={content}
@@ -82,3 +135,6 @@ export const CodeEditor: React.FC = () => {
     </div>
   );
 };
+
+// Import FileText at the top level to fix error
+import { FileText } from 'lucide-react';

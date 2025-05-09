@@ -115,7 +115,7 @@ export class GithubApiService {
       
       const data = await response.json();
       if (data.content && data.encoding === 'base64') {
-        return atob(data.content);
+        return atob(data.content.replace(/\n/g, ''));
       }
       return null;
     } catch (error: any) {
@@ -207,10 +207,12 @@ export class GithubApiService {
       
       // Process each item in the directory
       for (const item of Array.isArray(items) ? items : [items]) {
+        // Always add the item itself (file or folder)
         if (item.type === 'file') {
-          // Fetch file content
+          // Fetch file content for all files, not just the ones with download_url
           let content = '';
           try {
+            // Try first with download_url if available
             if (item.download_url) {
               const contentResponse = await fetch(item.download_url);
               if (contentResponse.ok) {
@@ -218,15 +220,29 @@ export class GithubApiService {
               } else {
                 console.warn(`Failed to fetch content for ${item.path}: ${contentResponse.status}`);
               }
-            } else {
-              console.warn(`No download_url for ${item.path}`);
-              // Try to get content from base64 if available
-              if (item.content && item.encoding === 'base64') {
-                content = atob(item.content.replace(/\n/g, ''));
+            } 
+            
+            // If download_url wasn't available or failed, try getting content from base64
+            if (!content && item.content && item.encoding === 'base64') {
+              content = atob(item.content.replace(/\n/g, ''));
+            }
+            
+            // If we still don't have content, fetch it directly
+            if (!content) {
+              const fileContentResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${item.path}?ref=${branch}`, {
+                headers: this.getHeaders()
+              });
+              
+              if (fileContentResponse.ok) {
+                const fileData = await fileContentResponse.json();
+                if (fileData.content && fileData.encoding === 'base64') {
+                  content = atob(fileData.content.replace(/\n/g, ''));
+                }
               }
             }
           } catch (error) {
             console.error(`Error fetching content for ${item.path}:`, error);
+            // Continue even if we couldn't get content for this file
           }
           
           results.push({

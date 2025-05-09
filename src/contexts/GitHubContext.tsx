@@ -40,7 +40,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (user && user.id) {
         try {
           const tokenData = await GithubTokenService.loadToken(user.id);
-          if (tokenData.token) {
+          if (tokenData && tokenData.token) {
             console.log('Found saved GitHub token, restoring session');
             authenticate(tokenData.token);
           }
@@ -51,14 +51,14 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     
     loadSavedToken();
-  }, [user]);
+  }, [user, authenticate]);
 
   // Save token when authentication state changes
   useEffect(() => {
     const saveToken = async () => {
       if (user && user.id && authState.isAuthenticated && authState.token) {
         try {
-          await GithubTokenService.saveToken(user.id, authState.token, authState.username);
+          await GithubTokenService.saveToken(user.id, authState.token, authState.username || '');
           console.log('GitHub token saved to database');
         } catch (error) {
           console.error('Error saving GitHub token:', error);

@@ -118,23 +118,31 @@ export const useGithubRepos = (token: string | null) => {
       const folderCreationStatus = new Map<string, boolean>();
       folderCreationStatus.set('/', true); // Root folder always exists
       
-      // First create all folders in depth order
+      // First create all folders in depth order (sort by path length/depth)
       const folders = allContents
         .filter(item => item.type === 'folder')
         .sort((a, b) => {
-          // Sort by path depth (number of slashes)
-          return (a.path.match(/\//g) || []).length - (b.path.match(/\//g) || []).length;
+          // Sort by path depth (count of slashes)
+          const depthA = (a.path.match(/\//g) || []).length;
+          const depthB = (b.path.match(/\//g) || []).length;
+          return depthA - depthB;
         });
         
       console.log(`Creating ${folders.length} folders in order of depth`);
       
+      // Create each folder
       for (const folder of folders) {
         const folderPath = '/' + folder.path;
         const lastSlashIndex = folderPath.lastIndexOf('/');
         const parentPath = lastSlashIndex > 0 ? folderPath.substring(0, lastSlashIndex) : '/';
         const folderName = folderPath.substring(lastSlashIndex + 1);
         
-        // Only proceed if parent folder was successfully created
+        // Skip if this exact folder was already created
+        if (folderCreationStatus.get(folderPath)) {
+          continue;
+        }
+        
+        // Ensure all parent folders exist
         if (folderCreationStatus.get(parentPath)) {
           try {
             await createFolder(parentPath, folderName);
@@ -146,8 +154,29 @@ export const useGithubRepos = (token: string | null) => {
             folderCreationStatus.set(folderPath, true); // Assume it exists if creation fails
           }
         } else {
-          console.warn(`Skipping folder ${folderName} because parent ${parentPath} wasn't created`);
-          errors++;
+          console.warn(`Cannot create folder ${folderPath} because parent ${parentPath} doesn't exist`);
+          // Try to create parent folder first
+          const parentLastSlashIndex = parentPath.lastIndexOf('/');
+          const parentParentPath = parentLastSlashIndex > 0 ? parentPath.substring(0, parentLastSlashIndex) : '/';
+          const parentFolderName = parentPath.substring(parentLastSlashIndex + 1);
+          
+          if (folderCreationStatus.get(parentParentPath)) {
+            try {
+              await createFolder(parentParentPath, parentFolderName);
+              folderCreationStatus.set(parentPath, true);
+              createdFolders++;
+              console.log(`Created parent folder: ${parentPath}`);
+              
+              // Now try to create the original folder
+              await createFolder(parentPath, folderName);
+              folderCreationStatus.set(folderPath, true);
+              createdFolders++;
+              console.log(`Created folder: ${folderPath}`);
+            } catch (error) {
+              console.error(`Failed to create parent folder ${parentPath}:`, error);
+              errors++;
+            }
+          }
         }
       }
       
@@ -161,7 +190,25 @@ export const useGithubRepos = (token: string | null) => {
         const parentPath = lastSlashIndex > 0 ? filePath.substring(0, lastSlashIndex) : '/';
         const fileName = filePath.substring(lastSlashIndex + 1);
         
-        // Only proceed if parent folder was successfully created
+        // Ensure parent folder exists
+        if (!folderCreationStatus.get(parentPath)) {
+          // Create missing parent folder
+          const parentLastSlashIndex = parentPath.lastIndexOf('/');
+          const parentParentPath = parentLastSlashIndex > 0 ? parentPath.substring(0, parentLastSlashIndex) : '/';
+          const parentFolderName = parentPath.substring(parentLastSlashIndex + 1);
+          
+          try {
+            await createFolder(parentParentPath, parentFolderName);
+            folderCreationStatus.set(parentPath, true);
+            createdFolders++;
+            console.log(`Created missing parent folder: ${parentPath}`);
+          } catch (error) {
+            console.warn(`Failed to create parent folder ${parentPath}, continuing...`);
+            folderCreationStatus.set(parentPath, true); // Assume it exists anyway and try to create file
+          }
+        }
+        
+        // Now create the file
         if (folderCreationStatus.get(parentPath)) {
           try {
             // Make sure we have content, even if it's empty
