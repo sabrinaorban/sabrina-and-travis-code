@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Message } from '../types';
 import { FileOperation } from '../types/chat';
 import { useAuth } from './AuthContext';
@@ -27,11 +27,12 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | null>(null);
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Use custom hooks for better organization
+  // Get messages, isTyping and other message handling functions from the hook
   const {
     messages,
     setMessages,
     isTyping,
+    setIsTyping,
     fileOperationResults,
     sendMessage: handleSendMessage
   } = useMessageHandling();
