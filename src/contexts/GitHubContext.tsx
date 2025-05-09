@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { FileEntry } from '../types';
 import { GitHubContextType } from '../types/github';
@@ -139,12 +140,46 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (authState.isAuthenticated && authState.token) {
       saveToken();
       loadGitHubMemory();
+      
+      // If we're authenticated, restore repository info from local storage
+      const storedRepoInfo = localStorage.getItem('githubRepoInfo');
+      if (storedRepoInfo) {
+        try {
+          const { repoFullName, branchName } = JSON.parse(storedRepoInfo);
+          // Find the repository in the list and select it
+          if (repoFullName && repositories.length > 0) {
+            const repo = repositories.find(r => r.full_name === repoFullName);
+            if (repo) {
+              console.log('Restoring repo selection:', repo.full_name);
+              selectRepository(repo).then(() => {
+                if (branchName) {
+                  console.log('Restoring branch selection:', branchName);
+                  selectBranch(branchName);
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error restoring repo info:', error);
+        }
+      }
     } else if (!authState.isAuthenticated) {
       // Reset the flags when logged out
       tokenSavedRef.current = false;
       authInitializedRef.current = false;
+      localStorage.removeItem('githubRepoInfo');
     }
-  }, [authState.isAuthenticated, authState.token, authState.username, user, toast, loadGitHubMemory]);
+  }, [authState.isAuthenticated, authState.token, authState.username, user, toast, loadGitHubMemory, repositories, selectRepository, selectBranch]);
+
+  // Store repository and branch selection in localStorage
+  useEffect(() => {
+    if (currentRepo && currentBranch) {
+      localStorage.setItem('githubRepoInfo', JSON.stringify({
+        repoFullName: currentRepo.full_name,
+        branchName: currentBranch
+      }));
+    }
+  }, [currentRepo, currentBranch]);
 
   // Sync repository to file system - updated to return boolean
   const syncRepoToFileSystem = async (owner: string, repo: string, branch: string): Promise<boolean> => {
@@ -171,6 +206,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         await GithubTokenService.deleteToken(user.id);
         tokenSavedRef.current = false; // Reset the token saved flag
         authInitializedRef.current = false; // Reset the auth initialized flag
+        localStorage.removeItem('githubRepoInfo');
         
         // Clear GitHub-related memory
         await MemoryService.storeMemory(user.id, 'github_context', null);

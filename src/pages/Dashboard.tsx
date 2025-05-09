@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { GitHubAuth } from '@/components/GitHubAuth';
 import { GitHubRepoSelector } from '@/components/GitHubRepoSelector';
 import { GitHubCommitPanel } from '@/components/GitHubCommitPanel';
+import { useGitHub } from '@/contexts/GitHubContext';
 import { 
   Loader2, Menu, X, Upload, Download, Trash2, RefreshCw, 
   FolderPlus, FilePlus, Github 
@@ -102,6 +103,22 @@ const FileSystemControls = ({ currentPath, setCurrentPath }) => {
   );
 };
 
+// GitHub Commit Panel Container that checks GitHub state
+const GitHubCommitPanelContainer = () => {
+  const { authState, currentRepo, currentBranch } = useGitHub();
+  
+  // Only render when GitHub is authenticated and a repo is selected
+  if (!authState?.isAuthenticated || !currentRepo || !currentBranch) {
+    return null;
+  }
+  
+  return (
+    <div className="border-t">
+      <GitHubCommitPanel />
+    </div>
+  );
+};
+
 const DashboardContent = () => {
   const [showFiles, setShowFiles] = useState(true);
   const { user, logout, isLoading: authLoading } = useAuth();
@@ -113,6 +130,7 @@ const DashboardContent = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [currentPath, setCurrentPath] = useState('/');
   const { refreshFiles } = useFileSystem();
+  const { authState } = useGitHub();
   
   const handleLogout = async () => {
     await logout();
@@ -125,7 +143,8 @@ const DashboardContent = () => {
   // Effect for debugging auth state
   useEffect(() => {
     console.log('Dashboard render - auth state:', { user, authLoading });
-  }, [user, authLoading]);
+    console.log('GitHub auth state:', authState);
+  }, [user, authLoading, authState]);
 
   const handleCreateFile = () => {
     setNewFileName('');
@@ -176,7 +195,7 @@ const DashboardContent = () => {
             onClick={handleOpenGitHubDialog}
           >
             <Github size={16} />
-            GitHub
+            GitHub {authState.isAuthenticated ? `(${authState.username})` : ''}
           </Button>
           <span className="font-medium">Welcome, {user.name}</span>
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
@@ -211,7 +230,7 @@ const DashboardContent = () => {
                   variant="ghost" 
                   size="icon" 
                   title="Refresh files"
-                  onClick={refreshFiles}
+                  onClick={() => refreshFiles()}
                 >
                   <RefreshCw size={16} />
                 </Button>
@@ -221,10 +240,8 @@ const DashboardContent = () => {
             <div className="flex-1 overflow-auto">
               <FileExplorer />
             </div>
-            {/* GitHub Commit Panel - Always shown in the file explorer */}
-            <div className="border-t">
-              <GitHubCommitPanel />
-            </div>
+            {/* GitHub Commit Panel - Only shown when connected to GitHub */}
+            <GitHubCommitPanelContainer />
           </div>
         )}
         

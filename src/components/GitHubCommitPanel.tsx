@@ -22,7 +22,7 @@ export const GitHubCommitPanel: React.FC = () => {
   const { authState, currentRepo, currentBranch, saveFileToRepo, isLoading } = github;
   
   // Get file system context safely
-  const { getModifiedFiles, refreshFiles } = useFileSystem();
+  const { getModifiedFiles } = useFileSystem();
   
   // Track which files have been edited since last commit
   useEffect(() => {
@@ -33,18 +33,8 @@ export const GitHubCommitPanel: React.FC = () => {
     }
   }, [getModifiedFiles]);
 
-  // Refresh files periodically to detect changes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (authState?.isAuthenticated && currentRepo && currentBranch) {
-        refreshFiles();
-      }
-    }, 5000); // Check for changes every 5 seconds
-    
-    return () => clearInterval(interval);
-  }, [authState, currentRepo, currentBranch, refreshFiles]);
-
   // Only render when all required data is available
+  // This ensures the panel only appears when GitHub is authenticated AND repo is selected
   if (!authState?.isAuthenticated || !currentRepo || !currentBranch) {
     return null;
   }
@@ -91,9 +81,6 @@ export const GitHubCommitPanel: React.FC = () => {
             .update({ is_modified: false })
             .eq('id', file.id);
         }));
-        
-        // Refresh files to update UI
-        await refreshFiles();
       }
       
       if (failCount > 0) {
@@ -105,6 +92,10 @@ export const GitHubCommitPanel: React.FC = () => {
       }
       
       setCommitMessage('');
+      // Refresh the list of modified files after commit
+      if (getModifiedFiles) {
+        setEditedFiles(getModifiedFiles());
+      }
     } catch (error) {
       console.error("Error committing files:", error);
       toast({

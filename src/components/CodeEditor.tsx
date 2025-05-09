@@ -5,19 +5,23 @@ import { Button } from '@/components/ui/button';
 import { useFileSystem } from '../contexts/FileSystemContext';
 import { Save, Undo } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { FileText } from 'lucide-react';
 
 export const CodeEditor: React.FC = () => {
   const { fileSystem, updateFile } = useFileSystem();
   const [content, setContent] = useState<string>('');
+  const [originalContent, setOriginalContent] = useState<string>('');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(0);
   const [isDirty, setIsDirty] = useState(false);
   const { toast } = useToast();
   
+  // Load file content when selected file changes
   useEffect(() => {
     if (fileSystem.selectedFile) {
       const initialContent = fileSystem.selectedFile.content || '';
       setContent(initialContent);
+      setOriginalContent(initialContent);
       setHistory([initialContent]);
       setHistoryIndex(0);
       setIsDirty(false);
@@ -27,7 +31,7 @@ export const CodeEditor: React.FC = () => {
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value;
     setContent(newContent);
-    setIsDirty(true);
+    setIsDirty(newContent !== originalContent);
     
     // Add to history when typing stops (debounce)
     const timeoutId = setTimeout(() => {
@@ -48,7 +52,7 @@ export const CodeEditor: React.FC = () => {
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
       setContent(history[newIndex]);
-      setIsDirty(true);
+      setIsDirty(history[newIndex] !== originalContent);
       
       toast({
         title: "Undone",
@@ -66,6 +70,7 @@ export const CodeEditor: React.FC = () => {
     if (fileSystem.selectedFile && isDirty) {
       try {
         await updateFile(fileSystem.selectedFile.id, content);
+        setOriginalContent(content); // Update the original content after successful save
         setIsDirty(false);
         toast({
           title: "Saved",
@@ -102,6 +107,7 @@ export const CodeEditor: React.FC = () => {
       <div className="flex items-center justify-between p-2 border-b bg-gray-50">
         <div className="font-medium truncate">
           {fileSystem.selectedFile.path}
+          {isDirty && <span className="ml-2 text-amber-500">●</span>}
         </div>
         <div className="flex items-center gap-2">
           <Button 
@@ -135,6 +141,3 @@ export const CodeEditor: React.FC = () => {
     </div>
   );
 };
-
-// Import FileText at the top level to fix error
-import { FileText } from 'lucide-react';
