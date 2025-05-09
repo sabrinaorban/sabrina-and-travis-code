@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState } from 'react';
-import { GitHubContextType, FileEntry } from '../types';
+import { FileEntry } from '../types';
+import { GitHubContextType } from '../types/github';
 import { useFileSystem } from './FileSystemContext';
 import { useGithubAuth } from '@/hooks/useGithubAuth';
 import { useGithubRepos } from '@/hooks/useGithubRepos';
