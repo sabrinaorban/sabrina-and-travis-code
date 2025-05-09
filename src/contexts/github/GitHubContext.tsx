@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { FileEntry } from '@/types';
 import { useFileSystem } from '../FileSystemContext';
@@ -56,8 +55,8 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     saveFileToRepo,
     syncRepoToFileSystem: syncRepo,
     reset,
-    setCurrentRepo,  // Make sure this is exposed from useGithubOperations
-    setCurrentBranch // Make sure this is exposed from useGithubOperations
+    setCurrentRepo,
+    setCurrentBranch
   } = useGithubOperations(authState.token);
 
   // Debug logs for current state
@@ -166,8 +165,9 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setCurrentRepo(matchingRepo);
             setCurrentBranch(storedBranch);
             
-            // Fetch branches for this repo to ensure they're available
-            fetchBranches(matchingRepo.full_name).catch(console.error);
+            // We should use selectRepository's fetchBranches functionality instead of directly calling fetchBranches
+            // This was the source of the error - fetchBranches is not available in this scope
+            selectRepository(matchingRepo).catch(console.error);
           } else {
             console.log('GitHubProvider - Could not find matching repo in loaded repositories');
           }
@@ -176,7 +176,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.error('GitHubProvider - Error restoring repo from session storage:', error);
       }
     }
-  }, [authState.isAuthenticated, repositories, currentRepo, isLoading, setCurrentRepo, setCurrentBranch]);
+  }, [authState.isAuthenticated, repositories, currentRepo, isLoading, setCurrentRepo, setCurrentBranch, selectRepository]);
 
   // Get last sync state
   const getLastSyncState = () => {
