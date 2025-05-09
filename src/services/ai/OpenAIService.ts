@@ -13,8 +13,7 @@ export const createOpenAIMessages = async (
   fileSystem: FileSystemContextType
 ): Promise<OpenAIMessage[]> => {
   // System message based on whether file operations are requested or general conversation
-  const isFileOperation = messages.length > 0 && 
-    /create|make|generate|build|implement|code|project|app|application/i.test(newUserMessage.content);
+  const isFileOperation = isFileOperationRequest(newUserMessage.content);
 
   const baseSystemPrompt = `You are Travis, an extremely capable senior developer AI assistant with full access to the project codebase. You can directly read, modify, create, and delete files in the project.
 
@@ -95,4 +94,66 @@ export const callOpenAI = async (
   }
 
   return response;
+};
+
+// Enhanced detection of file operation requests
+export const isFileOperationRequest = (message: string): boolean => {
+  // Convert to lowercase for case-insensitive matching
+  const lowerMessage = message.toLowerCase();
+  
+  // Keywords that strongly indicate file operations
+  const fileOperationKeywords = [
+    'create project', 
+    'create app', 
+    'create application',
+    'make project',
+    'new project',
+    'scaffold',
+    'set up project',
+    'generate project',
+    'implement project',
+    'build project',
+    'create file',
+    'add file',
+    'new file',
+    'modify file',
+    'update file',
+    'change file',
+    'delete file',
+    'remove file',
+    'create folder',
+    'add folder',
+    'make directory',
+    'make folder'
+  ];
+  
+  // Check for exact matches of keywords
+  for (const keyword of fileOperationKeywords) {
+    if (lowerMessage.includes(keyword)) {
+      return true;
+    }
+  }
+  
+  // Check for combinations of actions and targets
+  const actions = ['create', 'make', 'generate', 'build', 'implement', 'add', 'setup', 'develop'];
+  const targets = ['nextjs', 'next.js', 'react', 'app', 'application', 'project', 'component', 'website'];
+  
+  for (const action of actions) {
+    for (const target of targets) {
+      const pattern = `${action}\\s+(?:a|an)?\\s*${target}`;
+      if (new RegExp(pattern, 'i').test(lowerMessage)) {
+        return true;
+      }
+    }
+  }
+  
+  // Check for common framework-specific commands
+  if (lowerMessage.includes('next.js') || 
+      lowerMessage.includes('nextjs') || 
+      lowerMessage.includes('react app') ||
+      lowerMessage.includes('create-react-app')) {
+    return true;
+  }
+  
+  return false;
 };

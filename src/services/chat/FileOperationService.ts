@@ -43,21 +43,31 @@ export const processFileOperations = async (
   
   for (const op of operations) {
     try {
+      console.log(`Processing ${op.operation} operation on path: ${op.path}`);
+      
+      // Normalize path: ensure it starts with / and remove trailing slashes
+      const normalizedPath = op.path.startsWith('/') ? op.path : `/${op.path}`;
+      const cleanPath = normalizedPath.replace(/\/+$/, '');
+      
       // Ensure parent directories exist for any file operation
       if (op.operation === 'create' || op.operation === 'write') {
-        const pathParts = op.path.split('/');
-        pathParts.pop(); // Remove file name
-        const dirPath = pathParts.join('/');
-        
-        if (dirPath) {
-          await ensureFolderExists(fileSystem, dirPath);
+        // Skip folder creation step if this operation itself is creating a folder
+        if (!(op.operation === 'create' && (cleanPath.endsWith('/') || !cleanPath.includes('.')))) {
+          const pathParts = cleanPath.split('/');
+          pathParts.pop(); // Remove file name
+          const dirPath = pathParts.join('/');
+          
+          if (dirPath) {
+            console.log(`Ensuring folder exists: ${dirPath}`);
+            await ensureFolderExists(fileSystem, dirPath);
+          }
         }
       }
       
       // Execute operation based on type
       switch (op.operation) {
         case 'read':
-          const readResult = await fileSystem.getFileContentByPath(op.path);
+          const readResult = await fileSystem.getFileContentByPath(cleanPath);
           results.push({
             ...op,
             content: readResult,
@@ -66,54 +76,57 @@ export const processFileOperations = async (
           break;
         
         case 'write':
-          await fileSystem.updateFileByPath(op.path, op.content || '');
+          await fileSystem.updateFileByPath(cleanPath, op.content || '');
           results.push({
             ...op,
             success: true,
-            message: `File ${op.path} updated`
+            message: `File ${cleanPath} updated`
           });
           break;
         
         case 'create':
-          if (op.path.endsWith('/') || !op.path.includes('.')) {
+          if (cleanPath.endsWith('/') || !cleanPath.includes('.')) {
             // It's a folder
-            const pathParts = op.path.split('/').filter(Boolean);
+            const pathParts = cleanPath.split('/').filter(Boolean);
             const folderName = pathParts.pop() || '';
-            const parentPath = '/' + pathParts.join('/');
+            const parentPath = pathParts.length === 0 ? '/' : `/${pathParts.join('/')}`;
             
+            console.log(`Creating folder: ${folderName} in ${parentPath}`);
             await fileSystem.createFolder(parentPath, folderName);
+            
             results.push({
               ...op,
               success: true,
-              message: `Folder ${op.path} created`
+              message: `Folder ${cleanPath} created`
             });
           } else {
             // It's a file
-            const pathParts = op.path.split('/');
+            const pathParts = cleanPath.split('/');
             const fileName = pathParts.pop() || '';
-            let parentPath = pathParts.join('/');
-            if (!parentPath) parentPath = '/';
+            const parentPath = pathParts.length === 0 ? '/' : `/${pathParts.join('/')}`;
             
+            console.log(`Creating file: ${fileName} in ${parentPath} with content length: ${(op.content || '').length}`);
             await fileSystem.createFile(parentPath, fileName, op.content || '');
+            
             results.push({
               ...op,
               success: true,
-              message: `File ${op.path} created`
+              message: `File ${cleanPath} created`
             });
           }
           break;
         
         case 'delete':
-          const file = fileSystem.getFileByPath(op.path);
+          const file = fileSystem.getFileByPath(cleanPath);
           if (file) {
             await fileSystem.deleteFile(file.id);
             results.push({
               ...op,
               success: true,
-              message: `File ${op.path} deleted`
+              message: `File ${cleanPath} deleted`
             });
           } else {
-            throw new Error(`File not found at path: ${op.path}`);
+            throw new Error(`File not found at path: ${cleanPath}`);
           }
           break;
         
