@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 
 export const useFileRefresh = (
   user: any,
-  fetchFiles: () => Promise<FileEntry[]>,
+  fetchFiles: () => Promise<FileEntry[] | void>,
   fileSystem: FileSystemState,
   setFileSystem: React.Dispatch<React.SetStateAction<FileSystemState>>,
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>
@@ -22,28 +22,32 @@ export const useFileRefresh = (
     
     try {
       const files = await fetchFiles();
-      console.log('Fetched files:', files.length);
+      console.log('Fetched files:', files ? files.length : 0);
       
-      // Preserve modification flags when refreshing
-      const updatedFiles = files.map(newFile => {
-        const existingFile = fileSystem.files.find(f => f.id === newFile.id);
-        if (existingFile && existingFile.isModified) {
-          return {
-            ...newFile,
-            isModified: true,
-            lastModified: existingFile.lastModified
-          };
-        }
-        return newFile;
-      });
+      // Only update files if we received an array
+      if (files && Array.isArray(files)) {
+        // Preserve modification flags when refreshing
+        const updatedFiles = files.map(newFile => {
+          const existingFile = fileSystem.files.find(f => f.id === newFile.id);
+          if (existingFile && existingFile.isModified) {
+            return {
+              ...newFile,
+              isModified: true,
+              lastModified: existingFile.lastModified
+            };
+          }
+          return newFile;
+        });
+        
+        setFileSystem(prev => ({
+          files: updatedFiles,
+          selectedFile: prev.selectedFile && updatedFiles.find(f => f.id === prev.selectedFile?.id) || null
+        }));
+        
+        console.log('Files refreshed successfully:', updatedFiles.length);
+        return files;
+      }
       
-      setFileSystem(prev => ({
-        files: updatedFiles,
-        selectedFile: prev.selectedFile && updatedFiles.find(f => f.id === prev.selectedFile?.id) || null
-      }));
-      
-      console.log('Files refreshed successfully:', updatedFiles.length);
-      return files;
     } catch (error) {
       console.error('Error refreshing files:', error);
       // Initialize with empty file system on error

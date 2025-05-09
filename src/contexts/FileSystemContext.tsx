@@ -19,8 +19,23 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const { user } = useAuth();
   const { fetchFiles, isLoading, setIsLoading } = useFileFetcher(user);
   
-  // Use the refactored hooks
-  const { refreshFiles, deleteAllFiles } = useFileRefresh(user, fetchFiles, fileSystem, setFileSystem, setIsLoading);
+  // Update refreshFiles to handle both void and FileEntry[] return types
+  const { refreshFiles, deleteAllFiles } = useFileRefresh(
+    user, 
+    async () => { 
+      try {
+        const files = await fetchFiles();
+        return files;
+      } catch (error) {
+        console.error('Error in refreshFiles:', error);
+        // Return void to satisfy Promise<void>
+        return;
+      }
+    }, 
+    fileSystem, 
+    setFileSystem, 
+    setIsLoading
+  );
   
   const { 
     getFileByPath, 

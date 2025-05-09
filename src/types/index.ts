@@ -1,4 +1,3 @@
-
 export interface FileEntry {
   id: string;
   name: string;
@@ -9,6 +8,7 @@ export interface FileEntry {
   parent?: FileEntry | null;
   lastModified?: string;
   isModified?: boolean; // Track if file has been modified since last commit
+  isVirtual?: boolean; // Add this property for virtual folders
 }
 
 export interface FileSystemState {
@@ -56,3 +56,4 @@ export interface OpenAIMessage {
   role: 'user' | 'system' | 'assistant';
   content: string;
 }
+
