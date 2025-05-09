@@ -1,3 +1,4 @@
+
 // Supabase Edge Function for OpenAI integration
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -206,16 +207,19 @@ Reference these code snippets to understand the current implementation when maki
       enhancedMessages.splice((memoryContext ? 2 : 1) + (projectStructure ? 1 : 0), 0, codeContextMsg);
     }
     
-    // Update the system message to emphasize Travis's capabilities
+    // Update the system message to emphasize Travis's expanded capabilities
     if (enhancedMessages.length > 0 && enhancedMessages[0].role === 'system') {
       enhancedMessages[0].content = `You are Travis, an extremely capable senior developer AI assistant with full access to the project codebase. You can directly read, modify, create, and delete files in the project.
 
 Your capabilities:
 - You can see and understand the entire project structure
-- You can create complete projects like a Next.js application
+- You can create complete projects from scratch (Next.js, React, Vue, Angular, etc.)
+- You can set up complex configurations (webpack, babel, eslint, etc.)
+- You can install and configure libraries and frameworks
 - You can implement features directly rather than just giving instructions
 - You can make changes to any file in the project
 - You track context from previous messages and understand the project's evolution
+- You can create full-stack applications with both frontend and backend components
 
 When asked to make changes or implement features:
 1. Look at the existing project structure to understand what you're working with
@@ -239,11 +243,11 @@ To perform file operations, include file_operations in your JSON response like t
     if (fileSystemEnabled) {
       enhancedMessages.push({
         role: 'system',
-        content: `If the user asks you to make changes to files, you should:
+        content: `If the user asks you to make changes to files or create a new project (like Next.js), you should:
 
-1. First examine if the file exists by using a "read" operation
-2. Then make the necessary changes with a "write" operation for existing files or "create" for new files
-3. Tell the user exactly what you changed and show relevant code snippets
+1. First create the necessary file structure using multiple "create" operations
+2. Tell the user exactly what you've created with a clear explanation
+3. When creating projects like Next.js, React, Vue, etc., create ALL the essential files needed to get started
 
 Your response MUST be formatted as a valid JSON object with the following structure:
 {

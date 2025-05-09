@@ -1,6 +1,5 @@
 
-import { MemoryContext } from '../services/MemoryService';
-import { Message, MessageRole, OpenAIMessage } from './index';
+import { FileEntry, Message } from '../types';
 
 export interface FileOperation {
   operation: 'read' | 'write' | 'create' | 'delete';
@@ -16,16 +15,12 @@ export interface ChatContextType {
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => Promise<void>;
   summarizeConversation: () => Promise<void>;
-  memoryContext: MemoryContext | null;
-  refreshMemoryContext: () => Promise<MemoryContext | null>;
+  memoryContext: any;
+  refreshMemoryContext: () => Promise<any>;
   fileOperationResults?: FileOperation[];
 }
 
-export interface ProjectStructure {
-  files: string[];
-  directories: string[];
-  fileTypes: Record<string, number>;
-  totalFiles: number;
-  totalDirectories: number;
-  rootPath: string;
+export interface ChatInputProps {
+  onSubmit: (message: string) => void;
+  isDisabled?: boolean;
 }

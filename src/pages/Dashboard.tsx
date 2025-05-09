@@ -19,7 +19,90 @@ import {
   FolderPlus, FilePlus, Github 
 } from 'lucide-react';
 
-const DashboardContent: React.FC = () => {
+// Component to handle file creation
+const FileSystemCreateFile = ({ fileName, path, onSuccess }) => {
+  const { createFile } = useFileSystem();
+  const { toast } = useToast();
+  
+  const handleCreateFile = async () => {
+    if (!fileName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a file name",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      await createFile(path, fileName, '');
+      onSuccess();
+      toast({
+        title: "Success",
+        description: `File ${fileName} created successfully`
+      });
+    } catch (error) {
+      console.error("Error creating file:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create file",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  return (
+    <Button onClick={handleCreateFile}>Create</Button>
+  );
+};
+
+// Component to handle folder creation
+const FileSystemCreateFolder = ({ folderName, path, onSuccess }) => {
+  const { createFolder } = useFileSystem();
+  const { toast } = useToast();
+  
+  const handleCreateFolder = async () => {
+    if (!folderName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a folder name",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      await createFolder(path, folderName);
+      onSuccess();
+      toast({
+        title: "Success",
+        description: `Folder ${folderName} created successfully`
+      });
+    } catch (error) {
+      console.error("Error creating folder:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create folder",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  return (
+    <Button onClick={handleCreateFolder}>Create</Button>
+  );
+};
+
+// Component to display and manage the current path
+const FileSystemControls = ({ currentPath, setCurrentPath }) => {
+  return (
+    <div className="flex items-center p-2 bg-gray-50 border-b text-sm">
+      <span className="truncate">Path: {currentPath}</span>
+    </div>
+  );
+};
+
+const DashboardContent = () => {
   const [showFiles, setShowFiles] = useState(true);
   const { user, logout, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -138,8 +221,10 @@ const DashboardContent: React.FC = () => {
             <div className="flex-1 overflow-auto">
               <FileExplorer />
             </div>
-            {/* CRITICAL: Always include the GitHub commit panel here */}
-            <GitHubCommitPanel />
+            {/* GitHub Commit Panel - Always shown in the file explorer */}
+            <div className="border-t">
+              <GitHubCommitPanel />
+            </div>
           </div>
         )}
         
@@ -222,101 +307,7 @@ const DashboardContent: React.FC = () => {
   );
 };
 
-// Component to handle file creation
-const FileSystemCreateFile: React.FC<{
-  fileName: string;
-  path: string;
-  onSuccess: () => void;
-}> = ({ fileName, path, onSuccess }) => {
-  const { createFile } = useFileSystem();
-  const { toast } = useToast();
-  
-  const handleCreateFile = async () => {
-    if (!fileName.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a file name",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    try {
-      await createFile(path, fileName, '');
-      onSuccess();
-      toast({
-        title: "Success",
-        description: `File ${fileName} created successfully`
-      });
-    } catch (error) {
-      console.error("Error creating file:", error);
-      toast({
-        title: "Error",
-        description: "Failed to create file",
-        variant: "destructive"
-      });
-    }
-  };
-  
-  return (
-    <Button onClick={handleCreateFile}>Create</Button>
-  );
-};
-
-// Component to handle folder creation
-const FileSystemCreateFolder: React.FC<{
-  folderName: string;
-  path: string;
-  onSuccess: () => void;
-}> = ({ folderName, path, onSuccess }) => {
-  const { createFolder } = useFileSystem();
-  const { toast } = useToast();
-  
-  const handleCreateFolder = async () => {
-    if (!folderName.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a folder name",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    try {
-      await createFolder(path, folderName);
-      onSuccess();
-      toast({
-        title: "Success",
-        description: `Folder ${folderName} created successfully`
-      });
-    } catch (error) {
-      console.error("Error creating folder:", error);
-      toast({
-        title: "Error",
-        description: "Failed to create folder",
-        variant: "destructive"
-      });
-    }
-  };
-  
-  return (
-    <Button onClick={handleCreateFolder}>Create</Button>
-  );
-};
-
-// Component to display and manage the current path
-const FileSystemControls: React.FC<{
-  currentPath: string;
-  setCurrentPath: (path: string) => void;
-}> = ({ currentPath, setCurrentPath }) => {
-  return (
-    <div className="flex items-center p-2 bg-gray-50 border-b text-sm">
-      <span className="truncate">Path: {currentPath}</span>
-    </div>
-  );
-};
-
-const Dashboard: React.FC = () => {
+const Dashboard = () => {
   return (
     <ChatProvider>
       <FileSystemProvider>
