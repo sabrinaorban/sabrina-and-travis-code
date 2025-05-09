@@ -1,3 +1,4 @@
+
 export interface FileEntry {
   id: string;
   name: string;
@@ -33,4 +34,25 @@ export interface Conversation {
     content: string;
   }[];
   createdAt: string;
+}
+
+// Add missing types
+export interface User {
+  id: string;
+  name?: string;
+  email?: string;
+  isAuthenticated: boolean;
+}
+
+export interface Message {
+  id?: string;
+  content: string;
+  role: 'user' | 'system' | 'assistant';
+  timestamp?: string;
+  createdAt?: string;
+}
+
+export interface OpenAIMessage {
+  role: 'user' | 'system' | 'assistant';
+  content: string;
 }

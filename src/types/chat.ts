@@ -1,5 +1,5 @@
 
-import { Message } from '.';
+import { Message } from './index';
 
 export interface FileOperation {
   operation: 'read' | 'write' | 'create' | 'delete';

@@ -64,3 +64,53 @@ export const findNodeById = (
   
   return { parent: null, node: null, index: -1 };
 };
+
+// Add the missing buildFileTree function
+export const buildFileTree = (files: FileEntry[]): FileEntry[] => {
+  const rootFiles: FileEntry[] = [];
+  const pathMap: Record<string, FileEntry> = {};
+  
+  // First pass: create all entries
+  files.forEach(file => {
+    // Create a copy of the file to avoid mutating the original
+    const entry: FileEntry = {
+      ...file,
+      children: file.type === 'folder' ? [] : undefined,
+      parent: null
+    };
+    
+    pathMap[file.path] = entry;
+  });
+  
+  // Second pass: build the tree structure
+  Object.values(pathMap).forEach(file => {
+    // Skip the root node
+    if (file.path === '/') {
+      rootFiles.push(file);
+      return;
+    }
+    
+    const pathParts = file.path.split('/').filter(Boolean);
+    
+    // Handle files/folders in the root directory
+    if (pathParts.length === 1) {
+      rootFiles.push(file);
+      return;
+    }
+    
+    // Get parent path for non-root items
+    const parentPath = '/' + pathParts.slice(0, pathParts.length - 1).join('/');
+    const parent = pathMap[parentPath];
+    
+    if (parent && parent.type === 'folder') {
+      parent.children = parent.children || [];
+      parent.children.push(file);
+      file.parent = parent;
+    } else {
+      // If parent doesn't exist, add to root
+      rootFiles.push(file);
+    }
+  });
+  
+  return rootFiles;
+};
