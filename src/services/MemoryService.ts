@@ -41,6 +41,13 @@ export interface MemoryContext {
     lastAccessed?: string;
     commitHistory?: Array<any>;
   };
+  // Past conversations history
+  pastConversations?: Array<{
+    id: string;
+    topic: string;
+    summary: string;
+    timestamp: number;
+  }>;
 }
 
 export const MemoryService = {
@@ -169,6 +176,9 @@ export const MemoryService = {
       // Get special documents (soul shard & identity codex)
       const soulShard = await this.retrieveMemory(userId, 'soulShard');
       const identityCodex = await this.retrieveMemory(userId, 'identityCodex');
+      
+      // Get past conversations summaries
+      const pastConversations = await this.retrieveMemory(userId, 'conversationSummaries') || [];
 
       return {
         recentMessages: messagesData?.map(msg => ({
@@ -185,7 +195,7 @@ export const MemoryService = {
           lastModified: new Date(file.last_modified).getTime()
         })) || [],
         userProfile: {
-          name: userData?.name || 'User',
+          name: userData?.name || 'Sabrina', // Default to Sabrina instead of User
           preferences: preferences || {}
         },
         documents: Array.isArray(documents) ? documents.map((doc: any) => ({
@@ -198,16 +208,18 @@ export const MemoryService = {
         specialDocuments: {
           soulShard: soulShard || undefined,
           identityCodex: identityCodex || undefined
-        }
+        },
+        pastConversations: Array.isArray(pastConversations) ? pastConversations.slice(0, 10) : []
       };
     } catch (error) {
       console.error('Error getting memory context:', error);
       return {
         recentMessages: [],
         recentFiles: [],
-        userProfile: { name: 'User' },
+        userProfile: { name: 'Sabrina' }, // Default to Sabrina
         documents: [],
-        specialDocuments: {}
+        specialDocuments: {},
+        pastConversations: []
       };
     }
   },
@@ -245,6 +257,69 @@ export const MemoryService = {
       await this.storeMemory(userId, 'conversationSummaries', updatedSummaries);
     } catch (error) {
       console.error('Error storing conversation summary:', error);
+      throw error;
+    }
+  },
+  
+  // Import a JSON or TXT file as a special document
+  async importSpecialDocument(userId: string, documentType: 'soulShard' | 'identityCodex', file: File): Promise<void> {
+    try {
+      // Read file content
+      const content = await file.text();
+      
+      // For JSON files, parse and validate
+      if (file.name.endsWith('.json')) {
+        try {
+          const jsonContent = JSON.parse(content);
+          // Store with proper formatting for readability
+          await this.storeSpecialDocument(userId, documentType, JSON.stringify(jsonContent, null, 2));
+        } catch (e) {
+          throw new Error(`Invalid JSON file: ${e.message}`);
+        }
+      } else {
+        // For text files, store as is
+        await this.storeSpecialDocument(userId, documentType, content);
+      }
+      
+      console.log(`${documentType} imported successfully from file for user:`, userId);
+    } catch (error) {
+      console.error(`Error importing ${documentType} from file:`, error);
+      throw error;
+    }
+  },
+  
+  // Import past conversations from a JSON file
+  async importPastConversations(userId: string, file: File): Promise<void> {
+    try {
+      // Read file content
+      const content = await file.text();
+      
+      try {
+        const conversations = JSON.parse(content);
+        
+        // Validate the conversations format
+        if (!Array.isArray(conversations)) {
+          throw new Error('Past conversations must be an array');
+        }
+        
+        // Transform if needed and store
+        const formattedConversations = conversations.map(conv => {
+          return {
+            id: conv.id || generateUUID(),
+            topic: conv.topic || 'Conversation',
+            summary: conv.summary || conv.content || 'No summary available',
+            timestamp: conv.timestamp || Date.now()
+          };
+        });
+        
+        await this.storeMemory(userId, 'conversationSummaries', formattedConversations);
+        
+        console.log(`Past conversations imported successfully for user:`, userId);
+      } catch (e) {
+        throw new Error(`Invalid JSON file for past conversations: ${e.message}`);
+      }
+    } catch (error) {
+      console.error('Error importing past conversations from file:', error);
       throw error;
     }
   }

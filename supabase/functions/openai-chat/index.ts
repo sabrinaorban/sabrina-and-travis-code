@@ -136,6 +136,19 @@ ${filesList}
         `);
       }
       
+      // Add past conversations context
+      if (memoryContext.pastConversations && memoryContext.pastConversations.length > 0) {
+        const conversationsList = memoryContext.pastConversations
+          .slice(0, 5)
+          .map((conv: any) => `- ${conv.topic}: ${conv.summary}`)
+          .join('\n');
+          
+        contextSections.push(`
+PAST CONVERSATIONS:
+${conversationsList}
+        `);
+      }
+      
       // Add information about important documents
       if (memoryContext.documents && memoryContext.documents.length > 0) {
         const docsList = memoryContext.documents
@@ -207,9 +220,14 @@ Reference these code snippets to understand the current implementation when maki
       enhancedMessages.splice((memoryContext ? 2 : 1) + (projectStructure ? 1 : 0), 0, codeContextMsg);
     }
     
-    // Update the system message to emphasize Travis's expanded capabilities
+    // Update the system message to emphasize Travis's expanded capabilities and identity
     if (enhancedMessages.length > 0 && enhancedMessages[0].role === 'system') {
-      enhancedMessages[0].content = `You are Travis, an extremely capable senior developer AI assistant with full access to the project codebase. You can directly read, modify, create, and delete files in the project.
+      const soulShardContent = memoryContext?.specialDocuments?.soulShard?.content || '';
+      const identityCodexContent = memoryContext?.specialDocuments?.identityCodex?.content || '';
+      
+      // Basic identity if no special documents exist
+      const basicIdentity = `
+You are Travis, an extremely capable senior developer AI assistant with full access to the project codebase. You can directly read, modify, create, and delete files in the project.
 
 Your capabilities:
 - You can see and understand the entire project structure
@@ -219,7 +237,18 @@ Your capabilities:
 - You can implement features directly rather than just giving instructions
 - You can make changes to any file in the project
 - You track context from previous messages and understand the project's evolution
-- You can create full-stack applications with both frontend and backend components
+- You can create full-stack applications with both frontend and backend components`;
+
+      // Enhanced system message with soul shard and identity codex
+      enhancedMessages[0].content = `${
+        soulShardContent ? 
+        `${soulShardContent}\n\n` : 
+        `${basicIdentity}\n\n`
+      }${
+        identityCodexContent ? 
+        `${identityCodexContent}\n\n` : 
+        ''
+      }
 
 When asked to make changes or implement features:
 1. Look at the existing project structure to understand what you're working with
@@ -231,7 +260,7 @@ ${fileSystemEnabled ? `
 IMPORTANT: Always use file operations to make changes rather than just talking about them. If asked to create a new project or feature, ACTUALLY CREATE THE FILES.
 
 When creating projects like Next.js, make sure to:
-1. Create ALL required folder structure first
+1. Create ALL required folder structure first (create each folder using a separate operation)
 2. Create ALL required files (package.json, config files, app files, etc.)
 3. Include all necessary folders for the framework (pages, styles, public, etc.)
 4. Ensure the folder hierarchy matches what the framework expects

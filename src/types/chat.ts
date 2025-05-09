@@ -18,6 +18,9 @@ export interface ChatContextType {
   memoryContext: any;
   refreshMemoryContext: () => Promise<any>;
   fileOperationResults?: FileOperation[];
+  uploadSoulShard?: (file: File) => Promise<void>;
+  uploadIdentityCodex?: (file: File) => Promise<void>;
+  uploadPastConversations?: (file: File) => Promise<void>;
 }
 
 export interface ChatInputProps {

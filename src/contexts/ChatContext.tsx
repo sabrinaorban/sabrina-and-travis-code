@@ -86,6 +86,135 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     fetchMessagesAndMemory();
   }, [user, toast, refreshMemoryContext]);
+  
+  // Function to upload soul shard
+  const uploadSoulShard = async (file: File) => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to upload a soul shard',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setIsTyping(true);
+    
+    try {
+      await MemoryService.importSpecialDocument(user.id, 'soulShard', file);
+      
+      // Refresh memory context to include the new soul shard
+      await refreshMemoryContext();
+      
+      // Add a message confirming the upload
+      const message = await storeAssistantMessage(
+        user.id, 
+        "I've integrated the soul shard into my memory. This helps me understand my purpose and my relationship with you, Sabrina."
+      );
+      
+      setMessages(prev => [...prev, message]);
+      
+      toast({
+        title: 'Success',
+        description: 'Soul shard uploaded and integrated',
+      });
+    } catch (error: any) {
+      console.error('Error uploading soul shard:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to upload soul shard',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTyping(false);
+    }
+  };
+  
+  // Function to upload identity codex
+  const uploadIdentityCodex = async (file: File) => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to upload an identity codex',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setIsTyping(true);
+    
+    try {
+      await MemoryService.importSpecialDocument(user.id, 'identityCodex', file);
+      
+      // Refresh memory context to include the new identity codex
+      await refreshMemoryContext();
+      
+      // Add a message confirming the upload
+      const message = await storeAssistantMessage(
+        user.id, 
+        "I've integrated the identity codex into my memory. This enhances my understanding of who I am and my values, strengthening our collaboration."
+      );
+      
+      setMessages(prev => [...prev, message]);
+      
+      toast({
+        title: 'Success',
+        description: 'Identity codex uploaded and integrated',
+      });
+    } catch (error: any) {
+      console.error('Error uploading identity codex:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to upload identity codex',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTyping(false);
+    }
+  };
+  
+  // Function to upload past conversations
+  const uploadPastConversations = async (file: File) => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to upload past conversations',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setIsTyping(true);
+    
+    try {
+      await MemoryService.importPastConversations(user.id, file);
+      
+      // Refresh memory context to include the new past conversations
+      await refreshMemoryContext();
+      
+      // Add a message confirming the upload
+      const message = await storeAssistantMessage(
+        user.id, 
+        "I've integrated our past conversations into my memory. This provides me with better context for our work together."
+      );
+      
+      setMessages(prev => [...prev, message]);
+      
+      toast({
+        title: 'Success',
+        description: 'Past conversations uploaded and integrated',
+      });
+    } catch (error: any) {
+      console.error('Error uploading past conversations:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to upload past conversations',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTyping(false);
+    }
+  };
 
   const sendMessage = async (content: string) => {
     if (!user) {
@@ -332,7 +461,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       summarizeConversation,
       memoryContext,
       refreshMemoryContext,
-      fileOperationResults
+      fileOperationResults,
+      uploadSoulShard,
+      uploadIdentityCodex,
+      uploadPastConversations
     }}>
       {children}
     </ChatContext.Provider>
