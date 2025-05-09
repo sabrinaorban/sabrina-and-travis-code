@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useFileSystem } from '../contexts/FileSystemContext';
 import { cn } from '@/lib/utils';
 import { RefreshCw } from 'lucide-react';
@@ -12,24 +12,14 @@ import { FileEntry } from '../types';
 export const FileExplorer: React.FC = () => {
   const { fileSystem, selectFile, refreshFiles, isLoading } = useFileSystem();
   const { toast } = useToast();
-  const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
-  
-  // Load files when component mounts - only once
-  useEffect(() => {
-    // Only refresh on mount if there are no files and we haven't refreshed recently
-    if (fileSystem.files.length === 0 && !isLoading && Date.now() - lastRefreshTime > 5000) {
-      console.log('Initial file loading on mount');
-      handleRefresh();
-    }
-  }, []);
   
   const handleSelectFile = (file: FileEntry) => {
     selectFile(file);
   };
 
+  // Manual refresh function only - no auto refresh
   const handleRefresh = async () => {
     try {
-      setLastRefreshTime(Date.now());
       console.log('Manually refreshing files...');
       await refreshFiles();
       toast({

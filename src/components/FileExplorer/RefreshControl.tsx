@@ -13,7 +13,12 @@ export const RefreshControl: React.FC<RefreshControlProps> = ({
   onRefresh,
   isLoading
 }) => {
-  const handleRefresh = async () => {
+  const handleRefresh = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isLoading) return;
+    
     try {
       await onRefresh();
     } catch (error) {

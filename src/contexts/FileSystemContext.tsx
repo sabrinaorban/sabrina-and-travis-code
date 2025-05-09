@@ -19,7 +19,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const { user } = useAuth();
   const { fetchFiles, isLoading, setIsLoading } = useFileFetcher(user);
   
-  // Use the file refresh hook
+  // Use the file refresh hook - ensuring no automatic refreshes
   const { 
     refreshFiles, 
     deleteAllFiles, 
@@ -45,20 +45,24 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   
   const { selectFile } = useFileSelection(setFileSystem);
 
-  // Load files when user is authenticated - but only once
+  // Load files only once when user is authenticated and files are empty
   useEffect(() => {
-    if (user) {
-      // Initial load of files when user is authenticated
-      console.log('User authenticated, loading files once');
-      refreshFiles();
-    } else {
+    const shouldLoadFiles = user && fileSystem.files.length === 0 && !isLoading;
+    
+    if (shouldLoadFiles) {
+      console.log('Initial file load on auth - once only');
+      // Single initial load of files
+      refreshFiles().catch(error => {
+        console.error('Error during initial file load:', error);
+      });
+    } else if (!user) {
       // Reset file system when user logs out
       setFileSystem({
         files: [],
         selectedFile: null
       });
     }
-  }, [user]);
+  }, [user]); // Only depend on user to prevent unwanted refreshes
 
   return (
     <FileSystemContext.Provider

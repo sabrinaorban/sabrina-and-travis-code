@@ -12,11 +12,11 @@ export const useFileRefresh = (
 ) => {
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
   
-  // Refresh files function
+  // Refresh files function - completely manual, no auto-refresh
   const refreshFiles = async (): Promise<void> => {
     if (!user) return;
     
-    // Prevent multiple rapid refreshes
+    // Prevent multiple rapid refreshes with a 2-second cooldown
     const now = Date.now();
     if (now - lastRefreshTime < 2000) {
       console.log('Skipping refresh - too soon since last refresh');
