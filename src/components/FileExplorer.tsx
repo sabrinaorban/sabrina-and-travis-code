@@ -50,7 +50,7 @@ export const FileExplorer: React.FC = () => {
     <div className="overflow-auto h-full bg-white border-r flex flex-col">
       <div className="p-3 border-b flex justify-between items-center">
         <h2 className="font-semibold">Project Files</h2>
-        <RefreshControl onRefresh={refreshFiles} isLoading={isLoading} />
+        <RefreshControl onRefresh={handleRefresh} isLoading={isLoading} />
       </div>
       {isLoading ? (
         <div className="flex-grow flex items-center justify-center">

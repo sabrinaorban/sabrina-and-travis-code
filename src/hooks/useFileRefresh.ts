@@ -120,7 +120,7 @@ export const useFileRefresh = (
   };
 
   // Helper function to get modified files
-  const getModifiedFiles = (): FileEntry[] => {
+  const getModifiedFiles = (files: FileEntry[]): FileEntry[] => {
     const modifiedFiles: FileEntry[] = [];
     
     const findModifiedFiles = (files: FileEntry[]): void => {
@@ -135,7 +135,7 @@ export const useFileRefresh = (
       }
     };
     
-    findModifiedFiles(fileSystem.files);
+    findModifiedFiles(files);
     return modifiedFiles;
   };
 

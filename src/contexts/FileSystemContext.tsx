@@ -19,6 +19,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const { user } = useAuth();
   const { fetchFiles, isLoading, setIsLoading } = useFileFetcher(user);
   
+  // Use the file refresh hook
   const { 
     refreshFiles, 
     deleteAllFiles, 
@@ -31,6 +32,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setIsLoading
   );
   
+  // Use the file operations hook
   const { 
     getFileByPath, 
     createFile, 
