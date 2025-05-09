@@ -1,4 +1,6 @@
 
+import { FileEntry } from './index';
+
 export interface GitHubRepo {
   id: number;
   name: string;
