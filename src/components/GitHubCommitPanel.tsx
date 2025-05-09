@@ -21,8 +21,7 @@ export const GitHubCommitPanel: React.FC = () => {
   const { authState, currentRepo, currentBranch, saveFileToRepo, isLoading } = github;
   
   // Get file system context safely
-  const fileSystem = useFileSystem();
-  const { fileSystem: fileSystemData } = fileSystem;
+  const { fileSystem: fileSystemData } = useFileSystem();
   
   // Track which files have been edited since last commit
   useEffect(() => {

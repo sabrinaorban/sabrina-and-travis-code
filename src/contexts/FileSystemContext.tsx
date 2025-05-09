@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { FileEntry, FileSystemState } from '../types';
 import { FileSystemContextType } from '../types/fileSystem';
@@ -69,6 +68,21 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Update a file wrapper
   const updateFile = async (id: string, content: string) => {
     await updateFileOp(id, content, fileSystem.files, setFileSystem);
+    
+    // Mark file as modified
+    setFileSystem(prev => ({
+      ...prev,
+      files: prev.files.map(file => {
+        if (file.id === id) {
+          return {
+            ...file,
+            isModified: true,
+            lastModified: Date.now()
+          };
+        }
+        return file;
+      })
+    }));
   };
 
   // Delete a file wrapper

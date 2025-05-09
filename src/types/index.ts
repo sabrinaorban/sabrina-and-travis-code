@@ -13,6 +13,7 @@ export interface FileEntry {
   type: 'file' | 'folder';
   content?: string;
   lastModified?: number;
+  isModified?: boolean;
   children?: FileEntry[];
   github_path?: string;
   github_repo?: string;
