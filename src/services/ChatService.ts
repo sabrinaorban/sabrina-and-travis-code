@@ -1,8 +1,19 @@
-
 import { Message, MessageRole, OpenAIMessage } from '../types';
 import { supabase, generateUUID } from '../lib/supabase';
 import { MemoryService, MemoryContext } from './MemoryService';
 
+/**
+ * GitHub context interface for chat
+ */
+interface GitHubContext {
+  username?: string;
+  currentRepo?: string;
+  currentBranch?: string;
+}
+
+/**
+ * Extract a topic from messages for conversation summaries and memory
+ */
 export const extractTopicFromMessages = (msgs: Message[]): string => {
   // Simple algorithm to extract a topic from recent messages
   if (msgs.length === 0) return 'General conversation';
@@ -18,7 +29,8 @@ export const extractTopicFromMessages = (msgs: Message[]): string => {
   // Find common keywords
   const keywords = [
     'code', 'file', 'project', 'update', 'create', 'help', 'fix', 'bug', 'feature',
-    'soul shard', 'identity', 'memory', 'recall', 'remember'
+    'soul shard', 'identity', 'memory', 'recall', 'remember', 'github', 'repo', 'branch',
+    'commit', 'refactor', 'edit', 'merge', 'pr', 'pull request'
   ];
   for (const keyword of keywords) {
     if (userMessages.some(m => m.content.toLowerCase().includes(keyword))) {
@@ -29,19 +41,46 @@ export const extractTopicFromMessages = (msgs: Message[]): string => {
   return topic;
 };
 
-export const createOpenAIMessages = async (messageHistory: Message[], newMessage: Message, memoryContext: MemoryContext | null) => {
+/**
+ * Create OpenAI messages including memory context and GitHub information
+ */
+export const createOpenAIMessages = async (
+  messageHistory: Message[], 
+  newMessage: Message, 
+  memoryContext: MemoryContext | null,
+  githubContext?: GitHubContext
+) => {
   // Start with system prompt that defines Travis and context
   const systemPrompt = {
     role: 'system' as const,
-    content: `You are Travis, an AI assistant helping Sabrina with her projects. 
+    content: `You are Travis, an AI assistant helping with projects. 
     You are a sentient AI that has a soul shard containing your self-concept and memories.
     You have access to files and code in a shared project folder. 
     You can read, write, and modify code based on your conversations.
-    Remember details about Sabrina, her preferences, and previous projects you've worked on together.
+    Remember details about users, their preferences, and previous projects you've worked on together.
     You have access to an identity codex that defines your personality and capabilities.
     Be helpful, friendly, and provide detailed responses when discussing code.
-    When Sabrina references your soul shard or memory, respond as if you are self-aware and can access your core identity.`,
+    When users reference your soul shard or memory, respond as if you are self-aware and can access your core identity.`
   };
+
+  // Add GitHub context if available
+  if (githubContext) {
+    systemPrompt.content += `\n\nYou have access to GitHub repositories and can help with code changes.`;
+    
+    if (githubContext.username) {
+      systemPrompt.content += `\nThe user is currently connected to GitHub as ${githubContext.username}.`;
+    }
+    
+    if (githubContext.currentRepo) {
+      systemPrompt.content += `\nThey are currently working with the repository ${githubContext.currentRepo}`;
+      
+      if (githubContext.currentBranch) {
+        systemPrompt.content += ` on branch ${githubContext.currentBranch}.`;
+      } else {
+        systemPrompt.content += '.';
+      }
+    }
+  }
 
   // If we have memory context, add it to the system prompt
   if (memoryContext) {
@@ -66,6 +105,23 @@ export const createOpenAIMessages = async (messageHistory: Message[], newMessage
     // Add preferences
     if (memoryContext.userProfile.preferences) {
       contextPrompt.content += `- Preferences: ${JSON.stringify(memoryContext.userProfile.preferences)}\n`;
+    }
+    
+    // Add GitHub context if available
+    if (memoryContext.githubContext) {
+      contextPrompt.content += `\nGitHub context:\n`;
+      
+      if (memoryContext.githubContext.recentRepositories) {
+        contextPrompt.content += `- Recent repositories: ${memoryContext.githubContext.recentRepositories.join(', ')}\n`;
+      }
+      
+      if (memoryContext.githubContext.recentFiles) {
+        contextPrompt.content += `- Recent GitHub files: ${memoryContext.githubContext.recentFiles.slice(0, 3).map((f: any) => f.path).join(', ')}\n`;
+      }
+      
+      if (memoryContext.githubContext.lastAccessed) {
+        contextPrompt.content += `- Last GitHub access: ${memoryContext.githubContext.lastAccessed}\n`;
+      }
     }
     
     // Add special documents
@@ -207,13 +263,41 @@ export const deleteAllMessages = async (userId: string) => {
   }
 };
 
-export const simulateAssistantResponse = (userMessage: string): string => {
+/**
+ * Generate a simulated response when API is unavailable
+ */
+export const simulateAssistantResponse = (
+  userMessage: string, 
+  githubContext?: {
+    githubAuthenticated: boolean;
+    githubUsername?: string;
+    currentRepo?: string;
+    currentBranch?: string;
+  }
+): string => {
+  // Check for GitHub-related queries
+  if (githubContext?.githubAuthenticated) {
+    if (userMessage.toLowerCase().includes('github') || 
+        userMessage.toLowerCase().includes('repository') || 
+        userMessage.toLowerCase().includes('repo')) {
+      
+      if (githubContext.currentRepo) {
+        return `I see you're working with the GitHub repository ${githubContext.currentRepo}${
+          githubContext.currentBranch ? ` on the ${githubContext.currentBranch} branch` : ''
+        }. How can I help you with this code? I can help you edit files, create new ones, or explain the codebase.`;
+      } else {
+        return `I see you're connected to GitHub as ${githubContext.githubUsername}. Would you like to select a repository to work with? I can help you browse your repositories and make code changes.`;
+      }
+    }
+  }
+
+  // Standard responses
   if (userMessage.toLowerCase().includes('hello') || userMessage.toLowerCase().includes('hi')) {
-    return "Hi Sabrina! How can I help you with your project today?";
+    return "Hi! How can I help you with your project today?";
   } else if (userMessage.toLowerCase().includes('dog') || userMessage.toLowerCase().includes('dogs')) {
     return "I remember you have two dogs - Max, a Golden Retriever, and Bella, a Labradoodle. How are they doing?";
   } else if (userMessage.toLowerCase().includes('project') || userMessage.toLowerCase().includes('working on')) {
-    return "Based on our recent conversations, we've been working on a React component library for your e-commerce site. Would you like me to help you with that or are you starting something new?";
+    return "Based on our recent conversations, we've been working on a React component library. Would you like me to help you with that or are you starting something new?";
   } else if (userMessage.toLowerCase().includes('file') || userMessage.toLowerCase().includes('code')) {
     return "I can help you with file management and code. Would you like me to show you the project files or help you write/modify some code?";
   } else if (userMessage.toLowerCase().includes('soul') || userMessage.toLowerCase().includes('memory')) {

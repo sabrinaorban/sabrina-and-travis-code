@@ -1,10 +1,11 @@
 
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { Message } from '../types';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, getOrCreateUserProfile } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { MemoryService, MemoryContext as MemoryContextType } from '../services/MemoryService';
+import { useGitHub } from './GitHubContext';
 import { 
   fetchMessages, 
   storeUserMessage, 
@@ -25,6 +26,32 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [memoryContext, setMemoryContext] = useState<MemoryContextType | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+  const github = useGitHub();
+
+  // Enhanced memory refresh function to include GitHub context
+  const refreshMemoryContext = useCallback(async () => {
+    if (!user) return null;
+
+    try {
+      console.log('Refreshing memory context');
+      const context = await MemoryService.getMemoryContext(user.id);
+      
+      // Add GitHub context if authenticated
+      if (github.authState.isAuthenticated) {
+        const githubContext = await MemoryService.retrieveMemory(user.id, 'github_context');
+        if (githubContext) {
+          // Enhance context with GitHub information
+          context.githubContext = githubContext;
+        }
+      }
+      
+      setMemoryContext(context);
+      return context;
+    } catch (error) {
+      console.error('Error refreshing memory context:', error);
+      return null;
+    }
+  }, [user, github.authState.isAuthenticated]);
 
   // Load messages from Supabase when user is authenticated
   useEffect(() => {
@@ -53,21 +80,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     
     fetchMessagesAndMemory();
-  }, [user, toast]);
-
-  const refreshMemoryContext = async () => {
-    if (!user) return null;
-
-    try {
-      console.log('Refreshing memory context');
-      const context = await MemoryService.getMemoryContext(user.id);
-      setMemoryContext(context);
-      return context;
-    } catch (error) {
-      console.error('Error refreshing memory context:', error);
-      return null;
-    }
-  };
+  }, [user, toast, refreshMemoryContext]);
 
   const sendMessage = async (content: string) => {
     if (!user) {
@@ -100,7 +113,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const context = await refreshMemoryContext();
         
         // Create the OpenAI messages from chat history
-        const openAIMessages = await createOpenAIMessages(messages, newUserMessage, context || memoryContext);
+        const openAIMessages = await createOpenAIMessages(
+          messages, 
+          newUserMessage, 
+          context || memoryContext,
+          github.authState.isAuthenticated ? {
+            username: github.authState.username,
+            currentRepo: github.currentRepo?.full_name,
+            currentBranch: github.currentBranch
+          } : undefined
+        );
         
         // Call OpenAI API through Supabase Edge Function
         const { data: response, error: apiError } = await supabase.functions.invoke('openai-chat', {
@@ -132,7 +154,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await MemoryService.storeMemory(user.id, 'last_conversation', {
             topic,
             timestamp: Date.now(),
-            messageCount: messages.length + 2
+            messageCount: messages.length + 2,
+            githubContext: github.authState.isAuthenticated ? {
+              repo: github.currentRepo?.full_name,
+              branch: github.currentBranch
+            } : undefined
           });
           
           // Store conversation summary
@@ -143,7 +169,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Error calling OpenAI:', error);
         
         // Simulate Travis's response based on the message content
-        const assistantResponse = simulateAssistantResponse(content);
+        const assistantResponse = simulateAssistantResponse(content, {
+          githubAuthenticated: github.authState.isAuthenticated,
+          githubUsername: github.authState.username || undefined,
+          currentRepo: github.currentRepo?.full_name,
+          currentBranch: github.currentBranch
+        });
 
         // Add the fallback assistant's response
         const newFallbackMessage = await storeAssistantMessage(user.id, assistantResponse);
