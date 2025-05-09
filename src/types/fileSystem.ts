@@ -14,5 +14,5 @@ export interface FileSystemContextType {
   isLoading: boolean;
   refreshFiles: () => Promise<void>;
   deleteAllFiles: () => Promise<void>;
-  getModifiedFiles?: () => FileEntry[];
+  getModifiedFiles: () => FileEntry[];
 }

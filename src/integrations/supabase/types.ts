@@ -14,6 +14,7 @@ export type Database = {
           content: string | null
           created_at: string
           id: string
+          is_modified: boolean | null
           last_modified: string
           name: string
           path: string
@@ -24,6 +25,7 @@ export type Database = {
           content?: string | null
           created_at?: string
           id?: string
+          is_modified?: boolean | null
           last_modified?: string
           name: string
           path: string
@@ -34,6 +36,7 @@ export type Database = {
           content?: string | null
           created_at?: string
           id?: string
+          is_modified?: boolean | null
           last_modified?: string
           name?: string
           path?: string

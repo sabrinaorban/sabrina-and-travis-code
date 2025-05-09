@@ -4,6 +4,9 @@ import { supabase } from '../lib/supabase';
 import { FileEntry } from '../types';
 import { buildFileTree } from '../utils/fileSystemUtils';
 
+// List of problematic filenames that should be filtered out
+const PROBLEMATIC_FILES = ['index.file'];
+
 export const useFileFetcher = (user: any) => {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -18,20 +21,33 @@ export const useFileFetcher = (user: any) => {
     try {
       console.log(`Fetching files for user ${user.id}...`);
       
-      // Check for and delete problematic index.file if it exists
-      const { data: indexFile } = await supabase
-        .from('files')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('name', 'index.file')
-        .maybeSingle();
-        
-      if (indexFile) {
-        console.log('Found problematic index.file, deleting it:', indexFile.id);
-        await supabase
+      // Check for and delete any problematic files if they exist
+      for (const problematicFile of PROBLEMATIC_FILES) {
+        const { data: problematicFiles, error: findError } = await supabase
           .from('files')
-          .delete()
-          .eq('id', indexFile.id);
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('name', problematicFile);
+          
+        if (findError) {
+          console.error(`Error checking for ${problematicFile}:`, findError);
+          continue;
+        }
+        
+        if (problematicFiles && problematicFiles.length > 0) {
+          console.log(`Found ${problematicFiles.length} problematic ${problematicFile} files, deleting them...`);
+          
+          const { error: deleteError } = await supabase
+            .from('files')
+            .delete()
+            .in('id', problematicFiles.map(f => f.id));
+            
+          if (deleteError) {
+            console.error(`Error deleting ${problematicFile} files:`, deleteError);
+          } else {
+            console.log(`Successfully deleted ${problematicFiles.length} ${problematicFile} files`);
+          }
+        }
       }
       
       // Fetch files from Supabase for current user
@@ -54,8 +70,14 @@ export const useFileFetcher = (user: any) => {
         return [];
       }
       
+      // Filter out any problematic files that might have been missed
+      const filteredFiles = data.filter(file => !PROBLEMATIC_FILES.includes(file.name));
+      if (filteredFiles.length !== data.length) {
+        console.log(`Filtered out ${data.length - filteredFiles.length} problematic files`);
+      }
+      
       // Convert to FileEntry array and build file tree
-      const flatFiles: FileEntry[] = data.map(file => ({
+      const flatFiles: FileEntry[] = filteredFiles.map(file => ({
         id: file.id,
         name: file.name,
         path: file.path,

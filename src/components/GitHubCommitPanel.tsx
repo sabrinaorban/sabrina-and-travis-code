@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, GitCommit, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { FileEntry } from '@/types';
+import { supabase } from '@/lib/supabase';
 
 export const GitHubCommitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
@@ -21,37 +22,16 @@ export const GitHubCommitPanel: React.FC = () => {
   const { authState, currentRepo, currentBranch, saveFileToRepo, isLoading } = github;
   
   // Get file system context safely
-  const { fileSystem: fileSystemData, refreshFiles } = useFileSystem();
+  const { getModifiedFiles, refreshFiles } = useFileSystem();
   
   // Track which files have been edited since last commit
   useEffect(() => {
-    const findModifiedFiles = (files: FileEntry[] | undefined): FileEntry[] => {
-      if (!files) return [];
-      
-      const modified: FileEntry[] = [];
-      
-      const traverseFiles = (fileEntries: FileEntry[]) => {
-        for (const file of fileEntries) {
-          if (file.type === 'file' && file.isModified) {
-            modified.push(file);
-          }
-          
-          if (file.type === 'folder' && file.children) {
-            traverseFiles(file.children);
-          }
-        }
-      };
-      
-      traverseFiles(files);
-      return modified;
-    };
-    
-    if (fileSystemData?.files) {
-      const modifiedFiles = findModifiedFiles(fileSystemData.files);
+    if (getModifiedFiles) {
+      const modifiedFiles = getModifiedFiles();
       console.log('Found modified files:', modifiedFiles.length);
       setEditedFiles(modifiedFiles);
     }
-  }, [fileSystemData?.files]);
+  }, [getModifiedFiles]);
 
   // Refresh files periodically to detect changes
   useEffect(() => {
@@ -65,7 +45,7 @@ export const GitHubCommitPanel: React.FC = () => {
   }, [authState, currentRepo, currentBranch, refreshFiles]);
 
   // Only render when all required data is available
-  if (!authState?.isAuthenticated || !currentRepo || !currentBranch || !fileSystemData) {
+  if (!authState?.isAuthenticated || !currentRepo || !currentBranch) {
     return null;
   }
 
@@ -199,6 +179,3 @@ export const GitHubCommitPanel: React.FC = () => {
     </Card>
   );
 };
-
-// Import supabase at the top level to fix error
-import { supabase } from '@/lib/supabase';

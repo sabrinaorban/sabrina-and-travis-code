@@ -67,20 +67,23 @@ export const useFileRefresh = (
     console.log('Deleting all files for user:', user.id);
     setIsLoading(true);
     try {
-      // Check for and delete the problematic index.file if it exists
-      const { data: indexFile } = await supabase
-        .from('files')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('name', 'index.file')
-        .maybeSingle();
-        
-      if (indexFile) {
-        console.log('Found problematic index.file, deleting it specifically:', indexFile.id);
-        await supabase
+      // Check for and delete all problematic files if they exist
+      const PROBLEMATIC_FILES = ['index.file'];
+      
+      for (const problematicFile of PROBLEMATIC_FILES) {
+        const { data: problematicFiles } = await supabase
           .from('files')
-          .delete()
-          .eq('id', indexFile.id);
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('name', problematicFile);
+          
+        if (problematicFiles && problematicFiles.length > 0) {
+          console.log(`Found ${problematicFiles.length} problematic ${problematicFile} files, deleting them specifically`);
+          await supabase
+            .from('files')
+            .delete()
+            .in('id', problematicFiles.map(f => f.id));
+        }
       }
       
       // Delete all files from the Supabase database
@@ -109,5 +112,25 @@ export const useFileRefresh = (
     }
   };
 
-  return { refreshFiles, deleteAllFiles, lastRefreshTime };
+  // Helper function to get modified files
+  const getModifiedFiles = (): FileEntry[] => {
+    const modifiedFiles: FileEntry[] = [];
+    
+    const findModifiedFiles = (files: FileEntry[]): void => {
+      for (const file of files) {
+        if (file.type === 'file' && file.isModified) {
+          modifiedFiles.push(file);
+        }
+        
+        if (file.type === 'folder' && file.children) {
+          findModifiedFiles(file.children);
+        }
+      }
+    };
+    
+    findModifiedFiles(fileSystem.files);
+    return modifiedFiles;
+  };
+
+  return { refreshFiles, deleteAllFiles, lastRefreshTime, getModifiedFiles };
 };

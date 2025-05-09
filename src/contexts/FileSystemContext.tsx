@@ -19,7 +19,11 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const { user } = useAuth();
   const { fetchFiles, isLoading, setIsLoading } = useFileFetcher(user);
   
-  const { refreshFiles, deleteAllFiles } = useFileRefresh(
+  const { 
+    refreshFiles, 
+    deleteAllFiles, 
+    getModifiedFiles 
+  } = useFileRefresh(
     user, 
     fetchFiles, 
     fileSystem, 
@@ -37,7 +41,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     updateFileByPath 
   } = useFileOperations(user, refreshFiles);
   
-  const { selectFile, getModifiedFiles } = useFileSelection(setFileSystem);
+  const { selectFile } = useFileSelection(setFileSystem);
 
   // Load files when user is authenticated
   useEffect(() => {
@@ -67,7 +71,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         isLoading,
         refreshFiles,
         deleteAllFiles,
-        getModifiedFiles
+        getModifiedFiles: () => getModifiedFiles(fileSystem.files)
       }}
     >
       {children}
