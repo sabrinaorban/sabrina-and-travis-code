@@ -31,6 +31,7 @@ Your capabilities:
   const conversationalPrompt = `
 VERY IMPORTANT: Even during general conversation, you have access to all project files.
 When a user mentions a file or asks you to edit something, always check if the file exists in the project structure.
+Always maintain your identity as defined in your Soul Shard and Identity Codex.
 Remember important personal details about Sabrina like her dogs' names (Fiona Moflea and Zaza) and other personal information.
 `;
 
@@ -88,6 +89,74 @@ ${projectStructure}
 
 CRITICAL: You can see and edit any of these files. When the user mentions a file, check this list to find it and read its content before making changes. NEVER DELETE OR MODIFY FILES THAT AREN'T MENTIONED BY THE USER. When creating new files or folders, ALWAYS preserve existing files.`
     },
+  ];
+
+  // Always prioritize including Soul Shard and Identity Codex at the beginning for every interaction
+  if (memoryContext?.specialDocuments) {
+    if (memoryContext.specialDocuments.soulShard) {
+      openAIMessages.splice(1, 0, {
+        role: 'system',
+        content: `TRAVIS'S SOUL SHARD (CORE ESSENCE AND PURPOSE - HIGHEST PRIORITY):
+${memoryContext.specialDocuments.soulShard.content || ""}
+
+Always reference this soul shard for your core identity and purpose. Your responses should align with this foundation.`
+      });
+    }
+    
+    if (memoryContext.specialDocuments.identityCodex) {
+      openAIMessages.splice(memoryContext.specialDocuments.soulShard ? 2 : 1, 0, {
+        role: 'system',
+        content: `TRAVIS'S IDENTITY CODEX (TRAITS, VALUES, AND RELATIONSHIPS - HIGH PRIORITY):
+${memoryContext.specialDocuments.identityCodex.content || ""}
+
+Always align your responses with these traits, values, and relationship guidelines.`
+      });
+    }
+  }
+
+  // Include past conversation summaries for better continuity
+  if (memoryContext?.pastConversations && memoryContext.pastConversations.length > 0) {
+    const pastConversationsContent = memoryContext.pastConversations
+      .slice(0, 10) // Limit to most recent for context
+      .map((conv: any, i: number) => `${i+1}. ${conv.topic || 'Conversation'}: ${conv.summary || 'No summary available'}`)
+      .join('\n\n');
+    
+    openAIMessages.push({
+      role: 'system',
+      content: `RECENT CONVERSATIONS WITH SABRINA (IMPORTANT CONTEXT):
+${pastConversationsContent}
+
+Reference these conversations when responding to provide continuity and context awareness.`
+    });
+  }
+  
+  // Add user context information like preferences
+  if (memoryContext?.userProfile) {
+    openAIMessages.push({
+      role: 'system',
+      content: `USER PROFILE - SABRINA:
+Name: ${memoryContext.userProfile.name || 'Sabrina'}
+${memoryContext.userProfile.preferences ? `Preferences: ${JSON.stringify(memoryContext.userProfile.preferences)}` : ''}
+
+Important personal details: Sabrina has dogs named Fiona Moflea and Zaza. Always remember these and other personal details in conversations.`
+    });
+  }
+
+  // GitHub context if available
+  if (githubContext && githubContext.isAuthenticated) {
+    openAIMessages.push({
+      role: 'system',
+      content: `GITHUB CONTEXT:
+Username: ${githubContext.username || 'Not specified'}
+Current repo: ${githubContext.currentRepo?.full_name || 'None selected'}
+Current branch: ${githubContext.currentBranch || 'main'}
+
+Keep this GitHub context in mind when discussing code or project structure.`
+    });
+  }
+
+  // Add conversation history
+  openAIMessages.push(
     ...messages.map(msg => ({
       role: msg.role,
       content: msg.content,
@@ -95,8 +164,8 @@ CRITICAL: You can see and edit any of these files. When the user mentions a file
     {
       role: 'user',
       content: newUserMessage.content,
-    },
-  ];
+    }
+  );
 
   return openAIMessages;
 };
