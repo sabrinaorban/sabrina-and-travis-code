@@ -154,6 +154,25 @@ const DashboardContent = () => {
     setIsGitHubDialogOpen(true);
   };
   
+  // Handle manual file refresh with error handling
+  const handleRefreshFiles = async () => {
+    console.log('Dashboard - Manual file refresh triggered');
+    try {
+      await refreshFiles();
+      toast({
+        title: "Files refreshed",
+        description: "Files have been refreshed successfully"
+      });
+    } catch (error) {
+      console.error("Error refreshing files:", error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh files. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+  
   if (authLoading) {
     return (
       <div className="flex flex-col h-screen justify-center items-center">
@@ -227,10 +246,7 @@ const DashboardContent = () => {
                   variant="ghost" 
                   size="icon" 
                   title="Refresh files"
-                  onClick={() => {
-                    console.log('Dashboard - Manual file refresh triggered');
-                    refreshFiles();
-                  }}
+                  onClick={handleRefreshFiles}
                 >
                   <RefreshCw size={16} />
                 </Button>

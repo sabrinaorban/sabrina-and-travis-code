@@ -108,26 +108,60 @@ export const callOpenAI = async (
   fileSystemEnabled: boolean,
   projectStructure: string
 ) => {
-  const { data: response, error: apiError } = await supabase.functions.invoke('openai-chat', {
-    body: { 
-      messages: openAIMessages,
-      memoryContext: memoryContext,
-      fileSystemEnabled: fileSystemEnabled,
-      projectStructure
+  try {
+    const { data: response, error: apiError } = await supabase.functions.invoke('openai-chat', {
+      body: { 
+        messages: openAIMessages,
+        memoryContext: memoryContext,
+        fileSystemEnabled: fileSystemEnabled,
+        projectStructure
+      }
+    });
+
+    if (apiError) {
+      console.error('OpenAI API Error:', apiError);
+      throw apiError;
     }
-  });
 
-  if (apiError) {
-    throw apiError;
+    return response;
+  } catch (error) {
+    console.error('Error calling OpenAI:', error);
+    throw error;
   }
-
-  return response;
 };
 
 // Enhanced detection of file operation requests - make it more sensitive to file editing requests
 export const isFileOperationRequest = (message: string): boolean => {
   // Convert to lowercase for case-insensitive matching
   const lowerMessage = message.toLowerCase();
+  
+  // If the message is clearly conversational without file operation intent, return false
+  const conversationalPatterns = [
+    'how are you',
+    'what have you been',
+    'what were you',
+    'what are you',
+    'tell me about',
+    'good morning',
+    'hello',
+    'hi there'
+  ];
+  
+  // Check if this is a purely conversational message
+  const isPurelyConversational = conversationalPatterns.some(pattern => 
+    lowerMessage.includes(pattern)
+  );
+  
+  // For purely conversational messages, don't enable file operations by default
+  if (isPurelyConversational && 
+      !lowerMessage.includes('file') && 
+      !lowerMessage.includes('create') && 
+      !lowerMessage.includes('project') &&
+      !lowerMessage.includes('html') &&
+      !lowerMessage.includes('code')) {
+    console.log('Message appears to be purely conversational');
+    return false;
+  }
   
   // Keywords that strongly indicate file operations
   const fileOperationKeywords = [
