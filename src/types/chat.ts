@@ -1,6 +1,6 @@
 
 export interface FileOperation {
-  operation: 'read' | 'write' | 'create' | 'delete' | 'move' | 'copy';
+  operation: 'read' | 'write' | 'create' | 'delete' | 'move' | 'checkExists';
   path: string;
   content?: string;
   targetPath?: string;  // For move/copy operations
@@ -20,4 +20,7 @@ export interface FileOperation {
   sourceFile?: string;
   // Preserve file history
   preserveFileId?: string;
+  // Confirmation properties
+  requiresConfirmation?: boolean;
+  isConfirmed?: boolean;
 }

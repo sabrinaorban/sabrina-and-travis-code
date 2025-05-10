@@ -25,6 +25,12 @@ export interface OperationState {
   
   // File cache for read operations
   fileContentCache: Map<string, string>;
+  
+  // Map for storing file IDs for operations
+  fileIdMap: Map<string, string>;
+  
+  // Cache for read file contents
+  readFiles: Map<string, string>;
 }
 
 // Create a new operation state
@@ -33,7 +39,9 @@ export const createOperationState = (): OperationState => ({
   createdFiles: new Map<string, string>(),
   safeToDeleteFiles: new Set<string>(),
   existingPaths: new Map<string, string>(),
-  fileContentCache: new Map<string, string>()
+  fileContentCache: new Map<string, string>(),
+  fileIdMap: new Map<string, string>(),
+  readFiles: new Map<string, string>()
 });
 
 // Reset operation state
@@ -43,6 +51,8 @@ export const resetOperationState = (state: OperationState): void => {
   state.safeToDeleteFiles.clear();
   state.existingPaths.clear();
   state.fileContentCache.clear();
+  state.fileIdMap.clear();
+  state.readFiles.clear();
 };
 
 // Map all files recursively to build the fileIds map
