@@ -1,4 +1,3 @@
-
 import { OpenAIMessage, Message } from '../../types';
 import { MemoryContext } from '../MemoryService';
 import { supabase } from '@/integrations/supabase/client';
@@ -244,6 +243,8 @@ export const isFileOperationRequest = (message: string): boolean => {
     'what do you think about',
     'how do you feel about',
     'did you miss me',
+    'i miss you',
+    'missed you',
     'while i was away',
     'been busy',
     'remember me',
@@ -276,7 +277,31 @@ export const isFileOperationRequest = (message: string): boolean => {
     'may I ask you',
     'what do you do',
     'what\'s your purpose',
-    'what is your purpose'
+    'what is your purpose',
+    'would you',
+    'could you',
+    'should you',
+    'are you',
+    'were you',
+    'thanks',
+    'thank you',
+    'appreciate',
+    'okay',
+    'ok',
+    'i see',
+    'understood',
+    'got it',
+    'sounds good',
+    'that\'s great',
+    'that is great',
+    'cool',
+    'awesome',
+    'nice',
+    'wonderful',
+    'perfect',
+    'excellent',
+    'fantastic',
+    'amazing'
   ];
   
   // If the message directly matches a strong conversational pattern, immediately return false
@@ -287,21 +312,29 @@ export const isFileOperationRequest = (message: string): boolean => {
     }
   }
   
-  // If the message is a short greeting or a question without any specific file-related terms, treat as conversational
-  if (message.length < 25 && !lowerMessage.includes('file') && !lowerMessage.includes('folder') && 
-      !lowerMessage.includes('create') && !lowerMessage.includes('make') && !lowerMessage.includes('build')) {
-    console.log('Short message without file-related terms, treating as conversational');
+  // First check: if message is very short (less than 5 words) with no file operation terms, treat as conversational
+  const wordCount = message.split(/\s+/).length;
+  if (wordCount < 5 && !lowerMessage.includes('file') && !lowerMessage.includes('create') && 
+      !lowerMessage.includes('folder') && !lowerMessage.includes('project') && !lowerMessage.includes('code')) {
+    console.log('Short message without file operation terms, treating as conversational');
     return false;
   }
   
-  // If the message ends with a question mark and doesn't contain strong file operation indicators
+  // Second check: if it's a greeting or casual conversation starter
+  if (wordCount < 10 && !lowerMessage.includes('file') && !lowerMessage.includes('code') && 
+      !lowerMessage.includes('project') && !lowerMessage.includes('app')) {
+    console.log('Likely conversational, treating as conversational');
+    return false;
+  }
+  
+  // Third check: if the message ends with a question mark and doesn't contain strong file operation indicators
   if (lowerMessage.trim().endsWith('?') && !lowerMessage.includes('create file') && !lowerMessage.includes('generate file') && 
       !lowerMessage.includes('make file') && !lowerMessage.includes('new file')) {
     console.log('Question without strong file operation indicators, treating as conversational');
     return false;
   }
   
-  // If the message doesn't contain any file-related terms, it's likely conversational
+  // Fourth check: if the message doesn't contain any file-related terms, it's likely conversational
   const fileRelatedTerms = [
     'file', 'folder', 'directory', 'code', 'html', 'css', 'js', 'react', 
     'component', 'function', 'class', 'create', 'update', 'delete', 'modify', 
@@ -316,7 +349,7 @@ export const isFileOperationRequest = (message: string): boolean => {
     return false;
   }
   
-  // Keywords that strongly indicate file operations
+  // Fifth check: Explicit file operation keywords that strongly indicate file operations
   const fileOperationKeywords = [
     'create project', 
     'create app', 
@@ -364,7 +397,7 @@ export const isFileOperationRequest = (message: string): boolean => {
     }
   }
   
-  // Check for file extensions which strongly indicate file operations
+  // Sixth check: file extensions which strongly indicate file operations
   const fileExtensions = ['.html', '.css', '.js', '.tsx', '.jsx', '.ts', '.json', '.md'];
   for (const ext of fileExtensions) {
     if (lowerMessage.includes(ext)) {
@@ -374,9 +407,17 @@ export const isFileOperationRequest = (message: string): boolean => {
   }
   
   // Final fallback: if the message contains both action verbs and coding terms
-  // it might be a file operation, but this is a weak signal so we need multiple matches
+  // AND doesn't have any conversational cues, it might be a file operation
   const actionVerbs = ['create', 'make', 'build', 'implement', 'add', 'generate', 'develop', 'code'];
   const codingTerms = ['component', 'function', 'application', 'app', 'project', 'website', 'page'];
+  const conversationalCues = ['i think', 'just wondering', 'curious', 'what if', 'how would', 'can you explain'];
+  
+  // Check for conversation cues
+  const hasConversationalCues = conversationalCues.some(cue => lowerMessage.includes(cue));
+  if (hasConversationalCues) {
+    console.log('Detected conversational cues, treating as conversational');
+    return false;
+  }
   
   let actionVerbCount = 0;
   let codingTermCount = 0;
@@ -390,6 +431,7 @@ export const isFileOperationRequest = (message: string): boolean => {
   });
   
   // Only consider it a file operation if multiple matches from both categories
+  // AND the message is more "command-like" than conversational
   if (actionVerbCount >= 1 && codingTermCount >= 1) {
     console.log('Detected multiple action verbs and coding terms');
     return true;

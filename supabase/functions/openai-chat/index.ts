@@ -1,4 +1,3 @@
-
 // Supabase Edge Function for OpenAI integration
 // Update to make Travis more careful with file operations and enhance context awareness
 
@@ -606,6 +605,8 @@ function isConversationalRequest(message: string): boolean {
     'what do you think about',
     'how do you feel about',
     'did you miss me',
+    'i miss you',
+    'missed you',
     'while i was away',
     'been busy',
     'remember me',
@@ -630,7 +631,15 @@ function isConversationalRequest(message: string): boolean {
     'nice to meet',
     'pleasure to meet',
     'how\'s everything',
-    'how is everything'
+    'how is everything',
+    'thanks',
+    'thank you',
+    'appreciate',
+    'okay',
+    'ok',
+    'i see',
+    'understood',
+    'got it'
   ];
   
   // Check for conversational patterns
