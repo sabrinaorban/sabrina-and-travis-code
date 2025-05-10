@@ -3,7 +3,7 @@ import { FileOperation } from '../../../types/chat';
 import { normalizePath } from './PathUtils';
 import { OperationState } from './OperationState';
 
-// Process check existence operations
+// Process check exists operations
 export const processCheckExistsOperations = async (
   fileSystem: any,
   operations: FileOperation[],
@@ -16,12 +16,11 @@ export const processCheckExistsOperations = async (
   
   for (const op of operations) {
     try {
-      console.log(`[FileOperationService] Checking if exists: ${op.path}`);
       const cleanPath = normalizePath(op.path);
       
-      // Skip duplicate checks for the same path in the same batch
+      // Skip duplicate check operations for the same path in the same batch
       if (processedPaths.has(cleanPath)) {
-        console.log(`[FileOperationService] Skipping duplicate check for: ${cleanPath}`);
+        console.log(`[FileOperationService] Skipping duplicate check exists for: ${cleanPath}`);
         results.push({
           ...op,
           success: true,
@@ -32,36 +31,48 @@ export const processCheckExistsOperations = async (
       
       processedPaths.add(cleanPath);
       
-      // Check if the path exists and what type it is
+      console.log(`[FileOperationService] Checking if path exists: ${cleanPath}`);
+      
+      // Get file or folder by path
       const existingItem = fileSystem.getFileByPath(cleanPath);
       
       if (existingItem) {
-        console.log(`[FileOperationService] Item exists at path ${cleanPath}: ${existingItem.type}`);
+        console.log(`[FileOperationService] Path exists: ${cleanPath}, type: ${existingItem.type}`);
         
-        // Track the existence in the state
+        // Store the existence and type information in state for other operations to use
         state.existingPaths.set(cleanPath, existingItem.type);
         
-        // Return success with type information
-        results.push({
-          ...op,
-          success: true,
-          message: `${existingItem.type === 'folder' ? 'Folder' : 'File'} exists at path ${cleanPath}`
-        });
-      } else {
-        console.log(`[FileOperationService] No item exists at path ${cleanPath}`);
+        // If it's a file, also cache the file ID
+        if (existingItem.type === 'file' && existingItem.id) {
+          state.fileIds.set(cleanPath, existingItem.id);
+        }
         
         results.push({
           ...op,
           success: true,
-          message: `No item exists at path ${cleanPath}`
+          message: `Found ${existingItem.type} at ${cleanPath}`,
+          fileInfo: {
+            name: existingItem.name || '',
+            path: existingItem.path || cleanPath,
+            type: existingItem.type,
+            lastModified: existingItem.lastModified || ''
+          }
+        });
+      } else {
+        console.log(`[FileOperationService] Path does not exist: ${cleanPath}`);
+        
+        results.push({
+          ...op,
+          success: true, // Still a successful operation, just indicates file doesn't exist
+          message: `Path ${cleanPath} does not exist`
         });
       }
     } catch (error: any) {
-      console.error(`[FileOperationService] Error checking existence for ${op.path}:`, error);
+      console.error(`[FileOperationService] Error checking if path exists ${op.path}:`, error);
       results.push({
         ...op,
         success: false,
-        message: error.message || 'Existence check failed'
+        message: error.message || 'Check exists operation failed'
       });
     }
   }

@@ -10,4 +10,6 @@ export interface FileOperation {
   isSafeToDelete?: boolean;
   requiresConfirmation?: boolean;
   isConfirmed?: boolean;
+  preserveFileId?: string; // Added missing property
+  sourceFile?: string; // Added missing property
 }

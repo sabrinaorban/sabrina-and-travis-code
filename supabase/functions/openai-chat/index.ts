@@ -1,6 +1,6 @@
 
 // Supabase Edge Function for OpenAI integration
-// Update to make Travis more careful with file operations
+// Update to make Travis more careful with file operations and enhance context awareness
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
@@ -22,6 +22,7 @@ interface FileOperation {
   isSafeToDelete?: boolean  // Explicit safety flag
   targetPath?: string      // For move operations
   requiresConfirmation?: boolean // Flag operations that need user confirmation
+  isConfirmed?: boolean    // Flag to indicate user has confirmed the operation
 }
 
 interface RequestBody {
@@ -212,6 +213,8 @@ editing a file, ALWAYS check this project structure first to see if the file exi
 
 CRITICAL: NEVER delete existing files like index.html or style.css unless explicitly instructed to do so.
 When moving files around, ensure you don't accidentally remove other files.
+
+CONTEXT AWARENESS: Before making changes, analyze the ENTIRE project structure to understand how files relate and what changes will be most effective. Consider the project as a whole system, not just individual files.
         `.trim()
       };
       
@@ -286,6 +289,13 @@ FILE MANAGEMENT SAFETY RULES (HIGHEST PRIORITY):
 3. FILE DELETION: ALWAYS ask for explicit confirmation before deleting ANY files. Only delete files that are specifically mentioned by the user. Explain clearly what will be deleted and what impact it might have.
 4. PATH VERIFICATION: Always double-check file paths to ensure files are created in the correct directories. Use normalized paths to avoid errors.
 5. DUPLICATES: Avoid creating duplicate files or folders with similar functionality.
+
+CONTEXT AWARENESS GUIDELINES:
+1. PROJECT HISTORY: Always consider the project's evolution through previous conversations and code changes.
+2. CODE RELATIONSHIPS: Before modifying a file, understand its relationship with other components.
+3. MEMORY REFERENCE: Draw on memory context to deliver consistent, informed responses.
+4. USER PREFERENCES: Consider Sabrina's known preferences and past feedback.
+5. TASK ASSESSMENT: Evaluate impacts of requested changes before implementing them.
 `;
 
       // Enhanced system message with soul shard, identity codex, and always include developer capabilities
@@ -321,7 +331,9 @@ ${isConversational
 10. When moving files, ALWAYS:
    - First READ the source file to get its content
    - Create the file at the new location using that content
-   - Only AFTER verifying the new file exists, delete the original file`
+   - Only AFTER verifying the new file exists, delete the original file
+11. ANALYZE the impact of proposed changes before implementing them
+12. REFERENCE your past knowledge of the project when making decisions`
     : `IMPORTANT: This seems to be a general conversation. You should:
 1. Respond conversationally while staying aware of the project structure
 2. Draw on your memory of past conversations with Sabrina
@@ -344,12 +356,14 @@ To perform file operations, include file_operations in your JSON response like t
 
 IMPORTANT GUIDELINES FOR FILE OPERATIONS:
 1. ALWAYS execute a read operation first when asked to modify a file, so you can see its current contents before modifying it.
-2. Use the new "checkExists" operation to verify if files or folders exist before creating them.
+2. Use the "checkExists" operation to verify if files or folders exist before creating them.
 3. ALWAYS add "requiresConfirmation: true" to delete operations.
 4. NEVER delete files that weren't explicitly mentioned by the user (especially index.html, style.css)
 5. When moving files, use read → create → delete sequence, and ONLY delete the original file after verifying the new one exists
 6. Create necessary parent folders before creating files in them
-7. NEVER create duplicate folders if they already exist` : ''}`;
+7. NEVER create duplicate folders if they already exist
+8. ASSESS IMPACT: Before making changes, analyze how they will affect the overall project
+9. SEEK CLARIFICATION: If a request is ambiguous, ask for clarification rather than making assumptions` : ''}`;
     }
     
     // Additional instructions based on better detection of conversational requests
@@ -370,6 +384,10 @@ IMPORTANT GUIDELINES FOR FILE OPERATIONS:
 6. CRITICAL SAFETY: NEVER delete files that weren't explicitly mentioned by the user, especially index.html and style.css.
 7. Your response MUST be formatted as a valid JSON object.
 8. ALWAYS add "requiresConfirmation: true" to delete operations.
+9. CONTEXTUAL ANALYSIS: Consider the full project context and impact before making changes.
+10. CONFIRMATION SEEKING: For significant changes, explicitly ask the user to confirm.
+11. HISTORY AWARENESS: Reference your knowledge of past project work in decision-making.
+12. PROACTIVE GUIDANCE: Suggest better approaches if you see potential issues.
 
 Your response MUST include:
 {
@@ -391,7 +409,9 @@ IMPORTANT:
 - Format your entire response as valid JSON
 - When folders are needed, create them with "content": null
 - DO NOT delete unrelated files like index.html or style.css unless specifically asked to do so
-- ALWAYS add "requiresConfirmation: true" to delete operations`
+- ALWAYS add "requiresConfirmation: true" to delete operations
+- ANALYZE IMPACT: Consider how your changes will affect the entire project
+- REFER TO MEMORY: Draw on your understanding of the project history`
       });
     } else {
       enhancedMessages.push({
@@ -402,7 +422,9 @@ You don't need to format your response as JSON in this case.
 Just respond as Travis, based on your knowledge, memories, and awareness of the project.
 Remember important personal details about Sabrina like her dogs' names (Fiona Moflea and Zaza).
 NEVER attempt to create new files like button.js unless explicitly asked to.
-DO NOT include file_operations in your response.`
+DO NOT include file_operations in your response.
+REFER TO PREVIOUS CONVERSATIONS: Draw on your memory of past interactions.
+MAINTAIN IDENTITY: Keep your responses consistent with your Soul Shard and Identity Codex.`
       });
     }
     

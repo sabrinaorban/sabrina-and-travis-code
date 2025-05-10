@@ -1,106 +1,54 @@
 
 import { FileOperation } from '../../../types/chat';
 
-// Sort operations in the optimal processing order
+// Order operations for safe execution
 export const sortOperations = (operations: FileOperation[]): FileOperation[] => {
-  // Define operation type priorities
-  const operationPriority: Record<string, number> = {
+  // Define operation order for processing
+  const operationOrder: { [key: string]: number } = {
     'read': 0,
     'checkExists': 1,
     'create': 2,
     'write': 3,
     'move': 4,
-    'delete': 5
+    'delete': 5,
   };
-  
-  // Sort operations by their priority
+
   return [...operations].sort((a, b) => {
-    const priorityA = operationPriority[a.operation] || 999;
-    const priorityB = operationPriority[b.operation] || 999;
-    return priorityA - priorityB;
+    // First sort by operation type
+    const aOrder = operationOrder[a.operation] || 99;
+    const bOrder = operationOrder[b.operation] || 99;
+    return aOrder - bOrder;
   });
 };
 
-// Group operations by type for easier processing
-export const sortGroupOperations = (operations: FileOperation[]): {
-  readOperations: FileOperation[],
-  checkExistsOperations: FileOperation[],
-  folderCreationOperations: FileOperation[],
-  fileCreationOperations: FileOperation[],
-  writeOperations: FileOperation[],
-  moveOperations: FileOperation[],
-  deleteOperations: FileOperation[]
-} => {
-  const readOperations: FileOperation[] = [];
-  const checkExistsOperations: FileOperation[] = [];
-  const folderCreationOperations: FileOperation[] = [];
-  const fileCreationOperations: FileOperation[] = [];
-  const writeOperations: FileOperation[] = [];
-  const moveOperations: FileOperation[] = [];
-  const deleteOperations: FileOperation[] = [];
-  
-  operations.forEach(operation => {
-    switch (operation.operation) {
-      case 'read':
-        readOperations.push(operation);
-        break;
-      
-      case 'checkExists':
-        checkExistsOperations.push(operation);
-        break;
-        
-      case 'create':
-        // Separate folder and file creations
-        if (operation.content === null) {
-          folderCreationOperations.push(operation);
-        } else {
-          fileCreationOperations.push(operation);
-        }
-        break;
-        
-      case 'write':
-        writeOperations.push(operation);
-        break;
-        
-      case 'move':
-        moveOperations.push(operation);
-        break;
-        
-      case 'delete':
-        deleteOperations.push(operation);
-        break;
-    }
-  });
-  
+// Group operations by type
+export const sortGroupOperations = (operations: FileOperation[]) => {
   return {
-    readOperations,
-    checkExistsOperations,
-    folderCreationOperations,
-    fileCreationOperations,
-    writeOperations,
-    moveOperations,
-    deleteOperations
+    readOperations: operations.filter(op => op.operation === 'read'),
+    checkExistsOperations: operations.filter(op => op.operation === 'checkExists'),
+    folderCreationOperations: operations.filter(op => 
+      op.operation === 'create' && (op.content === null || op.path.endsWith('/') || !op.path.includes('.'))
+    ),
+    fileCreationOperations: operations.filter(op => 
+      op.operation === 'create' && op.content !== null && op.path.includes('.') && !op.path.endsWith('/')
+    ),
+    writeOperations: operations.filter(op => op.operation === 'write'),
+    moveOperations: operations.filter(op => op.operation === 'move'),
+    deleteOperations: operations.filter(op => op.operation === 'delete'),
   };
 };
 
-// Separate delete operations into move-related and manual deletes
-export const sortSeparateDeleteOperations = (operations: FileOperation[]): {
-  moveDeleteOperations: FileOperation[],
-  manualDeleteOperations: FileOperation[]
-} => {
-  const moveDeleteOperations: FileOperation[] = [];
-  const manualDeleteOperations: FileOperation[] = [];
-  
-  operations.forEach(operation => {
-    if (operation.originOperation === 'move') {
-      moveDeleteOperations.push(operation);
-    } else {
-      manualDeleteOperations.push(operation);
-    }
-  });
-  
+// Separate delete operations between move-related and manual
+export const sortSeparateDeleteOperations = (operations: FileOperation[]) => {
   return {
-    moveDeleteOperations,
-    manualDeleteOperations
+    // Move-related deletions have a specific origin and target
+    moveDeleteOperations: operations.filter(op => 
+      op.originOperation === 'move' && op.targetPath && op.isSafeToDelete
+    ),
+    
+    // Manual deletions have no specific origin/target
+    manualDeleteOperations: operations.filter(op => 
+      op.originOperation !== 'move' || !op.targetPath || !op.isSafeToDelete
+    ),
   };
 };
