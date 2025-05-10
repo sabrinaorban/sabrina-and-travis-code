@@ -199,36 +199,65 @@ export const callOpenAI = async (
   }
 };
 
-// Enhanced detection of file operation requests - make it more sensitive to file editing requests
+// Enhanced detection of file operation requests - significantly improved to avoid false positives
 export const isFileOperationRequest = (message: string): boolean => {
   // Convert to lowercase for case-insensitive matching
   const lowerMessage = message.toLowerCase();
   
-  // If the message is clearly conversational without file operation intent, return false
-  const conversationalPatterns = [
+  // Strong conversation patterns that should NEVER be treated as file operations
+  const strongConversationalPatterns = [
     'how are you',
     'what have you been',
     'what were you',
     'what are you',
+    'what were you up to',
+    'what have you been up to',
     'tell me about',
     'good morning',
+    'good afternoon',
+    'good evening',
     'hello',
-    'hi there'
+    'hi there',
+    'what\'s up',
+    'how\'s it going',
+    'how is your day',
+    'how was your',
+    'nice to see you',
+    'nice to talk to you',
+    'what do you think about',
+    'how do you feel about',
+    'did you miss me',
+    'while i was away',
+    'been busy',
+    'remember me',
+    'tell me a',
+    'what\'s new',
+    'what is new',
+    'who are you',
+    'what do you know about me',
+    'do you remember'
   ];
   
-  // Check if this is a purely conversational message
-  const isPurelyConversational = conversationalPatterns.some(pattern => 
-    lowerMessage.includes(pattern)
-  );
+  // If the message directly matches a strong conversational pattern, immediately return false
+  for (const pattern of strongConversationalPatterns) {
+    if (lowerMessage.includes(pattern)) {
+      console.log('Detected strong conversational pattern:', pattern);
+      return false;
+    }
+  }
   
-  // For purely conversational messages, don't enable file operations by default
-  if (isPurelyConversational && 
-      !lowerMessage.includes('file') && 
-      !lowerMessage.includes('create') && 
-      !lowerMessage.includes('project') &&
-      !lowerMessage.includes('html') &&
-      !lowerMessage.includes('code')) {
-    console.log('Message appears to be purely conversational');
+  // If the message doesn't contain any file-related terms, it's likely conversational
+  const fileRelatedTerms = [
+    'file', 'folder', 'directory', 'code', 'html', 'css', 'js', 'react', 
+    'component', 'function', 'class', 'create', 'update', 'delete', 'modify', 
+    'implement', 'build', 'generate', 'develop', 'app', 'application', 'project'
+  ];
+  
+  const containsFileTerms = fileRelatedTerms.some(term => lowerMessage.includes(term));
+  
+  if (!containsFileTerms) {
+    // No file-related terms found, so treat as conversational
+    console.log('No file-related terms found, treating as conversational');
     return false;
   }
   
@@ -262,10 +291,6 @@ export const isFileOperationRequest = (message: string): boolean => {
     'copy folder',
     'rename file',
     'rename folder',
-    'next.js',
-    'nextjs',
-    'simple app',
-    'simple project',
     'edit the',
     'edit file',
     'change the',
@@ -273,50 +298,49 @@ export const isFileOperationRequest = (message: string): boolean => {
     'modify the',
     'add to the',
     'add code',
-    'insert code',
-    'add a div',
-    'add css',
-    'link css',
-    'add javascript',
-    'add js',
-    'add html',
-    'edit html',
-    'update html',
-    'modify html'
+    'insert code'
   ];
   
-  // Check for exact matches of keywords
+  // Check for exact matches of file operation keywords
   for (const keyword of fileOperationKeywords) {
     if (lowerMessage.includes(keyword)) {
+      console.log('Detected file operation keyword:', keyword);
       return true;
     }
   }
   
-  // Check for combinations of actions and targets
-  const actions = ['create', 'make', 'generate', 'build', 'implement', 'add', 'setup', 'develop', 'edit', 'change', 'update', 'modify', 'insert', 'move', 'rename', 'copy'];
-  const targets = ['nextjs', 'next.js', 'react', 'app', 'application', 'project', 'component', 'website', 'file', 'code', 'html', 'css', 'javascript', 'js', 'index', 'div', 'section', 'page', 'folder', 'directory'];
-  
-  for (const action of actions) {
-    for (const target of targets) {
-      const pattern = `${action}\\s+(?:a|an|the)?\\s*${target}`;
-      if (new RegExp(pattern, 'i').test(lowerMessage)) {
-        return true;
-      }
+  // Check for file extensions which strongly indicate file operations
+  const fileExtensions = ['.html', '.css', '.js', '.tsx', '.jsx', '.ts', '.json', '.md'];
+  for (const ext of fileExtensions) {
+    if (lowerMessage.includes(ext)) {
+      console.log('Detected file extension:', ext);
+      return true;
     }
   }
   
-  // Check for common framework-specific commands or file references
-  if (lowerMessage.includes('next.js') || 
-      lowerMessage.includes('nextjs') || 
-      lowerMessage.includes('react app') ||
-      lowerMessage.includes('create-react-app') ||
-      lowerMessage.includes('.html') ||
-      lowerMessage.includes('.js') ||
-      lowerMessage.includes('.css') ||
-      lowerMessage.includes('.tsx') ||
-      lowerMessage.includes('.jsx')) {
+  // Final fallback: if the message contains both action verbs and coding terms
+  // it might be a file operation, but this is a weak signal so we need multiple matches
+  const actionVerbs = ['create', 'make', 'build', 'implement', 'add', 'generate', 'develop', 'code'];
+  const codingTerms = ['component', 'function', 'application', 'app', 'project', 'website', 'page'];
+  
+  let actionVerbCount = 0;
+  let codingTermCount = 0;
+  
+  actionVerbs.forEach(verb => {
+    if (lowerMessage.includes(verb)) actionVerbCount++;
+  });
+  
+  codingTerms.forEach(term => {
+    if (lowerMessage.includes(term)) codingTermCount++;
+  });
+  
+  // Only consider it a file operation if multiple matches from both categories
+  if (actionVerbCount >= 1 && codingTermCount >= 1) {
+    console.log('Detected multiple action verbs and coding terms');
     return true;
   }
   
+  // Default to conversational if no strong file operation signals detected
+  console.log('No strong file operation signals detected, defaulting to conversational');
   return false;
 };

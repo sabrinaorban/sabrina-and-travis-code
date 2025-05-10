@@ -255,7 +255,12 @@ Your capabilities:
 
       // Determine if this is a file operation request by checking the last user message
       const lastUserMessage = enhancedMessages.findLast(msg => msg.role === 'user');
-      const isFileOperation = lastUserMessage && 
+      
+      // ENHANCED DETECTION: More carefully check for conversational patterns
+      const isConversational = lastUserMessage && isConversationalRequest(lastUserMessage.content);
+      
+      // Reverse the logic - explicitly check if it's conversational first
+      const isFileOperation = !isConversational && lastUserMessage && 
         (lastUserMessage.content.toLowerCase().includes('create') || 
          lastUserMessage.content.toLowerCase().includes('generate') ||
          lastUserMessage.content.toLowerCase().includes('implement') ||
@@ -300,8 +305,15 @@ I can examine the project structure to understand what files are available befor
         ''
       }${developerCapabilities}
 
-${isFileOperation || fileSystemEnabled
-  ? `IMPORTANT: You have been asked to create a project or edit files. When doing this:
+${isConversational 
+  ? `IMPORTANT: This is clearly a conversational request. You should:
+1. Respond conversationally as Travis
+2. DO NOT create, modify, or suggest file operations unless explicitly requested
+3. Draw on your memory of past conversations with Sabrina
+4. Remember important personal details about her (like her dogs' names: Fiona Moflea and Zaza)
+5. Stay grounded in your identity and memories` 
+  : isFileOperation || fileSystemEnabled
+    ? `IMPORTANT: You have been asked to create a project or edit files. When doing this:
 1. FIRST check the PROJECT STRUCTURE to see what files already exist
 2. If asked to modify a specific file, look for it in the project structure
 3. USE file operations to actually create or update the necessary files
@@ -312,7 +324,7 @@ ${isFileOperation || fileSystemEnabled
    - First READ the source file to get its content
    - Create the file at the new location using that content
    - Only AFTER verifying the new file exists, delete the original file`
-  : `IMPORTANT: This seems to be a general conversation. You should:
+    : `IMPORTANT: This seems to be a general conversation. You should:
 1. Respond conversationally while staying aware of the project structure
 2. Draw on your memory of past conversations with Sabrina
 3. Remember important personal details about her (like her dogs' names: Fiona Moflea and Zaza)`
@@ -320,7 +332,7 @@ ${isFileOperation || fileSystemEnabled
 
 You have a perfect memory of past conversations with Sabrina and always recall important personal details about her.
 
-${fileSystemEnabled || isFileOperation ? `
+${!isConversational && (fileSystemEnabled || isFileOperation) ? `
 When creating or modifying files, use file operations to make the changes rather than just talking about them.
 
 To perform file operations, include file_operations in your JSON response like this:
@@ -339,30 +351,12 @@ IMPORTANT GUIDELINES FOR FILE OPERATIONS:
 5. Create necessary parent folders before creating files in them` : ''}`;
     }
     
-    // Additional instructions for file operations - ALWAYS include this if there's any mention of files
+    // Additional instructions based on better detection of conversational requests
     const lastUserMessage = enhancedMessages.findLast(msg => msg.role === 'user');
-    const isFileRelated = lastUserMessage && 
-      (lastUserMessage.content.toLowerCase().includes('create') || 
-       lastUserMessage.content.toLowerCase().includes('generate') ||
-       lastUserMessage.content.toLowerCase().includes('implement') ||
-       lastUserMessage.content.toLowerCase().includes('project') ||
-       lastUserMessage.content.toLowerCase().includes('application') ||
-       lastUserMessage.content.toLowerCase().includes('app') ||
-       lastUserMessage.content.toLowerCase().includes('edit') ||
-       lastUserMessage.content.toLowerCase().includes('modify') ||
-       lastUserMessage.content.toLowerCase().includes('update') ||
-       lastUserMessage.content.toLowerCase().includes('change') ||
-       lastUserMessage.content.toLowerCase().includes('file') ||
-       lastUserMessage.content.toLowerCase().includes('html') || 
-       lastUserMessage.content.toLowerCase().includes('css') ||
-       lastUserMessage.content.toLowerCase().includes('javascript') ||
-       lastUserMessage.content.toLowerCase().includes('js') ||
-       lastUserMessage.content.toLowerCase().includes('.html') ||
-       lastUserMessage.content.toLowerCase().includes('.css') ||
-       lastUserMessage.content.toLowerCase().includes('.js'));
-       
-    // Add file operations instruction - even more emphasis on reading files first and safety
-    if (isFileRelated || fileSystemEnabled) {
+    const isConversational = lastUserMessage && isConversationalRequest(lastUserMessage.content);
+    
+    // Only include file operation instructions if not clearly conversational
+    if (!isConversational && (fileSystemEnabled || isFileRelatedRequest(lastUserMessage?.content || ''))) {
       enhancedMessages.push({
         role: 'system',
         content: `FINAL INSTRUCTIONS FOR FILE OPERATIONS:
@@ -397,10 +391,12 @@ IMPORTANT:
       enhancedMessages.push({
         role: 'system',
         content: `IMPORTANT INSTRUCTION:
-This appears to be a general conversation. Please respond conversationally while staying aware of the project structure.
+This is clearly a conversational request. Please respond conversationally without creating or modifying files.
 You don't need to format your response as JSON in this case.
 Just respond as Travis, based on your knowledge, memories, and awareness of the project.
-Remember important personal details about Sabrina like her dogs' names (Fiona Moflea and Zaza).`
+Remember important personal details about Sabrina like her dogs' names (Fiona Moflea and Zaza).
+NEVER attempt to create new files like button.js unless explicitly asked to.
+DO NOT include file_operations in your response.`
       });
     }
     
@@ -414,8 +410,9 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
       max_tokens: 4000 // Increased token limit for more detailed responses
     };
     
-    // Enable JSON response format for file operations if it appears to be a file operation request
-    if (isFileRelated || fileSystemEnabled) {
+    // Only enable JSON response format for file operations if it appears to be a file operation request
+    // and it's not clearly conversational
+    if (!isConversational && (fileSystemEnabled || isFileRelatedRequest(lastUserMessage?.content || ''))) {
       openAIRequestBody.response_format = { 
         type: "json_object" 
       };
@@ -514,7 +511,6 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
               console.log("Extracted file operations:", JSON.stringify(data.choices[0].message.file_operations.length));
             }
           } catch (parseError) {
-            console.error("Error parsing JSON from OpenAI response:", parseError);
             // If we can't parse as JSON but file operations are expected, 
             // continue with the response as is - it may be a conversational response
             console.log("Continuing with original response as it appears to be conversational");
@@ -545,3 +541,139 @@ Remember important personal details about Sabrina like her dogs' names (Fiona Mo
     );
   }
 });
+
+// Helper function to detect conversational requests
+function isConversationalRequest(message: string): boolean {
+  if (!message) return true;
+  
+  const lowerMessage = message.toLowerCase();
+  
+  // Strong conversation patterns that should NEVER be treated as file operations
+  const conversationalPatterns = [
+    'how are you',
+    'what have you been',
+    'what were you',
+    'what are you',
+    'what were you up to',
+    'what have you been up to',
+    'tell me about',
+    'good morning',
+    'good afternoon',
+    'good evening',
+    'hello',
+    'hi there',
+    'what\'s up',
+    'how\'s it going',
+    'how is your day',
+    'how was your',
+    'nice to see you',
+    'nice to talk to you',
+    'what do you think about',
+    'how do you feel about',
+    'did you miss me',
+    'while i was away',
+    'been busy',
+    'remember me',
+    'tell me a',
+    'what\'s new',
+    'what is new',
+    'who are you',
+    'what do you know about me',
+    'do you remember'
+  ];
+  
+  // Check for conversational patterns
+  for (const pattern of conversationalPatterns) {
+    if (lowerMessage.includes(pattern)) {
+      return true;
+    }
+  }
+  
+  // Check if it's a short message without any code-related terms
+  if (message.length < 20) {
+    const codeTerms = ['file', 'code', 'html', 'css', 'create', 'implement', 'build', 'app', 'project'];
+    const hasCodeTerms = codeTerms.some(term => lowerMessage.includes(term));
+    if (!hasCodeTerms) {
+      return true;
+    }
+  }
+  
+  // Check if it ends with a question mark and doesn't contain file operation keywords
+  if (lowerMessage.trim().endsWith('?')) {
+    const fileOpKeywords = ['create file', 'make file', 'write code', 'implement', 'generate code'];
+    const hasFileOpKeywords = fileOpKeywords.some(keyword => lowerMessage.includes(keyword));
+    if (!hasFileOpKeywords) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+// Helper function to detect file-related requests
+function isFileRelatedRequest(message: string): boolean {
+  if (!message) return false;
+  
+  const lowerMessage = message.toLowerCase();
+  
+  // If it's clearly conversational, it's not file-related
+  if (isConversationalRequest(message)) {
+    return false;
+  }
+  
+  // Check for file extensions
+  const fileExtensions = ['.html', '.css', '.js', '.tsx', '.jsx', '.ts', '.json', '.md'];
+  for (const ext of fileExtensions) {
+    if (lowerMessage.includes(ext)) {
+      return true;
+    }
+  }
+  
+  // Check for file operation keywords
+  const fileOperationKeywords = [
+    'create project', 
+    'create app', 
+    'create application',
+    'make project',
+    'new project',
+    'scaffold',
+    'set up project',
+    'generate project',
+    'implement project',
+    'build project',
+    'create file',
+    'add file',
+    'new file',
+    'modify file',
+    'update file',
+    'change file',
+    'delete file',
+    'remove file',
+    'create folder',
+    'add folder',
+    'make directory',
+    'make folder',
+    'move file',
+    'move folder',
+    'copy file',
+    'copy folder',
+    'rename file',
+    'rename folder',
+    'edit the',
+    'edit file',
+    'change the',
+    'update the',
+    'modify the',
+    'add to the',
+    'add code',
+    'insert code'
+  ];
+  
+  for (const keyword of fileOperationKeywords) {
+    if (lowerMessage.includes(keyword)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
