@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Message } from '../types';
 import { useToast } from './use-toast';
@@ -86,8 +85,7 @@ export const useMessageHandling = () => {
             currentRepo: github.currentRepo?.full_name,
             currentBranch: github.currentBranch
           } : undefined,
-          fileSystem,
-          currentContext
+          fileSystem
         );
         
         // Call OpenAI API through Supabase Edge Function
