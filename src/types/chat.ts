@@ -23,4 +23,6 @@ export interface FileOperation {
   // Confirmation properties
   requiresConfirmation?: boolean;
   isConfirmed?: boolean;
+  // Property to enable duplicate operation checking
+  duplicateCheck?: boolean;
 }
