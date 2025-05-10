@@ -1,4 +1,5 @@
 
+
 export interface FileOperation {
   operation: 'read' | 'write' | 'create' | 'delete' | 'move' | 'checkExists';
   path: string;
@@ -27,3 +28,4 @@ export interface FileOperation {
   operationHash?: string;
   duplicateCheck?: boolean;
 }
+
