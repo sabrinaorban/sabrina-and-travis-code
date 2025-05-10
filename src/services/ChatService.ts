@@ -22,5 +22,9 @@ export {
 // Export file operation services
 export { 
   processFileOperations,
-  getProjectStructure
-} from './chat/FileOperationService';
+  getProjectStructure,
+  isFileOperation,
+  analyzeFileRelationships,
+  getProjectContext
+} from './chat';
+

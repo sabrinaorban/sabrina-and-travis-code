@@ -19,13 +19,16 @@ import {
 } from '../services/ChatService';
 import { 
   processFileOperations,
-  getProjectStructure
-} from '../services/chat/FileOperationService';
+  getProjectStructure,
+  isFileOperation,
+  getProjectContext
+} from '../services/chat';
 
 export const useMessageHandling = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [fileOperationResults, setFileOperationResults] = useState<FileOperation[] | undefined>(undefined);
+  const [projectContext, setProjectContext] = useState<any>(null);
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -64,8 +67,13 @@ export const useMessageHandling = () => {
         const projectStructure = await getProjectStructure(fileSystem);
         console.log('Project structure for Travis:', projectStructure ? 'Available' : 'Not available');
         
+        // Get current project context for tracking
+        const currentContext = await getProjectContext(fileSystem);
+        setProjectContext(currentContext);
+        console.log('Current project context:', currentContext);
+        
         // Determine if this is likely a file operation request - with improved detection
-        const shouldEnableFileOps = isFileOperationRequest(content);
+        const shouldEnableFileOps = isFileOperation(content);
         console.log('File operations enabled:', shouldEnableFileOps);
         
         // Create the OpenAI messages from chat history
@@ -78,14 +86,15 @@ export const useMessageHandling = () => {
             currentRepo: github.currentRepo?.full_name,
             currentBranch: github.currentBranch
           } : undefined,
-          fileSystem
+          fileSystem,
+          currentContext
         );
         
         // Call OpenAI API through Supabase Edge Function
         const response = await callOpenAI(
           openAIMessages,
           memoryContext,
-          true, // Always enable file system access for Travis
+          shouldEnableFileOps, // Only enable file operations if detected
           projectStructure
         );
 
@@ -96,7 +105,15 @@ export const useMessageHandling = () => {
         // Process any file operations requested by the assistant
         if (fileOperations.length > 0) {
           console.log('Processing file operations:', fileOperations.length, fileOperations);
-          const processedOperations = await processFileOperations(fileSystem, fileOperations);
+          
+          // Add project context to operations
+          const enhancedOperations = fileOperations.map((op: FileOperation) => ({
+            ...op,
+            projectContext: currentContext,
+            duplicateCheck: true // Enable duplicate checking
+          }));
+          
+          const processedOperations = await processFileOperations(fileSystem, enhancedOperations);
           
           // Update file operation results for UI feedback
           if (processedOperations && processedOperations.length > 0) {
@@ -105,6 +122,10 @@ export const useMessageHandling = () => {
             // Refresh files after operations
             await fileSystem.refreshFiles();
             console.log('Files refreshed after operations');
+            
+            // Update project context after operations
+            const newContext = await getProjectContext(fileSystem);
+            setProjectContext(newContext);
           }
         } else {
           console.log('No file operations to process');
@@ -126,6 +147,7 @@ export const useMessageHandling = () => {
             topic,
             timestamp: Date.now(),
             messageCount: messages.length + 2,
+            projectContext: currentContext,
             githubContext: github.authState.isAuthenticated ? {
               repo: github.currentRepo?.full_name,
               branch: github.currentBranch
@@ -177,6 +199,7 @@ export const useMessageHandling = () => {
     setIsTyping,
     fileOperationResults,
     setFileOperationResults,
+    projectContext,
     sendMessage
   };
 };

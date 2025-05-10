@@ -1,102 +1,142 @@
 
-import { FileSystemState, FileEntry } from '../../types';
 import { FileOperation } from '../../types/chat';
-import { processFileOperations as originalProcessFileOperations, getProjectStructure } from './FileOperationService';
-import { FileOperationTest } from '../testing/FileOperationTest';
+import { 
+  createOperationState, 
+  resetOperationState, 
+  mapAllFilesRecursive,
+  sortOperations,
+  processReadOperations,
+  processCheckExistsOperations,
+  processFolderCreationOperations,
+  processFileCreationOperations,
+  processWriteOperations,
+  processMoveOperations,
+  processMoveDeleteOperations,
+  processManualDeleteOperations
+} from './fileOperations';
 
-/**
- * Monitored version of the file operations service that adds safety checks and logging
- * without modifying the original functionality
- */
+import { logFileOperation } from './index';
+
+// Process file operations with monitoring and safety checks
 export const processFileOperations = async (
   fileSystem: any,
   operations: FileOperation[]
 ): Promise<FileOperation[]> => {
-  const monitor = FileOperationTest.getInstance();
+  // Skip if no operations or fileSystem
+  if (!operations || !operations.length || !fileSystem) {
+    console.log('[FileOperationService] No operations to process or no fileSystem');
+    return [];
+  }
+
+  // Get current file structure state
+  const fileStructure = await getProjectStructure(fileSystem);
+  console.log(`[FileOperationService] Processing ${operations.length} file operations`);
+
+  // Create operation state for tracking file relationships
+  const operationState = createOperationState();
   
+  // Populate fileIds map from current file structure - essential for safety
+  if (fileStructure) {
+    mapAllFilesRecursive(fileStructure, operationState);
+  }
+
+  // Remove duplicates if specified in operations
+  const deduplicatedOps = operations.some(op => op.duplicateCheck) 
+    ? deduplicateOperations(operations)
+    : operations;
+    
+  if (deduplicatedOps.length < operations.length) {
+    console.log(`[FileOperationService] Removed ${operations.length - deduplicatedOps.length} duplicate operations`);
+  }
+
   try {
-    // Analyze operations for safety before processing
-    const { isValid, warnings } = monitor.validateOperations(operations);
-    
-    // Log any warnings but don't block operations
-    if (!isValid && warnings.length > 0) {
-      console.warn('[MonitoredFileOperationService] Potential issues detected:', warnings);
+    // Sort operations for safety and dependencies
+    const sortedOperations = sortOperations(deduplicatedOps);
+    console.log(`[FileOperationService] Sorted ${sortedOperations.length} operations`);
+
+    const readResults = await processReadOperations(fileSystem, 
+      sortedOperations.filter(op => op.operation === 'read'), operationState);
       
-      // Log each warning separately
-      warnings.forEach(warning => {
-        monitor.logOperation(
-          warning.operation.operation,
-          warning.operation.path,
-          'warning',
-          warning.message,
-          warning.operation.targetPath
-        );
-      });
-    }
-    
-    // Enhanced safety: ensure move operations have all required steps
-    const enhancedOperations = operations.map(op => {
-      // For move operations, check for complete workflow
-      if (op.originOperation === 'move' || op.operation === 'move') {
-        // Check if all steps are present
-        const sourcePath = op.path;
-        const targetPath = op.targetPath;
-        
-        if (sourcePath && targetPath) {
-          const hasRead = operations.some(o => o.operation === 'read' && o.path === sourcePath);
-          const hasCreate = operations.some(o => o.operation === 'create' && o.path === targetPath);
-          
-          if (!hasRead || !hasCreate) {
-            console.warn(
-              `[MonitoredFileOperationService] Move operation from ${sourcePath} to ${targetPath} ` +
-              `is missing steps. Adding explicit safety flags.`
-            );
-          }
-        }
-      }
+    const checkResults = await processCheckExistsOperations(fileSystem,
+      sortedOperations.filter(op => op.operation === 'checkExists'), operationState);
       
-      return op;
-    });
+    const folderResults = await processFolderCreationOperations(fileSystem,
+      sortedOperations.filter(op => op.operation === 'create' && op.path.endsWith('/')), operationState);
+      
+    const createResults = await processFileCreationOperations(fileSystem,
+      sortedOperations.filter(op => op.operation === 'create' && !op.path.endsWith('/')), operationState);
+      
+    const writeResults = await processWriteOperations(fileSystem,
+      sortedOperations.filter(op => op.operation === 'write'), operationState);
+      
+    const moveResults = await processMoveOperations(fileSystem,
+      sortedOperations.filter(op => op.operation === 'move'), operationState);
+      
+    // Delete operations related to moves first (safe)
+    const moveDeleteResults = await processMoveDeleteOperations(fileSystem,
+      sortedOperations.filter(op => op.operation === 'delete' && op.originOperation === 'move'), operationState);
+      
+    // Manual delete operations last (require safety checks)
+    const deleteResults = await processManualDeleteOperations(fileSystem,
+      sortedOperations.filter(op => op.operation === 'delete' && op.originOperation !== 'move'), operationState);
+      
+    // Combine all results for the response
+    const allResults = [
+      ...readResults,
+      ...checkResults,
+      ...folderResults,
+      ...createResults,
+      ...writeResults,
+      ...moveResults,
+      ...moveDeleteResults,
+      ...deleteResults
+    ];
     
-    // Call the original function to maintain exact functionality
-    const results = await originalProcessFileOperations(fileSystem, enhancedOperations);
+    console.log(`[FileOperationService] Completed ${allResults.length} operations of ${sortedOperations.length} requested`);
     
-    // Log the results
-    results.forEach(result => {
-      if (result.success) {
-        monitor.logOperation(
-          result.operation,
-          result.path,
-          'success',
-          result.message,
-          result.targetPath
-        );
-      } else {
-        monitor.logOperation(
-          result.operation,
-          result.path,
-          'error',
-          result.message,
-          result.targetPath
-        );
-      }
-    });
+    const successCount = allResults.filter(op => op.success).length;
+    const failureCount = allResults.filter(op => op.success === false).length;
     
-    return results;
+    console.log(`[FileOperationService] Operation summary: ${successCount} succeeded, ${failureCount} failed`);
+    
+    // Reset operation state for cleanup
+    resetOperationState(operationState);
+    
+    return allResults;
   } catch (error) {
-    console.error('[MonitoredFileOperationService] Error:', error);
-    
-    // Log the error
-    monitor.logOperation(
-      'batch',
-      'multiple',
-      'error',
-      error instanceof Error ? error.message : String(error)
-    );
-    
+    console.error('[FileOperationService] Error processing operations:', error);
+    // Reset operation state in case of error
+    resetOperationState(operationState);
     throw error;
   }
 };
 
-// Re-export getProjectStructure for convenience
-export { getProjectStructure };
+// Get the project structure
+export const getProjectStructure = async (fileSystem: any): Promise<any> => {
+  if (!fileSystem || !fileSystem.files) {
+    console.error('[FileOperationService] fileSystem or fileSystem.files not available');
+    return null;
+  }
+  
+  // Copy the structure to avoid mutations
+  return JSON.parse(JSON.stringify(fileSystem.files));
+};
+
+// Deduplicate operations based on path and operation type
+const deduplicateOperations = (operations: FileOperation[]): FileOperation[] => {
+  const seen = new Map<string, FileOperation>();
+  
+  // First pass - prioritize specific operations
+  operations.forEach(op => {
+    const key = `${op.operation}:${op.path}`;
+    
+    // If we haven't seen this operation before, or this is a more specific one
+    if (!seen.has(key) || 
+        (op.operation === 'create' && op.content) || 
+        op.isConfirmed) {
+      seen.set(key, op);
+    }
+  });
+  
+  return Array.from(seen.values());
+};
