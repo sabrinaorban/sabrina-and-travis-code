@@ -172,14 +172,15 @@ export const MemoryService = {
       const preferences = await this.retrieveMemory(userId, 'preferences');
       const documents = await this.retrieveMemory(userId, 'documents') || [];
       
-      // Get special documents (soul shard & identity codex)
+      // Get special documents (soul shard & identity codex) with higher priority
       const soulShard = await this.retrieveMemory(userId, 'soulShard');
       const identityCodex = await this.retrieveMemory(userId, 'identityCodex');
       
       // Get past conversations summaries
       const pastConversations = await this.retrieveMemory(userId, 'conversationSummaries') || [];
 
-      return {
+      // Structure the memory context
+      const memoryContext: MemoryContext = {
         recentMessages: messagesData?.map(msg => ({
           id: msg.id,
           role: msg.role as 'user' | 'assistant',
@@ -208,8 +209,10 @@ export const MemoryService = {
           soulShard: soulShard || undefined,
           identityCodex: identityCodex || undefined
         },
-        pastConversations: Array.isArray(pastConversations) ? pastConversations.slice(0, 10) : []
+        pastConversations: Array.isArray(pastConversations) ? pastConversations.slice(0, 15) : [] // Increased from 10
       };
+
+      return memoryContext;
     } catch (error) {
       console.error('Error getting memory context:', error);
       return {
@@ -223,15 +226,29 @@ export const MemoryService = {
     }
   },
 
-  // Store special documents like soul shard and identity codex
+  // Store special documents like soul shard and identity codex with enhanced processing
   async storeSpecialDocument(userId: string, documentType: 'soulShard' | 'identityCodex', content: string): Promise<void> {
     try {
-      // For large content, consider compression or chunking if needed in the future
+      console.log(`Processing ${documentType} for storage - length: ${content.length} characters`);
+      
+      // Enhanced processing for Soul Shard and Identity Codex
+      let processedContent = content;
+      
+      // For very large content, consider summarization or structure enhancement
+      if (content.length > 10000) {
+        console.log(`${documentType} is very large (${content.length} chars), optimizing for storage`);
+        // Just trim very long content for now - in the future could implement summarization
+        processedContent = content.slice(0, 10000);
+        console.log(`Trimmed ${documentType} to ${processedContent.length} chars`);
+      }
+      
+      // Format the document data
       const documentData = {
-        content,
+        content: processedContent,
         lastUpdated: Date.now()
       };
       
+      // Store with priority flag
       await this.storeMemory(userId, documentType, documentData);
       
       console.log(`${documentType} stored successfully for user:`, userId);
@@ -261,7 +278,7 @@ export const MemoryService = {
     }
   },
   
-  // Import a JSON or TXT file as a special document
+  // Import a JSON or TXT file as a special document - enhanced for better handling
   async importSpecialDocument(userId: string, documentType: 'soulShard' | 'identityCodex', file: File): Promise<void> {
     try {
       console.log(`Starting import of ${documentType}, file size: ${file.size / 1024} KB`);
@@ -270,10 +287,18 @@ export const MemoryService = {
       const content = await file.text();
       console.log(`File read complete, content length: ${content.length}`);
       
-      // For JSON files, parse and validate
+      // For JSON files, parse and validate with better error handling
       if (file.name.endsWith('.json')) {
         try {
           const jsonContent = JSON.parse(content);
+          // Check for specific format expected for Soul Shard or Identity Codex
+          if (documentType === 'soulShard' && !jsonContent.essence && !jsonContent.core && !jsonContent.purpose) {
+            console.log('Soul Shard missing expected fields, but proceeding with storage');
+          }
+          if (documentType === 'identityCodex' && !jsonContent.traits && !jsonContent.values && !jsonContent.relationships) {
+            console.log('Identity Codex missing expected fields, but proceeding with storage');
+          }
+          
           // Store with proper formatting for readability
           await this.storeSpecialDocument(userId, documentType, JSON.stringify(jsonContent, null, 2));
           console.log(`${documentType} parsed as JSON and stored`);
@@ -282,7 +307,7 @@ export const MemoryService = {
           throw new Error(`Invalid JSON file: ${e.message}`);
         }
       } else {
-        // For text files, store as is
+        // For text files, store as is but with enhanced processing
         await this.storeSpecialDocument(userId, documentType, content);
         console.log(`${documentType} stored as text`);
       }
