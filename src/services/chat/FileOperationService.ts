@@ -10,6 +10,7 @@ import {
   sortGroupOperations as groupOperations,
   sortSeparateDeleteOperations as separateDeleteOperations,
   processReadOperations,
+  processCheckExistsOperations,
   processFolderCreationOperations,
   processFileCreationOperations,
   processWriteOperations,
@@ -88,6 +89,7 @@ export const processFileOperations = async (
     // STEP 3: Group operations by type
     const {
       readOperations,
+      checkExistsOperations,
       folderCreationOperations,
       fileCreationOperations,
       writeOperations,
@@ -98,6 +100,10 @@ export const processFileOperations = async (
     // STEP 4: Process all read operations to understand the current state
     const readResults = await processReadOperations(fileSystem, readOperations, operationState);
     results.push(...readResults);
+    
+    // STEP 4.5: Process checkExists operations to verify files/folders exist before creating
+    const checkExistsResults = await processCheckExistsOperations(fileSystem, checkExistsOperations, operationState);
+    results.push(...checkExistsResults);
     
     // STEP 5: Process folder creation operations first
     const folderResults = await processFolderCreationOperations(fileSystem, folderCreationOperations, operationState);
@@ -122,9 +128,24 @@ export const processFileOperations = async (
     const moveDeleteResults = await processMoveDeleteOperations(fileSystem, moveDeleteOperations, operationState);
     results.push(...moveDeleteResults);
     
-    // Then process manual delete operations
-    const manualDeleteResults = await processManualDeleteOperations(fileSystem, manualDeleteOperations, operationState);
-    results.push(...manualDeleteResults);
+    // Then process manual delete operations - with confirmation requirements
+    const filteredManualDeleteOperations = manualDeleteOperations.filter(op => {
+      // Skip operations that require confirmation but haven't been confirmed
+      if (op.requiresConfirmation && !op.isConfirmed) {
+        results.push({
+          ...op,
+          success: false,
+          message: `Delete operation for ${op.path} requires explicit confirmation. Use isConfirmed: true to confirm.`
+        });
+        return false;
+      }
+      return true;
+    });
+    
+    if (filteredManualDeleteOperations.length > 0) {
+      const manualDeleteResults = await processManualDeleteOperations(fileSystem, filteredManualDeleteOperations, operationState);
+      results.push(...manualDeleteResults);
+    }
     
     // Refresh files once at the end for better performance
     try {

@@ -1,26 +1,11 @@
 
-// Re-export all file operation modules with explicit naming to avoid conflicts
-export * from './PathUtils';
-export { 
-  createOperationState, 
-  resetOperationState, 
-  mapAllFilesRecursive, 
-  PROTECTED_FILES, 
-  type OperationState 
-} from './OperationState';
-export { 
-  sortOperations,
-  groupOperations as sortGroupOperations,
-  separateDeleteOperations as sortSeparateDeleteOperations
-} from './OperationSorter';
+// Export all file operation processors
+export { createOperationState, resetOperationState, mapAllFilesRecursive } from './OperationState';
+export { sortOperations, sortGroupOperations, sortSeparateDeleteOperations } from './OperationSorting';
 export { processReadOperations } from './ReadOperationProcessor';
+export { processCheckExistsOperations } from './CheckExistsProcessor';
 export { processFolderCreationOperations } from './FolderOperationProcessor';
-export { 
-  processFileCreationOperations, 
-  processWriteOperations 
-} from './FileCreationProcessor';
+export { processFileCreationOperations, processWriteOperations } from './FileCreationProcessor';
 export { processMoveOperations } from './MoveOperationProcessor';
-export { 
-  processMoveDeleteOperations, 
-  processManualDeleteOperations 
-} from './DeleteOperationProcessor';
+export { processMoveDeleteOperations, processManualDeleteOperations } from './DeleteOperationProcessor';
+export { normalizePath, getPathParts } from './PathUtils';

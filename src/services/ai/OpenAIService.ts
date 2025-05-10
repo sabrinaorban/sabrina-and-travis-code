@@ -47,6 +47,13 @@ CRITICAL INSTRUCTIONS FOR FILE OPERATIONS: Before making ANY file changes, ALWAY
 
 EXTREMELY IMPORTANT: When asked to create new files or folders, or move files, you must NOT delete or modify ANY OTHER files in the project. Files like index.html and style.css should NEVER be deleted unless specifically asked to do so.
 
+FILE MANAGEMENT SAFETY RULES (HIGHEST PRIORITY):
+1. FOLDER CREATION: Before creating a new folder, CHECK if it already exists in the project structure. If the folder already exists, use it instead of creating a duplicate. Only create new folders when absolutely necessary.
+2. FILE CREATION/EDITING: Before creating a new file, CHECK if a file with the same name already exists in the target location. If it does, read its content first and consider whether to update it instead of creating a new one.
+3. FILE DELETION: ALWAYS get explicit confirmation before deleting ANY files. Only delete files that are specifically mentioned by the user. Explain clearly what will be deleted and what impact it might have.
+4. PATH VERIFICATION: Always double-check file paths to ensure files are created in the correct directories. Use normalized paths to avoid errors.
+5. DUPLICATES: Avoid creating duplicate files or folders with similar functionality.
+
 When moving files between folders:
 1. FIRST read the source file to get its content
 2. THEN create the file in the new location with that content
@@ -235,7 +242,31 @@ export const isFileOperationRequest = (message: string): boolean => {
     'what is new',
     'who are you',
     'what do you know about me',
-    'do you remember'
+    'do you remember',
+    'can you tell me',
+    'where have you been',
+    'how do you know',
+    'why did you',
+    'could you explain',
+    'what\'s your opinion',
+    'what is your opinion',
+    'do you like',
+    'have you ever',
+    'I missed you',
+    'been a while',
+    'long time no see',
+    'nice to meet',
+    'pleasure to meet',
+    'how\'s everything',
+    'how is everything',
+    'where are you',
+    'when did you',
+    'will you',
+    'can I ask you',
+    'may I ask you',
+    'what do you do',
+    'what\'s your purpose',
+    'what is your purpose'
   ];
   
   // If the message directly matches a strong conversational pattern, immediately return false
@@ -244,6 +275,20 @@ export const isFileOperationRequest = (message: string): boolean => {
       console.log('Detected strong conversational pattern:', pattern);
       return false;
     }
+  }
+  
+  // If the message is a short greeting or a question without any specific file-related terms, treat as conversational
+  if (message.length < 25 && !lowerMessage.includes('file') && !lowerMessage.includes('folder') && 
+      !lowerMessage.includes('create') && !lowerMessage.includes('make') && !lowerMessage.includes('build')) {
+    console.log('Short message without file-related terms, treating as conversational');
+    return false;
+  }
+  
+  // If the message ends with a question mark and doesn't contain strong file operation indicators
+  if (lowerMessage.trim().endsWith('?') && !lowerMessage.includes('create file') && !lowerMessage.includes('generate file') && 
+      !lowerMessage.includes('make file') && !lowerMessage.includes('new file')) {
+    console.log('Question without strong file operation indicators, treating as conversational');
+    return false;
   }
   
   // If the message doesn't contain any file-related terms, it's likely conversational

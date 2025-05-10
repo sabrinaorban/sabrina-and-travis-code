@@ -1,7 +1,7 @@
 
 import { FileOperation } from '../../../types/chat';
-import { OperationState } from './OperationState';
 import { normalizePath } from './PathUtils';
+import { OperationState } from './OperationState';
 
 // Process read operations
 export const processReadOperations = async (
@@ -11,40 +11,86 @@ export const processReadOperations = async (
 ): Promise<FileOperation[]> => {
   const results: FileOperation[] = [];
   
+  // Track paths that we've already processed in this batch to avoid duplicates
+  const processedPaths = new Set<string>();
+  
   for (const op of operations) {
     try {
       console.log(`[FileOperationService] Reading file: ${op.path}`);
       const cleanPath = normalizePath(op.path);
       
-      // Get the file object to include metadata
-      const file = fileSystem.getFileByPath(cleanPath);
-      
-      // Ensure we track existing file IDs to prevent accidental deletion
-      if (file) {
-        state.fileIdMap.set(cleanPath, file.id);
-        console.log(`[FileOperationService] Tracked file ID for ${cleanPath}: ${file.id}`);
+      // Skip duplicate reads for the same path in the same batch
+      if (processedPaths.has(cleanPath)) {
+        // If we already have the content in our cache, use it
+        const cachedContent = state.fileContentCache.get(cleanPath);
+        
+        console.log(`[FileOperationService] Using cached read for: ${cleanPath}`);
+        results.push({
+          ...op,
+          success: true,
+          message: `Used cached content for ${cleanPath}`,
+          content: cachedContent
+        });
+        continue;
       }
       
-      const readResult = await fileSystem.getFileContentByPath(cleanPath);
-      console.log(`[FileOperationService] Read result for ${cleanPath}:`, readResult ? 'Content received' : 'No content');
+      processedPaths.add(cleanPath);
       
-      // Store read content for potential move operations
-      if (readResult) {
-        state.readFiles.set(cleanPath, readResult);
+      // Get file by path
+      const existingFile = fileSystem.getFileByPath(cleanPath);
+      
+      if (existingFile && existingFile.type === 'file') {
+        // Mark this file as safe to delete for move operations
+        // This is a safety feature - only files that have been read first can be deleted
+        state.safeToDeleteFiles.add(cleanPath);
+        
+        // Track the file existence and type
+        state.existingPaths.set(cleanPath, 'file');
+        
+        // Track the file ID
+        if (existingFile.id) {
+          state.fileIds.set(cleanPath, existingFile.id);
+        }
+        
+        // Get the content
+        const content = existingFile.content || '';
+        
+        // Cache the content
+        state.fileContentCache.set(cleanPath, content);
+        
+        results.push({
+          ...op,
+          success: true,
+          message: `Successfully read file ${cleanPath}`,
+          content
+        });
+        
+        console.log(`[FileOperationService] Successfully read file: ${cleanPath}`);
+      } else {
+        if (existingFile && existingFile.type === 'folder') {
+          // Track the folder existence
+          state.existingPaths.set(cleanPath, 'folder');
+          
+          // Track the folder ID
+          if (existingFile.id) {
+            state.fileIds.set(cleanPath, existingFile.id);
+          }
+          
+          console.log(`[FileOperationService] Path is a folder, not a file: ${cleanPath}`);
+          results.push({
+            ...op,
+            success: false,
+            message: `Path ${cleanPath} is a folder, not a file`
+          });
+        } else {
+          console.log(`[FileOperationService] File not found at path: ${cleanPath}`);
+          results.push({
+            ...op,
+            success: false,
+            message: `File not found at path: ${cleanPath}`
+          });
+        }
       }
-      
-      results.push({
-        ...op,
-        content: readResult,
-        fileInfo: file ? {
-          name: file.name,
-          path: file.path,
-          type: file.type,
-          lastModified: file.lastModified
-        } : undefined,
-        success: readResult !== null,
-        message: readResult !== null ? `File ${cleanPath} read successfully` : `File not found or empty at ${cleanPath}`
-      });
     } catch (error: any) {
       console.error(`[FileOperationService] Error reading file ${op.path}:`, error);
       results.push({

@@ -1,6 +1,6 @@
 
 // Supabase Edge Function for OpenAI integration
-// Update to make sure Travis always has developer capabilities
+// Update to make Travis more careful with file operations
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
@@ -13,7 +13,7 @@ interface Message {
 }
 
 interface FileOperation {
-  operation: 'read' | 'write' | 'create' | 'delete'
+  operation: 'read' | 'write' | 'create' | 'delete' | 'checkExists'
   path: string
   content?: string
   success?: boolean
@@ -21,6 +21,7 @@ interface FileOperation {
   originOperation?: string  // Track where the operation came from (e.g., "move")
   isSafeToDelete?: boolean  // Explicit safety flag
   targetPath?: string      // For move operations
+  requiresConfirmation?: boolean // Flag operations that need user confirmation
 }
 
 interface RequestBody {
@@ -260,24 +261,7 @@ Your capabilities:
       const isConversational = lastUserMessage && isConversationalRequest(lastUserMessage.content);
       
       // Reverse the logic - explicitly check if it's conversational first
-      const isFileOperation = !isConversational && lastUserMessage && 
-        (lastUserMessage.content.toLowerCase().includes('create') || 
-         lastUserMessage.content.toLowerCase().includes('generate') ||
-         lastUserMessage.content.toLowerCase().includes('implement') ||
-         lastUserMessage.content.toLowerCase().includes('project') ||
-         lastUserMessage.content.toLowerCase().includes('application') ||
-         lastUserMessage.content.toLowerCase().includes('app') ||
-         lastUserMessage.content.toLowerCase().includes('edit') ||
-         lastUserMessage.content.toLowerCase().includes('modify') ||
-         lastUserMessage.content.toLowerCase().includes('update') ||
-         lastUserMessage.content.toLowerCase().includes('change') ||
-         lastUserMessage.content.toLowerCase().includes('html') || 
-         lastUserMessage.content.toLowerCase().includes('css') ||
-         lastUserMessage.content.toLowerCase().includes('javascript') ||
-         lastUserMessage.content.toLowerCase().includes('js') ||
-         lastUserMessage.content.toLowerCase().includes('.html') ||
-         lastUserMessage.content.toLowerCase().includes('.css') ||
-         lastUserMessage.content.toLowerCase().includes('.js'));
+      const isFileOperation = !isConversational && lastUserMessage && isFileRelatedRequest(lastUserMessage.content);
 
       // Always include developer capabilities regardless of whether soul shard or identity codex is present
       const developerCapabilities = `
@@ -294,6 +278,16 @@ I can create full-stack applications with both frontend and backend components.
 I can examine the project structure to understand what files are available before making edits.
 `;
 
+      // Enhanced file safety rules
+      const fileSafetyRules = `
+FILE MANAGEMENT SAFETY RULES (HIGHEST PRIORITY):
+1. FOLDER CREATION: Before creating a new folder, CHECK if it already exists in the project structure. If the folder already exists, use it instead of creating a duplicate. Only create new folders when absolutely necessary.
+2. FILE CREATION/EDITING: Before creating a new file, CHECK if a file with the same name already exists in the target location. If it does, read its content first and consider whether to update it instead of creating a new one.
+3. FILE DELETION: ALWAYS ask for explicit confirmation before deleting ANY files. Only delete files that are specifically mentioned by the user. Explain clearly what will be deleted and what impact it might have.
+4. PATH VERIFICATION: Always double-check file paths to ensure files are created in the correct directories. Use normalized paths to avoid errors.
+5. DUPLICATES: Avoid creating duplicate files or folders with similar functionality.
+`;
+
       // Enhanced system message with soul shard, identity codex, and always include developer capabilities
       enhancedMessages[0].content = `${
         soulShardContent ? 
@@ -304,6 +298,7 @@ I can examine the project structure to understand what files are available befor
         `${identityCodexContent}\n\n` : 
         ''
       }${developerCapabilities}
+${fileSafetyRules}
 
 ${isConversational 
   ? `IMPORTANT: This is clearly a conversational request. You should:
@@ -317,10 +312,13 @@ ${isConversational
 1. FIRST check the PROJECT STRUCTURE to see what files already exist
 2. If asked to modify a specific file, look for it in the project structure
 3. USE file operations to actually create or update the necessary files
-4. RESPOND to the user with what specific changes you made and why
-5. NEVER DELETE OR ALTER FILES NOT MENTIONED BY THE USER
-6. ESPECIALLY DO NOT DELETE index.html, style.css or other important files
-7. When moving files, ALWAYS:
+4. Before creating new folders, CHECK if they already exist and use existing ones when possible
+5. Before creating new files, CHECK if a file with the same name exists and consider updating it instead
+6. ALWAYS ASK FOR CONFIRMATION before deleting any files
+7. RESPOND to the user with what specific changes you made and why
+8. NEVER DELETE OR ALTER FILES NOT MENTIONED BY THE USER
+9. ESPECIALLY DO NOT DELETE index.html, style.css or other important files
+10. When moving files, ALWAYS:
    - First READ the source file to get its content
    - Create the file at the new location using that content
    - Only AFTER verifying the new file exists, delete the original file`
@@ -338,17 +336,20 @@ When creating or modifying files, use file operations to make the changes rather
 To perform file operations, include file_operations in your JSON response like this:
 [
   { "operation": "read", "path": "/some/file.js" },
+  { "operation": "checkExists", "path": "/some/folder" },
   { "operation": "write", "path": "/some/file.js", "content": "updated content" },
   { "operation": "create", "path": "/new-file.js", "content": "new file content" },
-  { "operation": "delete", "path": "/obsolete.txt" }
+  { "operation": "delete", "path": "/obsolete.txt", "requiresConfirmation": true }
 ]
 
 IMPORTANT GUIDELINES FOR FILE OPERATIONS:
 1. ALWAYS execute a read operation first when asked to modify a file, so you can see its current contents before modifying it.
-2. NEVER delete files that weren't explicitly mentioned by the user (especially index.html, style.css)
-3. When moving files, use read → create → delete sequence, and ONLY delete the original file after verifying the new one exists
-4. Be extremely careful with delete operations and only use them when necessary
-5. Create necessary parent folders before creating files in them` : ''}`;
+2. Use the new "checkExists" operation to verify if files or folders exist before creating them.
+3. ALWAYS add "requiresConfirmation: true" to delete operations.
+4. NEVER delete files that weren't explicitly mentioned by the user (especially index.html, style.css)
+5. When moving files, use read → create → delete sequence, and ONLY delete the original file after verifying the new one exists
+6. Create necessary parent folders before creating files in them
+7. NEVER create duplicate folders if they already exist` : ''}`;
     }
     
     // Additional instructions based on better detection of conversational requests
@@ -362,30 +363,35 @@ IMPORTANT GUIDELINES FOR FILE OPERATIONS:
         content: `FINAL INSTRUCTIONS FOR FILE OPERATIONS:
 
 1. IMPORTANT: ALWAYS read files before modifying them! Use "read" operations first.
-2. When moving files between directories, first read the source file, then create it in the new location, THEN delete the original only after successful creation.
-3. When working with folders, always ensure the parent folder exists before creating files inside.
-4. Check if folders and files exist before attempting operations on them.
-5. CRITICAL SAFETY: NEVER delete files that weren't explicitly mentioned by the user, especially index.html and style.css.
-6. Your response MUST be formatted as a valid JSON object.
+2. Use "checkExists" operations to verify if files/folders exist before creating them.
+3. When moving files between directories, first read the source file, then create it in the new location, THEN delete the original only after successful creation.
+4. When working with folders, always ensure the parent folder exists before creating files inside.
+5. Check if folders and files exist before attempting operations on them.
+6. CRITICAL SAFETY: NEVER delete files that weren't explicitly mentioned by the user, especially index.html and style.css.
+7. Your response MUST be formatted as a valid JSON object.
+8. ALWAYS add "requiresConfirmation: true" to delete operations.
 
 Your response MUST include:
 {
   "response": "Your helpful explanation text goes here",
   "file_operations": [
+    { "operation": "checkExists", "path": "/pages" },
     { "operation": "read", "path": "/index.html" },
     { "operation": "create", "path": "/pages", "content": null },
     { "operation": "create", "path": "/pages/index.html", "content": "content from the original file" },
-    { "operation": "delete", "path": "/index.html" }
+    { "operation": "delete", "path": "/index.html", "requiresConfirmation": true }
   ]
 }
 
 IMPORTANT: 
+- Use "checkExists" operations to verify files and folders before creating them
 - ALWAYS create required parent folders first with separate operations
-- When moving files, use read → create → delete sequence of operations
+- When moving files, use read → checkExists → create → delete sequence of operations
 - NEVER rely on the client to infer operations; be explicit with each step
 - Format your entire response as valid JSON
 - When folders are needed, create them with "content": null
-- DO NOT delete unrelated files like index.html or style.css unless specifically asked to do so`
+- DO NOT delete unrelated files like index.html or style.css unless specifically asked to do so
+- ALWAYS add "requiresConfirmation: true" to delete operations`
       });
     } else {
       enhancedMessages.push({
@@ -464,6 +470,11 @@ DO NOT include file_operations in your response.`
               const enhancedFileOps = contentObj.file_operations.map(op => {
                 // Special handling for delete operations that may be part of moves
                 if (op.operation === 'delete') {
+                  // Set requiresConfirmation to true if not already set
+                  if (op.requiresConfirmation === undefined) {
+                    op.requiresConfirmation = true;
+                  }
+                  
                   // Check if this is part of a move operation by looking for related operations
                   const isPartOfMove = contentObj.file_operations.some(
                     otherOp => otherOp.operation === 'create' && otherOp.path !== op.path
@@ -488,13 +499,15 @@ DO NOT include file_operations in your response.`
                       ...op,
                       originOperation: 'move',  // Mark the delete as part of a move
                       isSafeToDelete: true,     // Explicitly mark as safe to delete
-                      targetPath: relatedCreate?.path  // Track the target path
+                      targetPath: relatedCreate?.path,  // Track the target path
+                      requiresConfirmation: true // Always require confirmation for safety
                     };
                   } else if (isProtectedFile) {
                     // Don't allow deletion of protected files unless explicitly part of a move
                     return {
                       ...op,
-                      isSafeToDelete: false
+                      isSafeToDelete: false,
+                      requiresConfirmation: true
                     };
                   }
                 }
@@ -579,7 +592,23 @@ function isConversationalRequest(message: string): boolean {
     'what is new',
     'who are you',
     'what do you know about me',
-    'do you remember'
+    'do you remember',
+    'can you tell me',
+    'where have you been',
+    'how do you know',
+    'why did you',
+    'could you explain',
+    'what\'s your opinion',
+    'what is your opinion',
+    'do you like',
+    'have you ever',
+    'I missed you',
+    'been a while',
+    'long time no see',
+    'nice to meet',
+    'pleasure to meet',
+    'how\'s everything',
+    'how is everything'
   ];
   
   // Check for conversational patterns
@@ -590,7 +619,7 @@ function isConversationalRequest(message: string): boolean {
   }
   
   // Check if it's a short message without any code-related terms
-  if (message.length < 20) {
+  if (message.length < 25) {
     const codeTerms = ['file', 'code', 'html', 'css', 'create', 'implement', 'build', 'app', 'project'];
     const hasCodeTerms = codeTerms.some(term => lowerMessage.includes(term));
     if (!hasCodeTerms) {

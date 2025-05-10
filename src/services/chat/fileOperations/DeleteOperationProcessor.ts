@@ -31,9 +31,9 @@ export const processMoveDeleteOperations = async (
       
       processedPaths.add(cleanPath);
       
-      // Don't delete protected files
-      if (PROTECTED_FILES.includes(cleanPath) && !op.isSafeToDelete) {
-        console.error(`[FileOperationService] Refusing to delete protected file: ${cleanPath}`);
+      // Don't delete protected files without explicit confirmation
+      if (PROTECTED_FILES.includes(cleanPath) && !op.isConfirmed) {
+        console.error(`[FileOperationService] Refusing to delete protected file without confirmation: ${cleanPath}`);
         results.push({
           ...op,
           success: false,
@@ -59,12 +59,12 @@ export const processMoveDeleteOperations = async (
       }
       
       // Verify this file is marked as safe to delete
-      if (!state.safeToDeleteFiles.has(cleanPath)) {
-        console.error(`[FileOperationService] File ${cleanPath} not marked as safe to delete`);
+      if (!state.safeToDeleteFiles.has(cleanPath) && !op.isConfirmed) {
+        console.error(`[FileOperationService] File ${cleanPath} not marked as safe to delete and not explicitly confirmed`);
         results.push({
           ...op,
           success: false,
-          message: `Delete aborted: safety check failed for ${cleanPath}`
+          message: `Delete aborted: safety check failed for ${cleanPath}. Use isConfirmed: true to override safety checks.`
         });
         continue;
       }
@@ -129,13 +129,24 @@ export const processManualDeleteOperations = async (
       
       processedPaths.add(cleanPath);
       
-      // Extra protection for critical files
-      if (PROTECTED_FILES.includes(cleanPath)) {
-        console.error(`[FileOperationService] Refusing to delete protected file: ${cleanPath}`);
+      // Extra protection for critical files - require explicit confirmation
+      if (PROTECTED_FILES.includes(cleanPath) && !op.isConfirmed) {
+        console.error(`[FileOperationService] Refusing to delete protected file without confirmation: ${cleanPath}`);
         results.push({
           ...op,
           success: false,
-          message: `Protected file ${cleanPath} cannot be deleted`
+          message: `Protected file ${cleanPath} requires explicit confirmation with isConfirmed: true`
+        });
+        continue;
+      }
+      
+      // Make sure the operation has been explicitly confirmed
+      if (op.requiresConfirmation && !op.isConfirmed) {
+        console.error(`[FileOperationService] Delete operation requires confirmation: ${cleanPath}`);
+        results.push({
+          ...op,
+          success: false,
+          message: `Delete operation for ${cleanPath} requires explicit confirmation with isConfirmed: true`
         });
         continue;
       }

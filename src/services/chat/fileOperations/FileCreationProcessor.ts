@@ -36,16 +36,32 @@ export const processFileCreationOperations = async (
       // Ensure parent directories exist
       const { parentPath, fileName } = getPathParts(cleanPath);
       
-      await ensureFolderExists(fileSystem, parentPath);
+      // Check if the parent folder exists from our existence checks
+      const parentFolderExists = state.existingPaths.has(parentPath) && 
+                               state.existingPaths.get(parentPath) === 'folder';
       
-      // Check if file already exists to avoid duplicate creation
+      if (!parentFolderExists) {
+        console.log(`[FileOperationService] Parent folder not found at ${parentPath}, ensuring it exists`);
+        await ensureFolderExists(fileSystem, parentPath);
+      } else {
+        console.log(`[FileOperationService] Parent folder already exists at ${parentPath}`);
+      }
+      
+      // Check if file already exists from our existence checks
+      const fileExists = state.existingPaths.has(cleanPath) && 
+                         state.existingPaths.get(cleanPath) === 'file';
+      
+      // Check if file already exists directly as a backup check
       const existingFile = fileSystem.getFileByPath(cleanPath);
-      if (existingFile && existingFile.type === 'file') {
+      
+      if (fileExists || (existingFile && existingFile.type === 'file')) {
         console.log(`[FileOperationService] File already exists: ${cleanPath}, updating it instead`);
         await fileSystem.updateFileByPath(cleanPath, op.content || '');
         
         // Track that this file was updated
-        state.createdFiles.set(cleanPath, existingFile.id);
+        if (existingFile && existingFile.id) {
+          state.createdFiles.set(cleanPath, existingFile.id);
+        }
         
         results.push({
           ...op,
@@ -113,16 +129,32 @@ export const processWriteOperations = async (
       // Ensure parent directories exist
       const { parentPath, fileName } = getPathParts(cleanPath);
       
-      await ensureFolderExists(fileSystem, parentPath);
+      // Check if the parent folder exists from our existence checks
+      const parentFolderExists = state.existingPaths.has(parentPath) && 
+                               state.existingPaths.get(parentPath) === 'folder';
       
-      // Check if file already exists
+      if (!parentFolderExists) {
+        console.log(`[FileOperationService] Parent folder not found at ${parentPath}, ensuring it exists`);
+        await ensureFolderExists(fileSystem, parentPath);
+      } else {
+        console.log(`[FileOperationService] Parent folder already exists at ${parentPath}`);
+      }
+      
+      // Check if file already exists from our existence checks
+      const fileExists = state.existingPaths.has(cleanPath) && 
+                         state.existingPaths.get(cleanPath) === 'file';
+                         
+      // Also do a direct check as a backup
       const existingFile = fileSystem.getFileByPath(cleanPath);
-      if (existingFile && existingFile.type === 'file') {
+      
+      if (fileExists || (existingFile && existingFile.type === 'file')) {
         console.log(`[FileOperationService] Updating existing file: ${cleanPath}`);
         await fileSystem.updateFileByPath(cleanPath, op.content || '');
         
         // Update tracked file
-        state.createdFiles.set(cleanPath, existingFile.id);
+        if (existingFile && existingFile.id) {
+          state.createdFiles.set(cleanPath, existingFile.id);
+        }
         
         results.push({
           ...op,
