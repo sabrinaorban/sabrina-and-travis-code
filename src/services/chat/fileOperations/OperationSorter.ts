@@ -28,6 +28,7 @@ export const sortOperations = (operations: FileOperation[]): FileOperation[] => 
 export const groupOperations = (operations: FileOperation[]) => {
   return {
     readOperations: operations.filter(op => op.operation === 'read'),
+    checkExistsOperations: operations.filter(op => op.operation === 'checkExists'),
     folderCreationOperations: operations.filter(op => 
       op.operation === 'create' && (op.content === null || op.path.endsWith('/') || !op.path.includes('.'))
     ),
@@ -35,9 +36,7 @@ export const groupOperations = (operations: FileOperation[]) => {
       op.operation === 'create' && op.content !== null && op.path.includes('.') && !op.path.endsWith('/')
     ),
     writeOperations: operations.filter(op => op.operation === 'write'),
-    moveOperations: operations.filter(op => 
-      op.operation === 'move' || op.operation === 'copy'
-    ),
+    moveOperations: operations.filter(op => op.operation === 'move'),
     deleteOperations: operations.filter(op => op.operation === 'delete'),
   };
 };
