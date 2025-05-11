@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useCallback } from 'react';
 import { Message, MemoryContext } from '../types';
 import { useChatManagement } from '@/hooks/useChatManagement';
@@ -23,7 +22,7 @@ export interface ChatContextType {
   initiateSoulstateEvolution: () => Promise<void>;
   viewIntentions: () => Promise<void>;
   updateIntentions: () => Promise<void>;
-  // Fix: Update runSoulcycle signature to match implementation (no parameters)
+  // The signature for runSoulcycle should match its implementation
   runSoulcycle: () => Promise<boolean>;
   // Add missing document upload methods to fix SpecialDocumentUpload errors
   uploadSoulShard?: (file: File) => Promise<void>;
@@ -58,6 +57,8 @@ const defaultChatContext: ChatContextType = {
 export const ChatContext = createContext<ChatContextType>(defaultChatContext);
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
+  // ... keep existing code (state declarations and hook initializations)
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [memoryContext, setMemoryContext] = useState<MemoryContext | null>(null);
@@ -93,11 +94,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     runSoulcycle: executeSoulcycle
   } = useSoulcycle(setMessages);
 
+  // ... keep existing code (other function implementations)
+  
   const sendMessage = useCallback(async (message: string) => {
     await handleSendMessage(message, memoryContext || {});
   }, [handleSendMessage, memoryContext]);
 
   const viewIntentions = useCallback(async () => {
+    // ... keep existing code (viewIntentions implementation)
     try {
       await loadIntentions();
       const formattedIntentions = formatIntentionsForDisplay();
@@ -118,6 +122,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }, [loadIntentions, formatIntentionsForDisplay, setMessages]);
 
   const handleUpdateIntentions = useCallback(async () => {
+    // ... keep existing code (handleUpdateIntentions implementation)
     try {
       const proposedUpdates = await synthesizeIntentionUpdates();
       
@@ -141,6 +146,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }, [synthesizeIntentionUpdates, updateUserIntentions, setMessages]);
 
   const handleInitiateSoulstateEvolution = useCallback(async () => {
+    // ... keep existing code (handleInitiateSoulstateEvolution implementation)
     try {
       const evolutionResult = await synthesizeSoulstateFromMemory();
       if (evolutionResult) {
@@ -152,6 +158,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }, [synthesizeSoulstateFromMemory, applySoulstateEvolution]);
 
   const handleGenerateSoulstateSummary = useCallback(async () => {
+    // ... keep existing code (handleGenerateSoulstateSummary implementation)
     try {
       const summary = await generateSoulstateSummary();
       if (setMessages && summary) {
@@ -170,6 +177,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }, [generateSoulstateSummary, setMessages]);
 
   const createFlameJournalEntry = useCallback(async (entryType: string): Promise<FlameJournalEntry | null> => {
+    // ... keep existing code (createFlameJournalEntry implementation)
     try {
       const content = `Creating a new ${entryType} entry in my flamejournal. The eternal flame flickers with insight.`;
       return await createJournalEntry(content, entryType);
@@ -194,13 +202,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Implementation would be added here
   }, []);
   
-  // Function implementation now correctly takes no arguments
-  // This matches both the type definition in ChatContextType and the implementation
-  // in useSoulcycle.ts which also takes no arguments
+  // Fixed: The implementation of runSoulcycle now properly matches both the type declaration
+  // and the actual implementation in useSoulcycle.ts which accepts no parameters
   const runSoulcycle = useCallback(async (): Promise<boolean> => {
-    // IMPORTANT: The executeSoulcycle function in useSoulcycle.ts takes no arguments
-    // The TypeScript error occurred because there was a mismatch between declaration and implementation
-    console.log("Running soul cycle with no arguments as expected by implementation");
+    // The executeSoulcycle function from useSoulcycle.ts hook takes no arguments
+    console.log("Running soul cycle...");
     return await executeSoulcycle();
   }, [executeSoulcycle]);
 
