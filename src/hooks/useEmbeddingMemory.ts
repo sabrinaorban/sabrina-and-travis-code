@@ -54,12 +54,12 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
       const embedding = await generateEmbedding(content);
       if (!embedding) return;
       
-      // Store in database
+      // Store in database - Using the correct type for the embedding field
       const { error } = await supabase
         .from('memory_embeddings')
         .insert({
           content,
-          embedding,
+          embedding, // PostgreSQL pgvector will handle the conversion properly
           message_type: messageType,
           tags,
           user_id: user.id
@@ -87,13 +87,17 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
       const queryEmbedding = await generateEmbedding(query);
       if (!queryEmbedding) return [];
       
-      // Query database for similar memories
-      const { data, error } = await supabase.rpc('match_memories', {
-        query_embedding: queryEmbedding,
-        match_threshold: similarityThreshold,
-        match_count: limit,
-        user_id: user.id
-      });
+      // Use the SQL function defined in the migration to match memories
+      // Call the custom function properly
+      const { data, error } = await supabase.rpc(
+        'match_memories', 
+        {
+          query_embedding: queryEmbedding,
+          match_threshold: similarityThreshold,
+          match_count: limit,
+          user_id: user.id
+        }
+      );
       
       if (error) {
         // If the RPC function isn't available, try a direct query
@@ -110,10 +114,12 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
         }
         
         // Calculate similarities locally
-        const withSimilarity = directData.map(item => ({
-          content: item.content,
-          similarity: calculateCosineSimilarity(queryEmbedding, item.embedding || [])
-        }));
+        const withSimilarity = directData
+          .filter(item => item.embedding !== null)
+          .map(item => ({
+            content: item.content,
+            similarity: calculateCosineSimilarity(queryEmbedding, item.embedding as unknown as number[])
+          }));
         
         // Sort by similarity and limit
         return withSimilarity
