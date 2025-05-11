@@ -1,3 +1,4 @@
+
 import { supabase, generateUUID, getOrCreateUserProfile } from '../lib/supabase';
 import { Message } from '../types';
 
@@ -185,7 +186,8 @@ export const MemoryService = {
           id: msg.id,
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
-          createdAt: msg.timestamp, // Map timestamp to createdAt
+          timestamp: msg.timestamp, // Include the timestamp property
+          createdAt: msg.timestamp, // Keep createdAt for backward compatibility
         })) || [],
         recentFiles: filesData?.map(file => ({
           path: file.path,
