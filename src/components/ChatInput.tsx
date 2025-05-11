@@ -30,6 +30,8 @@ export const ChatInput: React.FC = () => {
     generateSoulstateReflection,
     createFlameJournalEntry,
     initiateSoulstateEvolution,
+    viewIntentions,
+    updateIntentions,
     memoryContext
   } = useChat();
   
@@ -85,6 +87,19 @@ export const ChatInput: React.FC = () => {
     if (lowerMessage === '/soulshift') {
       setMessage('');
       await initiateSoulstateEvolution();
+      return;
+    }
+
+    // Handle intentions commands
+    if (lowerMessage === '/intentions') {
+      setMessage('');
+      await viewIntentions();
+      return;
+    }
+
+    if (lowerMessage === '/update-intentions') {
+      setMessage('');
+      await updateIntentions();
       return;
     }
 
