@@ -1,3 +1,4 @@
+
 import { Message, OpenAIMessage } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,7 +13,15 @@ export const fetchMessages = async (userId: string): Promise<Message[]> => {
       .order('timestamp', { ascending: true });
       
     if (error) throw error;
-    return data || [];
+    
+    // Transform database records into Message objects with proper typing
+    return (data || []).map(item => ({
+      id: item.id,
+      content: item.content,
+      // Ensure role is typed correctly as 'user' | 'assistant'
+      role: item.role === 'user' ? 'user' : 'assistant',
+      timestamp: item.timestamp,
+    }));
   } catch (error) {
     console.error('Error fetching messages:', error);
     return [];
