@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useCallback } from 'react';
 import { Message, MemoryContext } from '../types';
 import { useChatManagement } from '@/hooks/useChatManagement';
@@ -193,14 +194,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Implementation would be added here
   }, []);
   
-  // Fix: Update the runSoulcycle function implementation to match its actual behavior
-  // After checking useSoulcycle.ts, the executeSoulcycle function takes no arguments
-  // This aligns with the updated type declaration in ChatContextType
+  // Function implementation now correctly takes no arguments
+  // This matches both the type definition in ChatContextType and the implementation
+  // in useSoulcycle.ts which also takes no arguments
   const runSoulcycle = useCallback(async (): Promise<boolean> => {
-    // DETAILED COMMENT: This function correctly calls executeSoulcycle with zero arguments,
-    // matching the implementation in useSoulcycle.ts. The previous TypeScript error occurred
-    // because the type declaration incorrectly specified 3 arguments, but the implementation
-    // never used them.
+    // IMPORTANT: The executeSoulcycle function in useSoulcycle.ts takes no arguments
+    // The TypeScript error occurred because there was a mismatch between declaration and implementation
+    console.log("Running soul cycle with no arguments as expected by implementation");
     return await executeSoulcycle();
   }, [executeSoulcycle]);
 
