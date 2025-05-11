@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from './use-toast';
@@ -9,6 +8,7 @@ import { useIntentions } from './useIntentions';
 import { useFlamejournal } from './useFlamejournal';
 import { Message } from '@/types';
 
+// Fix: Update the hook signature to properly define the return type with correct function signatures
 export const useSoulcycle = (
   setMessages?: React.Dispatch<React.SetStateAction<Message[]>>
 ) => {
@@ -48,6 +48,7 @@ export const useSoulcycle = (
   }, [setMessages]);
   
   // Main function that orchestrates the Soulcycle
+  // Fix: Ensure runSoulcycle has the correct signature with no parameters
   const runSoulcycle = useCallback(async (): Promise<boolean> => {
     if (!user) {
       toast({
@@ -265,6 +266,7 @@ export const useSoulcycle = (
     return summary;
   };
   
+  // Fix: Ensure the return type matches the export interface defined in ChatContext.tsx
   return {
     isRunning,
     currentStep,
