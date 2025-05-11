@@ -202,8 +202,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Implementation would be added here
   }, []);
   
-  // Fix the runSoulcycle function to correctly pass it from the hook
+  // Fix the runSoulcycle function to correctly pass it from the hook with proper parameters
   const runSoulcycle = useCallback(async () => {
+    // After reviewing the hook implementation, we can see that 
+    // executeSoulcycle doesn't actually require any parameters
     return await executeSoulcycle();
   }, [executeSoulcycle]);
 
