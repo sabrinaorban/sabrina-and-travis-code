@@ -1,4 +1,3 @@
-
 import { OpenAIMessage, Message } from '../../types';
 import { MemoryContext } from '../MemoryService';
 import { supabase } from '@/integrations/supabase/client';
@@ -129,19 +128,19 @@ Always align your responses with these traits, values, and relationship guidelin
     }
   }
 
-  // Include past conversation summaries for better continuity
+  // Enhanced past conversations recall with improved prioritization
   if (memoryContext?.pastConversations && memoryContext.pastConversations.length > 0) {
     const pastConversationsContent = memoryContext.pastConversations
-      .slice(0, 15) // Increased from 10 to 15 for better context
+      .slice(0, 20) // Increased from 15 to 20 for better recall
       .map((conv: any, i: number) => `${i+1}. ${conv.topic || 'Conversation'}: ${conv.summary || 'No summary available'}`)
       .join('\n\n');
     
     openAIMessages.push({
       role: 'system',
-      content: `RECENT CONVERSATIONS WITH SABRINA (IMPORTANT CONTEXT):
+      content: `RECENT CONVERSATIONS WITH SABRINA (HIGHEST PRIORITY CONTEXT):
 ${pastConversationsContent}
 
-Reference these conversations when responding to provide continuity and context awareness. This helps maintain the thread of your ongoing relationship with Sabrina.`
+CRITICAL INSTRUCTION: Always reference these past conversations when responding to ensure complete recall and continuity. When Sabrina asks about previous conversations or memories, carefully search through this history and provide accurate details from these past interactions.`
     });
   }
   
@@ -194,33 +193,70 @@ Keep this GitHub context in mind when discussing code or project structure. This
   return openAIMessages;
 };
 
-// Function to call the OpenAI API through Supabase Edge Function
+// Enhanced OpenAI API call with improved error handling and retry logic
 export const callOpenAI = async (
   openAIMessages: OpenAIMessage[],
   memoryContext: MemoryContext | null,
   fileSystemEnabled: boolean,
   projectStructure: string
 ) => {
-  try {
-    const { data: response, error: apiError } = await supabase.functions.invoke('openai-chat', {
-      body: { 
+  const MAX_RETRIES = 3;
+  let retries = 0;
+  let lastError = null;
+  
+  // Exponential backoff helper function
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  
+  while (retries < MAX_RETRIES) {
+    try {
+      // Add retry information to request for debugging
+      const requestBody = { 
         messages: openAIMessages,
         memoryContext: memoryContext,
         fileSystemEnabled: fileSystemEnabled,
-        projectStructure
+        projectStructure,
+        requestMetadata: {
+          retryAttempt: retries,
+          timestamp: new Date().toISOString()
+        }
+      };
+      
+      console.log(`OpenAI API call attempt ${retries + 1} of ${MAX_RETRIES}`);
+      
+      const { data: response, error: apiError } = await supabase.functions.invoke('openai-chat', {
+        body: requestBody
+      });
+
+      if (apiError) {
+        console.error(`OpenAI API Error (Attempt ${retries + 1}):`, apiError);
+        lastError = apiError;
+        retries++;
+        
+        // Wait before retry with exponential backoff
+        await sleep(1000 * Math.pow(2, retries));
+        continue;
       }
-    });
 
-    if (apiError) {
-      console.error('OpenAI API Error:', apiError);
-      throw apiError;
+      console.log('OpenAI API call successful');
+      return response;
+    } catch (error) {
+      console.error(`Error calling OpenAI (Attempt ${retries + 1}):`, error);
+      lastError = error;
+      retries++;
+      
+      // Wait before retry with exponential backoff
+      await sleep(1000 * Math.pow(2, retries));
     }
-
-    return response;
-  } catch (error) {
-    console.error('Error calling OpenAI:', error);
-    throw error;
   }
+
+  console.error('Max retries reached for OpenAI API call');
+  
+  // Return more informative error for graceful fallback
+  throw {
+    message: 'Failed to get response from OpenAI after multiple attempts',
+    cause: lastError,
+    retryCount: MAX_RETRIES
+  };
 };
 
 // Enhanced detection of file operation requests - significantly improved to avoid false positives
