@@ -55,7 +55,15 @@ export const useSoulstateEvolution = () => {
       
       if (!data) return true; // No timestamp found, allow evolution
       
-      const timestamp = data.value as EvolutionTimestamp;
+      // Type cast to EvolutionTimestamp after validating the structure
+      const rawValue = data.value;
+      if (typeof rawValue !== 'object' || rawValue === null || 
+          !('lastEvolution' in rawValue) || !('nextAllowedEvolution' in rawValue)) {
+        console.error('Invalid evolution timestamp data:', rawValue);
+        return true; // Allow evolution if data is invalid
+      }
+      
+      const timestamp = rawValue as EvolutionTimestamp;
       const nextAllowed = new Date(timestamp.nextAllowedEvolution);
       const now = new Date();
       
@@ -87,7 +95,7 @@ export const useSoulstateEvolution = () => {
         .upsert({
           user_id: user.id,
           key: 'soulstate_evolution_timestamp',
-          value: timestamp,
+          value: timestamp as any, // Cast to any to satisfy Supabase's JSON type
           last_accessed: now.toISOString()
         });
         
@@ -116,7 +124,16 @@ export const useSoulstateEvolution = () => {
         return [];
       }
       
-      return data || [];
+      // Transform the data to match the MemoryEmbedding type
+      return data?.map(item => ({
+        ...item,
+        // Parse embedding string to number[] if it exists and is a string
+        embedding: item.embedding ? 
+          (typeof item.embedding === 'string' ? 
+            JSON.parse(item.embedding) : 
+            item.embedding) as number[] : 
+          undefined
+      })) || [];
     } catch (error) {
       console.error('Error in getRelevantMemories:', error);
       return [];

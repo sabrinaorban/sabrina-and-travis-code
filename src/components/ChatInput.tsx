@@ -29,7 +29,8 @@ export const ChatInput: React.FC = () => {
     generateSoulstateSummary,
     generateSoulstateReflection,
     createFlameJournalEntry,
-    initiateSoulstateEvolution
+    initiateSoulstateEvolution,
+    memoryContext
   } = useChat();
   
   const handleSubmit = async (e: React.FormEvent) => {
