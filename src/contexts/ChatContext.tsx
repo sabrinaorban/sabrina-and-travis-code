@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useCallback } from 'react';
 import { Message, MemoryContext } from '../types';
 import { useChatManagement } from '@/hooks/useChatManagement';
@@ -88,6 +89,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     updateIntentions: updateUserIntentions 
   } = useIntentions();
   
+  // Fix: Ensure we properly destructure the hook functions with their correct signatures
   const {
     isRunning: isSoulcycleRunning,
     currentStep: soulcycleStep,
@@ -202,10 +204,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Implementation would be added here
   }, []);
   
-  // Fixed: The implementation of runSoulcycle now properly matches both the type declaration
-  // and the actual implementation in useSoulcycle.ts which accepts no parameters
+  // Fixed: Ensure the runSoulcycle function matches the executeSoulcycle signature
+  // executeSoulcycle from useSoulcycle.ts takes no arguments and returns a Promise<boolean>
   const runSoulcycle = useCallback(async (): Promise<boolean> => {
-    // The executeSoulcycle function from useSoulcycle.ts hook takes no arguments
     console.log("Running soul cycle...");
     return await executeSoulcycle();
   }, [executeSoulcycle]);
