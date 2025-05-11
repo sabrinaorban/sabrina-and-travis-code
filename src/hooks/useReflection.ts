@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Message } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,7 +28,21 @@ export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<
         
       if (error) throw error;
       
-      return data && data.length > 0 ? data[0] : null;
+      if (data && data.length > 0) {
+        // Validate the reflection type to ensure it matches the expected union type
+        const reflectionData = data[0];
+        const validType = ['weekly', 'soulshard', 'soulstate', 'custom'].includes(reflectionData.type)
+          ? (reflectionData.type as 'weekly' | 'soulshard' | 'soulstate' | 'custom')
+          : 'custom'; // Default to 'custom' if the type is invalid
+          
+        // Return a properly typed reflection
+        return {
+          ...reflectionData,
+          type: validType
+        };
+      }
+      
+      return null;
     } catch (error: any) {
       console.error('Error fetching latest reflection:', error);
       toast({
