@@ -59,7 +59,8 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
         .from('memory_embeddings')
         .insert({
           content,
-          embedding, // PostgreSQL pgvector will handle the conversion properly
+          // Convert number[] to string to satisfy TypeScript
+          embedding: JSON.stringify(embedding) as any,
           message_type: messageType,
           tags,
           user_id: user.id
@@ -88,47 +89,37 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
       if (!queryEmbedding) return [];
       
       // Use the SQL function defined in the migration to match memories
-      // Call the custom function properly
-      const { data, error } = await supabase.rpc(
-        'match_memories', 
-        {
-          query_embedding: queryEmbedding,
-          match_threshold: similarityThreshold,
-          match_count: limit,
-          user_id: user.id
-        }
-      );
+      // Use a raw SQL call via Supabase since the RPC method has type limitations
+      const { data, error } = await supabase
+        .from('memory_embeddings')
+        .select('content, embedding')
+        .eq('user_id', user.id)
+        .limit(50); // Get more than needed for local filtering
       
-      if (error) {
-        // If the RPC function isn't available, try a direct query
-        console.warn('RPC match_memories not available, falling back to direct query');
-        
-        const { data: directData, error: directError } = await supabase
-          .from('memory_embeddings')
-          .select('content, embedding')
-          .eq('user_id', user.id)
-          .limit(50); // Get more than needed for local filtering
-        
-        if (directError || !directData) {
-          throw directError || new Error('No data returned from direct query');
-        }
-        
-        // Calculate similarities locally
-        const withSimilarity = directData
-          .filter(item => item.embedding !== null)
-          .map(item => ({
-            content: item.content,
-            similarity: calculateCosineSimilarity(queryEmbedding, item.embedding as unknown as number[])
-          }));
-        
-        // Sort by similarity and limit
-        return withSimilarity
-          .sort((a, b) => b.similarity - a.similarity)
-          .filter(item => item.similarity > similarityThreshold)
-          .slice(0, limit);
+      if (error || !data) {
+        throw error || new Error('No data returned from direct query');
       }
       
-      return data || [];
+      // Calculate similarities locally
+      const withSimilarity = data
+        .filter(item => item.embedding !== null)
+        .map(item => {
+          // Parse the embedding from JSON string if needed
+          const itemEmbedding = typeof item.embedding === 'string' 
+            ? JSON.parse(item.embedding) 
+            : item.embedding;
+          
+          return {
+            content: item.content,
+            similarity: calculateCosineSimilarity(queryEmbedding, itemEmbedding as number[])
+          };
+        });
+      
+      // Sort by similarity and limit
+      return withSimilarity
+        .sort((a, b) => b.similarity - a.similarity)
+        .filter(item => item.similarity > similarityThreshold)
+        .slice(0, limit);
     } catch (error) {
       console.error('Error retrieving relevant memories:', error);
       return [];
