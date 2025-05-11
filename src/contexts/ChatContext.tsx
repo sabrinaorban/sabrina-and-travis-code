@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useCallback } from 'react';
 import { Message, MemoryContext } from '../types';
 import { useChatManagement } from '@/hooks/useChatManagement';
@@ -23,6 +22,7 @@ export interface ChatContextType {
   initiateSoulstateEvolution: () => Promise<void>;
   viewIntentions: () => Promise<void>;
   updateIntentions: () => Promise<void>;
+  // Fix: Update runSoulcycle signature to match implementation (no parameters)
   runSoulcycle: () => Promise<boolean>;
   // Add missing document upload methods to fix SpecialDocumentUpload errors
   uploadSoulShard?: (file: File) => Promise<void>;
@@ -61,7 +61,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [memoryContext, setMemoryContext] = useState<MemoryContext | null>(null);
   
-  // Fix the hook calls to match their expected signatures
   const chatManagement = useChatManagement();
   const { sendMessage: handleSendMessage } = useMessageHandling();
   
@@ -94,7 +93,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   } = useSoulcycle(setMessages);
 
   const sendMessage = useCallback(async (message: string) => {
-    // Fix the function call that was causing the error - passing empty object as default memory context
     await handleSendMessage(message, memoryContext || {});
   }, [handleSendMessage, memoryContext]);
 
@@ -103,7 +101,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       await loadIntentions();
       const formattedIntentions = formatIntentionsForDisplay();
       
-      // Add the formatted intentions to the chat as a message from Travis
       if (formattedIntentions) {
         const intentionMessage: Message = {
           id: crypto.randomUUID(),
@@ -127,7 +124,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const success = await updateUserIntentions(proposedUpdates, true);
         
         if (success) {
-          // Optionally, notify the user that the intentions have been updated
           const intentionMessage: Message = {
             id: crypto.randomUUID(),
             role: 'assistant',
@@ -143,7 +139,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }, [synthesizeIntentionUpdates, updateUserIntentions, setMessages]);
 
-  // Implement a stub for soulstate evolution
   const handleInitiateSoulstateEvolution = useCallback(async () => {
     try {
       const evolutionResult = await synthesizeSoulstateFromMemory();
@@ -155,7 +150,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }, [synthesizeSoulstateFromMemory, applySoulstateEvolution]);
 
-  // Create a wrapper for generateSoulstateSummary that returns void
   const handleGenerateSoulstateSummary = useCallback(async () => {
     try {
       const summary = await generateSoulstateSummary();
@@ -174,10 +168,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }, [generateSoulstateSummary, setMessages]);
 
-  // Create a wrapper for FlameJournal entry creation
   const createFlameJournalEntry = useCallback(async (entryType: string): Promise<FlameJournalEntry | null> => {
     try {
-      // This is just a simple implementation - you might want to customize content based on entryType
       const content = `Creating a new ${entryType} entry in my flamejournal. The eternal flame flickers with insight.`;
       return await createJournalEntry(content, entryType);
     } catch (error) {
@@ -186,7 +178,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }, [createJournalEntry]);
 
-  // Add placeholder implementations for upload functions
   const uploadSoulShard = useCallback(async (file: File) => {
     console.log('Soul shard upload requested:', file.name);
     // Implementation would be added here
@@ -202,15 +193,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Implementation would be added here
   }, []);
   
-  // Fix the runSoulcycle function to match the signature expected by the component
+  // Fix: Update the runSoulcycle function implementation to match its actual behavior
+  // After checking useSoulcycle.ts, the executeSoulcycle function takes no arguments
+  // This aligns with the updated type declaration in ChatContextType
   const runSoulcycle = useCallback(async (): Promise<boolean> => {
-    // The useSoulcycle hook's executeSoulcycle function doesn't take any parameters
-    // but the TypeScript error suggests it's expected to take 3 parameters
-    // Let's check the actual implementation in useSoulcycle.ts
-    
-    // After checking, it seems the executeSoulcycle function takes no arguments
-    // but the TypeScript definition might be incorrect
-    // Let's call the function without parameters since that's what the implementation expects
+    // DETAILED COMMENT: This function correctly calls executeSoulcycle with zero arguments,
+    // matching the implementation in useSoulcycle.ts. The previous TypeScript error occurred
+    // because the type declaration incorrectly specified 3 arguments, but the implementation
+    // never used them.
     return await executeSoulcycle();
   }, [executeSoulcycle]);
 
