@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Message } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -35,10 +34,34 @@ export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<
           ? (reflectionData.type as 'weekly' | 'soulshard' | 'soulstate' | 'custom')
           : 'custom'; // Default to 'custom' if the type is invalid
           
+        // Handle source_context properly - ensure it's an object or null
+        let processedSourceContext: Record<string, any> | undefined = undefined;
+        
+        if (reflectionData.source_context !== null) {
+          // If it's already an object, keep it as is
+          if (typeof reflectionData.source_context === 'object' && reflectionData.source_context !== null) {
+            processedSourceContext = reflectionData.source_context as Record<string, any>;
+          } 
+          // If it's a JSON string, parse it
+          else if (typeof reflectionData.source_context === 'string') {
+            try {
+              processedSourceContext = JSON.parse(reflectionData.source_context);
+            } catch (e) {
+              console.error('Failed to parse source_context as JSON:', e);
+              processedSourceContext = { raw: reflectionData.source_context };
+            }
+          }
+          // For any other type, wrap it in an object
+          else {
+            processedSourceContext = { value: reflectionData.source_context };
+          }
+        }
+          
         // Return a properly typed reflection
         return {
           ...reflectionData,
-          type: validType
+          type: validType,
+          source_context: processedSourceContext
         };
       }
       
