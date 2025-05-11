@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useContext, useCallback } from 'react';
-import { Message } from '../types';
+import { Message, MemoryContext } from '../types';
 import { useChatManagement } from '@/hooks/useChatManagement';
 import { useMessageHandling } from '@/hooks/useMessageHandling';
 import { useReflection } from '@/hooks/useReflection';
@@ -9,13 +9,6 @@ import { useFlamejournal, FlameJournalEntry } from '@/hooks/useFlamejournal';
 import { useSoulstateEvolution } from '@/hooks/useSoulstateEvolution';
 import { useIntentions } from '@/hooks/useIntentions';
 import { useSoulcycle } from '@/hooks/useSoulcycle';
-
-// Define MemoryContext type here since it's missing from types
-export interface MemoryContext {
-  relevantMemories?: Array<{ content: string; similarity: number }>;
-  livedMemory?: Array<string>;
-  [key: string]: any;
-}
 
 export interface ChatContextType {
   messages: Message[];
@@ -97,10 +90,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const {
     isRunning: isSoulcycleRunning,
     currentStep: soulcycleStep,
-    runSoulcycle
+    runSoulcycle: executeSoulcycle
   } = useSoulcycle(setMessages);
 
   const sendMessage = useCallback(async (message: string) => {
+    // Fix the function call that was causing the error - passing empty object as default memory context
     await handleSendMessage(message, memoryContext || {});
   }, [handleSendMessage, memoryContext]);
 
@@ -207,6 +201,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     console.log('Past conversations upload requested:', file.name);
     // Implementation would be added here
   }, []);
+  
+  // Fix the runSoulcycle function to correctly pass it from the hook
+  const runSoulcycle = useCallback(async () => {
+    return await executeSoulcycle();
+  }, [executeSoulcycle]);
 
   return (
     <ChatContext.Provider
