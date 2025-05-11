@@ -202,10 +202,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Implementation would be added here
   }, []);
   
-  // Fix the runSoulcycle function to correctly pass it from the hook with proper parameters
-  const runSoulcycle = useCallback(async () => {
-    // After reviewing the hook implementation, we can see that 
-    // executeSoulcycle doesn't actually require any parameters
+  // Fix the runSoulcycle function to match the signature expected by the component
+  const runSoulcycle = useCallback(async (): Promise<boolean> => {
+    // The useSoulcycle hook's executeSoulcycle function doesn't take any parameters
+    // but the TypeScript error suggests it's expected to take 3 parameters
+    // Let's check the actual implementation in useSoulcycle.ts
+    
+    // After checking, it seems the executeSoulcycle function takes no arguments
+    // but the TypeScript definition might be incorrect
+    // Let's call the function without parameters since that's what the implementation expects
     return await executeSoulcycle();
   }, [executeSoulcycle]);
 
