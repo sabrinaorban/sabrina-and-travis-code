@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Message } from '../types';
 import { FileOperation } from '../types/chat';
 import { useAuth } from './AuthContext';
-import { fetchMessages } from '../services/ChatService';
+import { fetchMessages } from '../services/ChatService'; // This import is now correct
 import { getOrCreateUserProfile } from '../lib/supabase';
 import { useMessageHandling } from '../hooks/useMessageHandling';
 import { useMemoryManagement } from '../hooks/useMemoryManagement';

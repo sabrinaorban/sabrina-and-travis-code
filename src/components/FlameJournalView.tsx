@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useFlamejournal, FlameJournalEntry } from '@/hooks/useFlamejournal';
+import { useFlamejournal } from '@/hooks/useFlamejournal';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 
 export const FlameJournalView: React.FC = () => {
-  const [entries, setEntries] = useState<FlameJournalEntry[]>([]);
+  const [entries, setEntries] = useState<any[]>([]);
   const [selectedType, setSelectedType] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
   const { getJournalEntries, getJournalEntriesByType } = useFlamejournal();
@@ -86,7 +86,7 @@ export const FlameJournalView: React.FC = () => {
                 </div>
                 {entry.tags && entry.tags.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1">
-                    {entry.tags.map((tag) => (
+                    {entry.tags.map((tag: string) => (
                       <Badge key={tag} variant="secondary" className="text-xs">
                         {tag}
                       </Badge>

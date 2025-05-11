@@ -3,7 +3,15 @@ import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { FlameJournalEntry } from '../types';
+
+// Export this interface so it can be used by components
+export interface FlameJournalEntry {
+  id: string;
+  content: string;
+  created_at: string;
+  entry_type: string;
+  tags: string[] | null;
+}
 
 export const useFlamejournal = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,6 +81,45 @@ export const useFlamejournal = () => {
     }
   }, [user]);
   
+  // Get all journal entries - new method
+  const getJournalEntries = useCallback(async (): Promise<FlameJournalEntry[]> => {
+    if (!user) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('flamejournal')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching journal entries:', error);
+      return [];
+    }
+  }, [user]);
+  
+  // Get journal entries by type - new method
+  const getJournalEntriesByType = useCallback(async (entryType: string): Promise<FlameJournalEntry[]> => {
+    if (!user || !entryType) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('flamejournal')
+        .select('*')
+        .eq('entry_type', entryType)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      return data || [];
+    } catch (error) {
+      console.error(`Error fetching ${entryType} journal entries:`, error);
+      return [];
+    }
+  }, [user]);
+  
   // Helper function to extract tags from content
   const extractTags = (content: string): string[] => {
     const tagRegex = /#(\w+)/g;
@@ -86,6 +133,8 @@ export const useFlamejournal = () => {
   return {
     isSubmitting,
     createJournalEntry,
-    getLatestJournalEntry
+    getLatestJournalEntry,
+    getJournalEntries,
+    getJournalEntriesByType
   };
 };

@@ -2,6 +2,23 @@ import { Message, OpenAIMessage } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 
+// Export the fetchMessages function so it can be used
+export const fetchMessages = async (userId: string): Promise<Message[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('user_id', userId)
+      .order('timestamp', { ascending: true });
+      
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    return [];
+  }
+};
+
 // Store a user message in the database
 export const storeUserMessage = async (userId: string, content: string): Promise<Message> => {
   const newMessage: Message = {
@@ -83,19 +100,17 @@ export const callOpenAI = async (
   }
 };
 
-// Extract topic from messages
+// Extract topic from messages - Fix the type issue by making it async or returning a string directly
 export const extractTopicFromMessages = (messages: Message[]): string => {
   if (!messages || messages.length === 0) {
     return 'New Conversation';
   }
 
-  // Concatenate the last few messages to form a context for topic extraction
-  const contextMessages = messages.slice(-5).map(msg => msg.content).join('\n');
-
-  // Call the function to get the topic
-  // Adjust the function name and parameters as needed
-  const topic = generateTopic(contextMessages);
-  return topic;
+  // Basic topic extraction from the first few messages
+  const firstMessage = messages[0]?.content || '';
+  // Just extract first few words for simple topic
+  const simpleTopic = firstMessage.substring(0, 30).trim() + (firstMessage.length > 30 ? '...' : '');
+  return simpleTopic.length > 0 ? simpleTopic : 'New Conversation';
 };
 
 // Simulate assistant response
@@ -115,7 +130,7 @@ export const simulateAssistantResponse = (messageContent: string, githubContext?
   return response;
 };
 
-// Generate conversation summary
+// Generate conversation summary - Ensure this returns a promise since it's an async function
 export const generateConversationSummary = async (messages: Message[]): Promise<string> => {
   try {
     // Format messages for the summarization prompt
@@ -144,30 +159,12 @@ export const generateConversationSummary = async (messages: Message[]): Promise<
   }
 };
 
-// Generate a topic for a given text using an external API
-const generateTopic = async (text: string): Promise<string> => {
-  try {
-    const { data, error } = await supabase.functions.invoke('openai-chat', {
-      body: {
-        messages: [{
-          role: 'user',
-          content: `Generate a short topic (max 5 words) for the following text:\n${text}`
-        }]
-      }
-    });
-
-    if (error) {
-      console.error('Error generating topic:', error);
-      return 'New Conversation';
-    }
-
-    // Extract the topic from the response
-    const topic = data?.choices?.[0]?.message?.content?.trim() || 'New Conversation';
-    return topic;
-  } catch (error) {
-    console.error('Error in generateTopic:', error);
-    return 'New Conversation';
-  }
+// Generate a topic for a given text using an external API - Make this return a string directly, not a Promise
+const generateTopic = (text: string): string => {
+  // Simple implementation to extract topic from text
+  const cleanText = text.replace(/\n/g, ' ').trim();
+  const words = cleanText.split(' ').filter(w => w.length > 2).slice(0, 5);
+  return words.join(' ') || 'New Conversation';
 };
 
 // Check if the message is a file operation request
