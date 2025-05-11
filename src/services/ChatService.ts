@@ -1,4 +1,3 @@
-
 import { Message, OpenAIMessage } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -109,7 +108,7 @@ export const callOpenAI = async (
   }
 };
 
-// Extract topic from messages - Fix the type issue by making it async or returning a string directly
+// Extract topic from messages - Fix the type issue by making it return a string directly
 export const extractTopicFromMessages = (messages: Message[]): string => {
   if (!messages || messages.length === 0) {
     return 'New Conversation';

@@ -28,7 +28,8 @@ export const ChatInput: React.FC = () => {
     generateSoulReflection,
     generateSoulstateSummary,
     generateSoulstateReflection,
-    createFlameJournalEntry
+    createFlameJournalEntry,
+    initiateSoulstateEvolution
   } = useChat();
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,6 +78,13 @@ export const ChatInput: React.FC = () => {
         await createFlameJournalEntry(entryType);
         return;
       }
+    }
+
+    // Handle soulshift command for soulstate evolution
+    if (lowerMessage === '/soulshift') {
+      setMessage('');
+      await initiateSoulstateEvolution();
+      return;
     }
 
     // Regular message handling
