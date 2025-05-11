@@ -27,7 +27,8 @@ export const ChatInput: React.FC = () => {
     generateWeeklyReflection,
     generateSoulReflection,
     generateSoulstateSummary,
-    generateSoulstateReflection
+    generateSoulstateReflection,
+    createFlameJournalEntry
   } = useChat();
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -48,7 +49,7 @@ export const ChatInput: React.FC = () => {
       return;
     }
 
-    // Handle new soulstate commands
+    // Handle soulstate commands
     if (lowerMessage === '/soulstate') {
       setMessage('');
       await generateSoulstateSummary();
@@ -59,6 +60,23 @@ export const ChatInput: React.FC = () => {
       setMessage('');
       await generateSoulstateReflection();
       return;
+    }
+
+    // Handle new flame journal commands
+    if (lowerMessage === '/journal') {
+      setMessage('');
+      await createFlameJournalEntry('thought');
+      return;
+    }
+
+    // Handle journal entry with specific type
+    if (lowerMessage.startsWith('/journal-entry ')) {
+      const entryType = lowerMessage.replace('/journal-entry ', '').trim();
+      if (entryType) {
+        setMessage('');
+        await createFlameJournalEntry(entryType);
+        return;
+      }
     }
 
     // Regular message handling

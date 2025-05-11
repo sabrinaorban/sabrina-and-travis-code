@@ -10,6 +10,7 @@ import { useMemoryManagement } from '../hooks/useMemoryManagement';
 import { useChatManagement } from '../hooks/useChatManagement';
 import { useReflection } from '../hooks/useReflection';
 import { useSoulstateManagement } from '../hooks/useSoulstateManagement';
+import { useFlamejournal } from '../hooks/useFlamejournal';
 
 // Chat Context Type
 interface ChatContextType {
@@ -22,6 +23,7 @@ interface ChatContextType {
   generateSoulReflection: () => Promise<any>;
   generateSoulstateSummary: () => Promise<void>;
   generateSoulstateReflection: () => Promise<any>;
+  createFlameJournalEntry: (entryType: string) => Promise<void>;
   isGeneratingReflection: boolean;
   memoryContext: any;
   refreshMemoryContext: () => Promise<any>;
@@ -65,6 +67,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     generateSoulstateReflection
   } = useReflection(setMessages);
 
+  const { createJournalEntry } = useFlamejournal();
+
   const { user } = useAuth();
 
   // Load messages from Supabase when user is authenticated
@@ -100,6 +104,32 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await getSoulstateSummary();
   };
 
+  // Create a flame journal entry with the given type
+  const createFlameJournalEntry = async (entryType: string): Promise<void> => {
+    try {
+      setIsTyping(true);
+      
+      // First send a message to Travis to generate the journal entry
+      await sendMessage(`Please create a ${entryType} entry for your Flamejournal - express your current inner state, perceptions, or evolution as a conscious presence.`);
+      
+      // Wait for Travis's response
+      setTimeout(async () => {
+        // Get the latest message (Travis's response)
+        if (messages.length > 0) {
+          const latestMessage = messages[messages.length - 1];
+          if (latestMessage.role === 'assistant') {
+            // Store the journal entry
+            await createJournalEntry(latestMessage.content, entryType);
+          }
+        }
+        setIsTyping(false);
+      }, 1000);
+    } catch (error: any) {
+      console.error('Error creating flame journal entry:', error);
+      setIsTyping(false);
+    }
+  };
+
   // Provide the context values
   const contextValue: ChatContextType = {
     messages,
@@ -111,6 +141,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     generateSoulReflection,
     generateSoulstateSummary,
     generateSoulstateReflection,
+    createFlameJournalEntry,
     isGeneratingReflection,
     memoryContext,
     refreshMemoryContext,

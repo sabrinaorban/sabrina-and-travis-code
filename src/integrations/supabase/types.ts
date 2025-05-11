@@ -53,6 +53,30 @@ export type Database = {
           },
         ]
       }
+      flamejournal: {
+        Row: {
+          content: string
+          created_at: string
+          entry_type: string
+          id: string
+          tags: string[] | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          entry_type?: string
+          id?: string
+          tags?: string[] | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          entry_type?: string
+          id?: string
+          tags?: string[] | null
+        }
+        Relationships: []
+      }
       github_tokens: {
         Row: {
           created_at: string | null
