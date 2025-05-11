@@ -32,6 +32,7 @@ export const ChatInput: React.FC = () => {
     initiateSoulstateEvolution,
     viewIntentions,
     updateIntentions,
+    runSoulcycle,
     memoryContext
   } = useChat();
   
@@ -100,6 +101,13 @@ export const ChatInput: React.FC = () => {
     if (lowerMessage === '/update-intentions') {
       setMessage('');
       await updateIntentions();
+      return;
+    }
+    
+    // Handle soulcycle command
+    if (lowerMessage === '/soulcycle') {
+      setMessage('');
+      await runSoulcycle();
       return;
     }
 
