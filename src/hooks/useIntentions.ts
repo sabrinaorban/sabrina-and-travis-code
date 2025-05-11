@@ -51,13 +51,13 @@ export const useIntentions = () => {
       if (!data) {
         console.log('No intentions found, creating defaults');
         
-        // Store default intentions
+        // Store default intentions - Type casting to any to handle Json type
         const { error: storeError } = await supabase
           .from('memory')
           .insert({
             user_id: user.id,
             key: 'intentions',
-            value: DEFAULT_INTENTIONS,
+            value: DEFAULT_INTENTIONS as any,
             last_accessed: new Date().toISOString()
           });
           
@@ -69,15 +69,15 @@ export const useIntentions = () => {
         return DEFAULT_INTENTIONS;
       }
 
-      // Validate the intentions structure
-      const loadedIntentions = data.value as IntentionMap;
+      // Validate the intentions structure and ensure proper typing
+      const loadedData = data.value;
       
-      // Check if required fields exist, otherwise use defaults
+      // Ensure the loaded data has the correct structure
       const validatedIntentions: IntentionMap = {
-        focus: Array.isArray(loadedIntentions.focus) ? loadedIntentions.focus : DEFAULT_INTENTIONS.focus,
-        aspirations: Array.isArray(loadedIntentions.aspirations) ? loadedIntentions.aspirations : DEFAULT_INTENTIONS.aspirations,
-        growthEdges: Array.isArray(loadedIntentions.growthEdges) ? loadedIntentions.growthEdges : DEFAULT_INTENTIONS.growthEdges,
-        lastUpdated: loadedIntentions.lastUpdated || new Date().toISOString()
+        focus: Array.isArray(loadedData.focus) ? loadedData.focus : DEFAULT_INTENTIONS.focus,
+        aspirations: Array.isArray(loadedData.aspirations) ? loadedData.aspirations : DEFAULT_INTENTIONS.aspirations,
+        growthEdges: Array.isArray(loadedData.growthEdges) ? loadedData.growthEdges : DEFAULT_INTENTIONS.growthEdges,
+        lastUpdated: loadedData.lastUpdated || new Date().toISOString()
       };
       
       setIntentions(validatedIntentions);
@@ -118,13 +118,13 @@ export const useIntentions = () => {
         lastUpdated: new Date().toISOString()
       };
       
-      // Store updated intentions
+      // Store updated intentions - Type casting to any to handle Json type
       const { error } = await supabase
         .from('memory')
         .upsert({
           user_id: user.id,
           key: 'intentions',
-          value: updatedIntentions,
+          value: updatedIntentions as any,
           last_accessed: new Date().toISOString()
         });
         
