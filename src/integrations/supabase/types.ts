@@ -147,6 +147,33 @@ export type Database = {
           },
         ]
       }
+      reflections: {
+        Row: {
+          author: string
+          content: string
+          created_at: string
+          id: string
+          source_context: Json | null
+          type: string
+        }
+        Insert: {
+          author?: string
+          content: string
+          created_at?: string
+          id?: string
+          source_context?: Json | null
+          type?: string
+        }
+        Update: {
+          author?: string
+          content?: string
+          created_at?: string
+          id?: string
+          source_context?: Json | null
+          type?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           created_at: string

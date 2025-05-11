@@ -1,74 +1,85 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Send, BookOpen, FilePlus } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { useChat } from '../contexts/ChatContext';
-import { SpecialDocumentUpload } from './SpecialDocumentUpload';
+import { SendHorizonal, Loader2 } from 'lucide-react';
+import { useChat } from '@/contexts/ChatContext';
 
 export const ChatInput: React.FC = () => {
   const [message, setMessage] = useState('');
-  const { sendMessage, isTyping, summarizeConversation } = useChat();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = 'inherit';
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [message]);
-
+  
+  const { 
+    sendMessage, 
+    isTyping, 
+    generateWeeklyReflection,
+    generateSoulReflection
+  } = useChat();
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || isTyping) return;
-    
-    await sendMessage(message);
-    setMessage('');
-    
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
-  };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
+    // Check for reflection commands
+    const lowerMessage = message.trim().toLowerCase();
+    if (lowerMessage === '/reflect' || lowerMessage === '/weekly reflection') {
+      setMessage('');
+      await generateWeeklyReflection();
+      return;
     }
+
+    if (lowerMessage === '/evolve' || lowerMessage === '/update soulshard') {
+      setMessage('');
+      await generateSoulReflection();
+      return;
+    }
+
+    // Regular message handling
+    const messageCopy = message.trim();
+    setMessage('');
+    await sendMessage(messageCopy);
   };
+  
+  if (!isMounted) {
+    return null;
+  }
 
   return (
-    <>
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-t">
-        <div className="flex items-center">
-          <SpecialDocumentUpload />
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={summarizeConversation}
-            disabled={isTyping}
-            className="flex items-center gap-2 ml-2"
-          >
-            <BookOpen size={16} />
-            <span>Summarize Conversation</span>
-          </Button>
-        </div>
-      </div>
-      <form onSubmit={handleSubmit} className="flex items-end gap-2 bg-white p-4 border-t">
+    <div className="border-t py-2 px-4">
+      <form onSubmit={handleSubmit} className="relative flex items-center">
         <Textarea
           ref={textareaRef}
+          rows={1}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type your message to Travis..."
-          className="resize-none min-h-[50px] max-h-[150px] flex-grow"
+          placeholder="Type your message here..."
+          className="resize-none pr-12"
           disabled={isTyping}
         />
-        <Button type="submit" size="icon" disabled={!message.trim() || isTyping}>
-          <Send size={18} />
+        <Button
+          type="submit"
+          className="absolute right-2 bottom-2 rounded-full"
+          disabled={isTyping}
+        >
+          {isTyping ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <SendHorizonal className="h-4 w-4" />
+          )}
+          <span className="sr-only">Send</span>
         </Button>
       </form>
-    </>
+    </div>
   );
 };

@@ -1,35 +1,8 @@
 
+# This is the configuration file for your Supabase project.
+# https://supabase.com/docs/guides/functions/
+
 project_id = "vdtogebrtoqnbbpjntgg"
 
-[api]
-enabled = true
-port = 54321
-schemas = ["public", "storage", "graphql_public"]
-
-[db]
-port = 54322
-
-[studio]
-port = 54323
-
-[inbucket]
-port = 54324
-
-[auth]
-enabled = true
-port = 54325
-
-[storage]
-enabled = true
-port = 54326
-
-[realtime]
-enabled = true
-port = 54327
-
-[functions]
-enabled = true
-port = 54328
-
-[functions.messages]
-verify_jwt = false
+[functions.reflect]
+verify_jwt = true

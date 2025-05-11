@@ -371,5 +371,70 @@ export const MemoryService = {
       console.error('Error importing past conversations from file:', error);
       throw error;
     }
-  }
+  },
+
+  // Update the soulshard content
+  async updateSoulshard(userId: string, content: string | object): Promise<void> {
+    try {
+      console.log('Updating soulshard for user:', userId);
+      
+      // Ensure user exists in the database
+      await getOrCreateUserProfile(userId);
+      
+      // Format the content
+      const soulshardData = {
+        content: typeof content === 'string' ? content : JSON.stringify(content, null, 2),
+        lastUpdated: Date.now()
+      };
+      
+      // Check if soulshard exists
+      const { data: existingData, error: checkError } = await supabase
+        .from('memory')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('key', 'soulShard')
+        .maybeSingle();
+        
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking for existing soulshard:', checkError);
+        throw checkError;
+      }
+      
+      const now = new Date().toISOString();
+      
+      if (existingData) {
+        // Update existing soulshard
+        const { error: updateError } = await supabase
+          .from('memory')
+          .update({
+            value: soulshardData,
+            last_accessed: now
+          })
+          .eq('id', existingData.id);
+          
+        if (updateError) throw updateError;
+      } else {
+        // Create new soulshard
+        const memoryId = generateUUID();
+        
+        const { error: insertError } = await supabase
+          .from('memory')
+          .insert({
+            id: memoryId,
+            user_id: userId,
+            key: 'soulShard',
+            value: soulshardData,
+            last_accessed: now,
+            created_at: now
+          });
+          
+        if (insertError) throw insertError;
+      }
+      
+      console.log('Soulshard updated successfully for user:', userId);
+    } catch (error) {
+      console.error('Error updating soulshard:', error);
+      throw error;
+    }
+  },
 };

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Message } from '../types';
 import { FileOperation } from '../types/chat';
@@ -8,6 +7,7 @@ import { getOrCreateUserProfile } from '../lib/supabase';
 import { useMessageHandling } from '../hooks/useMessageHandling';
 import { useMemoryManagement } from '../hooks/useMemoryManagement';
 import { useChatManagement } from '../hooks/useChatManagement';
+import { useReflection } from '../hooks/useReflection';
 
 // Chat Context Type
 interface ChatContextType {
@@ -16,6 +16,9 @@ interface ChatContextType {
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => Promise<void>;
   summarizeConversation: () => Promise<void>;
+  generateWeeklyReflection: () => Promise<any>;
+  generateSoulReflection: () => Promise<any>;
+  isGeneratingReflection: boolean;
   memoryContext: any;
   refreshMemoryContext: () => Promise<any>;
   fileOperationResults?: FileOperation[];
@@ -49,6 +52,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     clearMessages,
     summarizeConversation
   } = useChatManagement(messages, setMessages, setIsTyping);
+
+  const {
+    isGenerating: isGeneratingReflection,
+    generateWeeklyReflection,
+    generateSoulReflection
+  } = useReflection(setMessages);
 
   const { user } = useAuth();
 
@@ -87,6 +96,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sendMessage,
     clearMessages,
     summarizeConversation,
+    generateWeeklyReflection,
+    generateSoulReflection,
+    isGeneratingReflection,
     memoryContext,
     refreshMemoryContext,
     fileOperationResults,

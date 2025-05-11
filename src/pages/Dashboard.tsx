@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ChatHistory } from '@/components/ChatHistory';
 import { ChatInput } from '@/components/ChatInput';
@@ -16,6 +15,7 @@ import { GitHubRepoSelector } from '@/components/GitHubRepoSelector';
 import { GitHubProvider, useGitHub } from '@/contexts/github';
 import { TestButton } from '@/components/TestButton';
 import { GitHubCommitPanelContainer } from '@/components/github/commit/GitHubCommitPanelContainer';
+import { ReflectionButton } from '@/components/ReflectionButton';
 import { 
   Loader2, Menu, FolderPlus, FilePlus, Github, RefreshCw
 } from 'lucide-react';
@@ -203,6 +203,9 @@ const DashboardContent = () => {
         <div className="flex items-center gap-4">
           {/* Add TestButton next to GitHub button */}
           <TestButton />
+          
+          {/* Add Reflection Button */}
+          <ReflectionButton />
           
           <Button 
             variant="outline" 
