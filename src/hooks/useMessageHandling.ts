@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Message } from '../types';
 import { useToast } from './use-toast';
@@ -8,6 +7,7 @@ import { useGitHub } from '../contexts/github';
 import { useFileSystem } from '../contexts/FileSystemContext';
 import { MemoryService } from '../services/MemoryService';
 import { useEmbeddingMemory } from './useEmbeddingMemory';
+import { useLivedMemory } from './useLivedMemory'; // Import the new hook
 import { 
   storeUserMessage, 
   storeAssistantMessage,
@@ -40,6 +40,11 @@ export const useMessageHandling = () => {
     retrieveRelevantMemories,
     processMessageHistory
   } = useEmbeddingMemory();
+  
+  // Add the new lived memory hook
+  const {
+    buildLivedMemoryContext
+  } = useLivedMemory();
 
   // Process existing messages to create embeddings when component mounts
   useEffect(() => {
@@ -82,8 +87,12 @@ export const useMessageHandling = () => {
           console.warn('Failed to store message embedding, continuing without it:', err);
         });
         
+        // Build the lived memory context based on the user message
+        const livedMemoryContext = await buildLivedMemoryContext(content);
+        console.log('Generated lived memory context blocks:', livedMemoryContext.length);
+        
         // Retrieve relevant past memories based on the current message
-        let enhancedMemoryContext = { ...memoryContext };
+        let enhancedMemoryContext = { ...memoryContext, livedMemory: livedMemoryContext };
         
         try {
           const relevantMemories = await retrieveRelevantMemories(content);
