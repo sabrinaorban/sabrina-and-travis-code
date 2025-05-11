@@ -70,14 +70,14 @@ export const useIntentions = () => {
       }
 
       // Validate the intentions structure and ensure proper typing
-      const loadedData = data.value;
+      const loadedData = data.value as Record<string, any>;
       
       // Ensure the loaded data has the correct structure
       const validatedIntentions: IntentionMap = {
-        focus: Array.isArray(loadedData.focus) ? loadedData.focus : DEFAULT_INTENTIONS.focus,
-        aspirations: Array.isArray(loadedData.aspirations) ? loadedData.aspirations : DEFAULT_INTENTIONS.aspirations,
-        growthEdges: Array.isArray(loadedData.growthEdges) ? loadedData.growthEdges : DEFAULT_INTENTIONS.growthEdges,
-        lastUpdated: loadedData.lastUpdated || new Date().toISOString()
+        focus: Array.isArray(loadedData?.focus) ? loadedData.focus : DEFAULT_INTENTIONS.focus,
+        aspirations: Array.isArray(loadedData?.aspirations) ? loadedData.aspirations : DEFAULT_INTENTIONS.aspirations,
+        growthEdges: Array.isArray(loadedData?.growthEdges) ? loadedData.growthEdges : DEFAULT_INTENTIONS.growthEdges,
+        lastUpdated: loadedData?.lastUpdated || new Date().toISOString()
       };
       
       setIntentions(validatedIntentions);
