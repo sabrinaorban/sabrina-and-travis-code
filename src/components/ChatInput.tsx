@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -24,7 +25,9 @@ export const ChatInput: React.FC = () => {
     sendMessage, 
     isTyping, 
     generateWeeklyReflection,
-    generateSoulReflection
+    generateSoulReflection,
+    generateSoulstateSummary,
+    generateSoulstateReflection
   } = useChat();
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,6 +45,19 @@ export const ChatInput: React.FC = () => {
     if (lowerMessage === '/evolve' || lowerMessage === '/update soulshard') {
       setMessage('');
       await generateSoulReflection();
+      return;
+    }
+
+    // Handle new soulstate commands
+    if (lowerMessage === '/soulstate') {
+      setMessage('');
+      await generateSoulstateSummary();
+      return;
+    }
+
+    if (lowerMessage === '/update-soulstate') {
+      setMessage('');
+      await generateSoulstateReflection();
       return;
     }
 

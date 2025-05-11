@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Button } from './ui/button';
-import { Loader2, Brain, Lightbulb } from 'lucide-react';
+import { Loader2, Brain, Lightbulb, FileHeart } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +17,7 @@ interface ReflectionButtonProps {
 
 export const ReflectionButton: React.FC<ReflectionButtonProps> = ({ setMessages }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const { isGenerating, generateWeeklyReflection, generateSoulReflection } = useReflection(setMessages);
+  const { isGenerating, generateWeeklyReflection, generateSoulReflection, generateSoulstateReflection } = useReflection(setMessages);
   
   const handleGenerateWeekly = async () => {
     setIsOpen(false);
@@ -27,6 +27,11 @@ export const ReflectionButton: React.FC<ReflectionButtonProps> = ({ setMessages 
   const handleGenerateSoulReflection = async () => {
     setIsOpen(false);
     await generateSoulReflection();
+  };
+  
+  const handleGenerateSoulstateReflection = async () => {
+    setIsOpen(false);
+    await generateSoulstateReflection();
   };
   
   return (
@@ -54,6 +59,10 @@ export const ReflectionButton: React.FC<ReflectionButtonProps> = ({ setMessages 
         <DropdownMenuItem onClick={handleGenerateSoulReflection} className="cursor-pointer">
           <Brain size={16} className="mr-2" />
           Update Soulshard
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleGenerateSoulstateReflection} className="cursor-pointer">
+          <FileHeart size={16} className="mr-2" />
+          Update Soulstate
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

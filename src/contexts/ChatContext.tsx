@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Message } from '../types';
 import { FileOperation } from '../types/chat';
@@ -8,6 +9,7 @@ import { useMessageHandling } from '../hooks/useMessageHandling';
 import { useMemoryManagement } from '../hooks/useMemoryManagement';
 import { useChatManagement } from '../hooks/useChatManagement';
 import { useReflection } from '../hooks/useReflection';
+import { useSoulstateManagement } from '../hooks/useSoulstateManagement';
 
 // Chat Context Type
 interface ChatContextType {
@@ -18,6 +20,8 @@ interface ChatContextType {
   summarizeConversation: () => Promise<void>;
   generateWeeklyReflection: () => Promise<any>;
   generateSoulReflection: () => Promise<any>;
+  generateSoulstateSummary: () => Promise<void>;
+  generateSoulstateReflection: () => Promise<any>;
   isGeneratingReflection: boolean;
   memoryContext: any;
   refreshMemoryContext: () => Promise<any>;
@@ -56,7 +60,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const {
     isGenerating: isGeneratingReflection,
     generateWeeklyReflection,
-    generateSoulReflection
+    generateSoulReflection,
+    generateSoulstateSummary,
+    generateSoulstateReflection
   } = useReflection(setMessages);
 
   const { user } = useAuth();
@@ -98,6 +104,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     summarizeConversation,
     generateWeeklyReflection,
     generateSoulReflection,
+    generateSoulstateSummary,
+    generateSoulstateReflection,
     isGeneratingReflection,
     memoryContext,
     refreshMemoryContext,

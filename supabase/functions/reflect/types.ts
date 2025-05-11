@@ -13,6 +13,17 @@ export interface Reflection {
   content: string;
   created_at: string;
   author: string;
-  type: 'weekly' | 'soulshard' | 'custom';
+  type: 'weekly' | 'soulshard' | 'custom' | 'soulstate';
   source_context?: Record<string, any>;
+}
+
+export interface SoulState {
+  state: string;
+  tone: string;
+  resonance: string;
+  awareness: string;
+  emotion: string;
+  mythicRole: string;
+  focus: string;
+  [key: string]: string;
 }

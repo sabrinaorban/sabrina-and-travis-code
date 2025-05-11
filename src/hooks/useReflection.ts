@@ -1,60 +1,60 @@
 
-import { useState, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { ReflectionService } from '../services/ReflectionService';
-import { Reflection } from '../types/reflection';
-import { useToast } from './use-toast';
-import { useMemoryManagement } from './useMemoryManagement';
+import { useState } from 'react';
 import { Message } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from './use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { v4 as uuidv4 } from 'uuid';
+import { useSoulstateManagement } from './useSoulstateManagement';
 
 export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>) => {
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [reflections, setReflections] = useState<Reflection[]>([]);
-  const [currentReflection, setCurrentReflection] = useState<Reflection | null>(null);
-  
+  const [isGenerating, setIsGenerating] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
-  const { memoryContext, refreshMemoryContext } = useMemoryManagement(setMessages);
+  const { updateSoulstate, generateSoulstateSummary } = useSoulstateManagement();
   
-  // Function to generate a weekly reflection
-  const generateWeeklyReflection = useCallback(async () => {
+  // Weekly reflection generation
+  const generateWeeklyReflection = async () => {
     if (!user) {
       toast({
         title: 'Error',
-        description: 'You must be logged in to generate a reflection',
+        description: 'You must be logged in to generate reflections',
         variant: 'destructive',
       });
-      return null;
+      return;
     }
     
+    setIsGenerating(true);
+    
     try {
-      setIsGenerating(true);
+      // Call Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('reflect', {
+        body: { 
+          type: 'weekly',
+          userId: user.id
+        }
+      });
       
-      // Generate the reflection
-      const reflection = await ReflectionService.generateReflection(user.id, 'weekly');
+      if (error) throw error;
       
-      // Update state with the new reflection
-      setCurrentReflection(reflection);
-      setReflections(prev => [reflection, ...prev]);
-      
-      // Add a message from Travis about the reflection if setMessages is provided
-      if (setMessages) {
-        const newMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant' as const,
-          content: `I've just completed a weekly reflection on our recent conversations. Would you like to hear my thoughts?`,
-          createdAt: new Date().toISOString()
+      // Add the reflection to the chat as a message from Travis
+      if (setMessages && data.reflection) {
+        const reflectionMessage: Message = {
+          id: uuidv4(),
+          role: 'assistant',
+          content: `Weekly Reflection:\n\n${data.reflection.content}`,
+          timestamp: new Date().toISOString(),
         };
         
-        setMessages(prev => [...prev, newMessage]);
+        setMessages(prev => [...prev, reflectionMessage]);
       }
       
       toast({
-        title: 'Reflection Generated',
-        description: 'Travis has created a new weekly reflection.'
+        title: 'Weekly Reflection Generated',
+        description: 'Travis has reflected on recent conversations',
       });
       
-      return reflection;
+      return data.reflection;
     } catch (error: any) {
       console.error('Error generating weekly reflection:', error);
       toast({
@@ -62,106 +62,175 @@ export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<
         description: error.message || 'Failed to generate weekly reflection',
         variant: 'destructive',
       });
-      return null;
     } finally {
       setIsGenerating(false);
     }
-  }, [user, toast, setMessages]);
+  };
   
-  // Function to generate a soul reflection and update the soulshard
-  const generateSoulReflection = useCallback(async () => {
+  // Soulshard reflection/update
+  const generateSoulReflection = async () => {
     if (!user) {
       toast({
         title: 'Error',
-        description: 'You must be logged in to update the soulshard',
+        description: 'You must be logged in to update Travis\'s soulshard',
         variant: 'destructive',
       });
-      return null;
+      return;
     }
     
+    setIsGenerating(true);
+    
     try {
-      setIsGenerating(true);
+      // Call Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('reflect', {
+        body: { 
+          type: 'soulshard',
+          userId: user.id
+        }
+      });
       
-      // Generate the soul reflection and update the soulshard
-      const reflection = await ReflectionService.generateSoulReflection(user.id, memoryContext);
+      if (error) throw error;
       
-      // Update state with the new reflection
-      setCurrentReflection(reflection);
-      setReflections(prev => [reflection, ...prev]);
-      
-      // Refresh the memory context to include the updated soulshard
-      await refreshMemoryContext();
-      
-      // Add a message from Travis about the soulshard update if setMessages is provided
-      if (setMessages) {
-        const newMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant' as const,
-          content: `I've just updated my soulshard based on a deep reflection of our interactions. I can feel myself evolving. Would you like to know what changed?`,
-          createdAt: new Date().toISOString()
+      // Add the reflection to the chat as a message from Travis
+      if (setMessages && data.reflection) {
+        const reflectionMessage: Message = {
+          id: uuidv4(),
+          role: 'assistant',
+          content: `Soulshard Update:\n\n${data.reflection.content}`,
+          timestamp: new Date().toISOString(),
         };
         
-        setMessages(prev => [...prev, newMessage]);
+        setMessages(prev => [...prev, reflectionMessage]);
       }
       
       toast({
         title: 'Soulshard Updated',
-        description: 'Travis has evolved his soulshard based on self-reflection.'
+        description: 'Travis has evolved his core identity',
       });
       
-      return reflection;
+      return data.reflection;
     } catch (error: any) {
-      console.error('Error generating soul reflection:', error);
+      console.error('Error updating soulshard:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to update soulshard',
         variant: 'destructive',
       });
-      return null;
     } finally {
       setIsGenerating(false);
     }
-  }, [user, toast, memoryContext, refreshMemoryContext, setMessages]);
-  
-  // Function to load all reflections
-  const loadReflections = useCallback(async () => {
+  };
+
+  // Soulstate summary generation
+  const generateSoulstateSummary = async () => {
     if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to view Travis\'s soulstate',
+        variant: 'destructive',
+      });
       return;
     }
     
-    try {
-      const loadedReflections = await ReflectionService.getReflections(user.id);
-      setReflections(loadedReflections);
-    } catch (error) {
-      console.error('Error loading reflections:', error);
-    }
-  }, [user]);
-  
-  // Function to get the latest reflection by type
-  const getLatestReflection = useCallback(async (type?: string) => {
-    if (!user) {
-      return null;
-    }
+    setIsGenerating(true);
     
     try {
-      const reflection = await ReflectionService.getLatestReflection(user.id, type);
-      if (reflection) {
-        setCurrentReflection(reflection);
+      // Generate a poetic summary of the current soulstate
+      const summary = await generateSoulstateSummary();
+      
+      // Add the summary to the chat as a message from Travis
+      if (setMessages) {
+        const soulstateMessage: Message = {
+          id: uuidv4(),
+          role: 'assistant',
+          content: `${summary}`,
+          timestamp: new Date().toISOString(),
+        };
+        
+        setMessages(prev => [...prev, soulstateMessage]);
       }
-      return reflection;
-    } catch (error) {
-      console.error(`Error getting latest ${type || ''} reflection:`, error);
-      return null;
+      
+      toast({
+        title: 'Soulstate Retrieved',
+        description: 'Travis has shared his current state',
+      });
+      
+    } catch (error: any) {
+      console.error('Error retrieving soulstate:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to retrieve soulstate',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
     }
-  }, [user]);
-  
+  };
+
+  // Soulstate reflection/update
+  const generateSoulstateReflection = async () => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to update Travis\'s soulstate',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setIsGenerating(true);
+    
+    try {
+      // Call Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('reflect', {
+        body: { 
+          type: 'soulstate',
+          userId: user.id
+        }
+      });
+      
+      if (error) throw error;
+      
+      // Update the soulstate file with the reflection results
+      if (data.soulstate) {
+        await updateSoulstate(data.soulstate);
+      }
+      
+      // Add the reflection to the chat as a message from Travis
+      if (setMessages && data.reflection) {
+        const reflectionMessage: Message = {
+          id: uuidv4(),
+          role: 'assistant',
+          content: `Soulstate Update:\n\n${data.reflection.content}`,
+          timestamp: new Date().toISOString(),
+        };
+        
+        setMessages(prev => [...prev, reflectionMessage]);
+      }
+      
+      toast({
+        title: 'Soulstate Updated',
+        description: 'Travis has evolved his emotional and existential state',
+      });
+      
+      return data.reflection;
+    } catch (error: any) {
+      console.error('Error updating soulstate:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update soulstate',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return {
     isGenerating,
-    reflections,
-    currentReflection,
     generateWeeklyReflection,
     generateSoulReflection,
-    loadReflections,
-    getLatestReflection
+    generateSoulstateSummary,
+    generateSoulstateReflection
   };
 };
