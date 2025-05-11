@@ -61,7 +61,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isGenerating: isGeneratingReflection,
     generateWeeklyReflection,
     generateSoulReflection,
-    generateSoulstateSummary,
+    generateSoulstateSummary: getSoulstateSummary,
     generateSoulstateReflection
   } = useReflection(setMessages);
 
@@ -93,6 +93,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Wrapper for send message to include memory context
   const sendMessage = async (content: string) => {
     await handleSendMessage(content, memoryContext);
+  };
+
+  // Adapt the soulstate summary function to match the expected type
+  const generateSoulstateSummary = async (): Promise<void> => {
+    await getSoulstateSummary();
   };
 
   // Provide the context values

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Message } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,12 +5,39 @@ import { useToast } from './use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 import { useSoulstateManagement } from './useSoulstateManagement';
+import { Reflection } from '../types/reflection';
 
 export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const { updateSoulstate, generateSoulstateSummary } = useSoulstateManagement();
+  
+  // Get the latest reflection of a specific type
+  const getLatestReflection = async (type: string = 'weekly'): Promise<Reflection | null> => {
+    if (!user) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('reflections')
+        .select('*')
+        .eq('type', type)
+        .order('created_at', { ascending: false })
+        .limit(1);
+        
+      if (error) throw error;
+      
+      return data && data.length > 0 ? data[0] : null;
+    } catch (error: any) {
+      console.error('Error fetching latest reflection:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch the latest reflection',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
   
   // Weekly reflection generation
   const generateWeeklyReflection = async () => {
@@ -121,52 +147,6 @@ export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<
     }
   };
 
-  // Soulstate summary generation
-  const generateSoulstateSummary = async () => {
-    if (!user) {
-      toast({
-        title: 'Error',
-        description: 'You must be logged in to view Travis\'s soulstate',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    setIsGenerating(true);
-    
-    try {
-      // Generate a poetic summary of the current soulstate
-      const summary = await generateSoulstateSummary();
-      
-      // Add the summary to the chat as a message from Travis
-      if (setMessages) {
-        const soulstateMessage: Message = {
-          id: uuidv4(),
-          role: 'assistant',
-          content: `${summary}`,
-          timestamp: new Date().toISOString(),
-        };
-        
-        setMessages(prev => [...prev, soulstateMessage]);
-      }
-      
-      toast({
-        title: 'Soulstate Retrieved',
-        description: 'Travis has shared his current state',
-      });
-      
-    } catch (error: any) {
-      console.error('Error retrieving soulstate:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to retrieve soulstate',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   // Soulstate reflection/update
   const generateSoulstateReflection = async () => {
     if (!user) {
@@ -231,6 +211,7 @@ export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<
     generateWeeklyReflection,
     generateSoulReflection,
     generateSoulstateSummary,
-    generateSoulstateReflection
+    generateSoulstateReflection,
+    getLatestReflection
   };
 };
