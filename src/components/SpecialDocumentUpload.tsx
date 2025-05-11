@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
@@ -30,6 +29,7 @@ export const SpecialDocumentUpload: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
+  // Use the chat context with the newly added upload functions
   const { uploadSoulShard, uploadIdentityCodex, uploadPastConversations } = useChat();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: string) => {

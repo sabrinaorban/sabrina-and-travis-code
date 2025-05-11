@@ -1,5 +1,6 @@
+
 import React, { createContext, useState, useContext, useCallback } from 'react';
-import { Message, MemoryContext } from '../types';
+import { Message } from '../types';
 import { useChatManagement } from '@/hooks/useChatManagement';
 import { useMessageHandling } from '@/hooks/useMessageHandling';
 import { useReflection } from '@/hooks/useReflection';
@@ -8,6 +9,13 @@ import { useFlamejournal, FlameJournalEntry } from '@/hooks/useFlamejournal';
 import { useSoulstateEvolution } from '@/hooks/useSoulstateEvolution';
 import { useIntentions } from '@/hooks/useIntentions';
 import { useSoulcycle } from '@/hooks/useSoulcycle';
+
+// Define MemoryContext type here since it's missing from types
+export interface MemoryContext {
+  relevantMemories?: Array<{ content: string; similarity: number }>;
+  livedMemory?: Array<string>;
+  [key: string]: any;
+}
 
 export interface ChatContextType {
   messages: Message[];
@@ -23,6 +31,10 @@ export interface ChatContextType {
   viewIntentions: () => Promise<void>;
   updateIntentions: () => Promise<void>;
   runSoulcycle: () => Promise<boolean>;
+  // Add missing document upload methods to fix SpecialDocumentUpload errors
+  uploadSoulShard?: (file: File) => Promise<void>;
+  uploadIdentityCodex?: (file: File) => Promise<void>;
+  uploadPastConversations?: (file: File) => Promise<void>;
 }
 
 export interface ChatProviderProps {
@@ -44,6 +56,9 @@ const defaultChatContext: ChatContextType = {
   viewIntentions: async () => {},
   updateIntentions: async () => {},
   runSoulcycle: async () => false,
+  uploadSoulShard: async () => {},
+  uploadIdentityCodex: async () => {},
+  uploadPastConversations: async () => {},
 };
 
 export const ChatContext = createContext<ChatContextType>(defaultChatContext);
@@ -53,8 +68,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [memoryContext, setMemoryContext] = useState<MemoryContext | null>(null);
   
-  const { addMessageToMemory, getMemoryContext } = useChatManagement(setMessages, setMemoryContext);
-  const { sendMessage: handleSendMessage } = useMessageHandling(setMessages, setIsTyping, addMessageToMemory);
+  // Fix the hook calls to match their expected signatures
+  const chatManagement = useChatManagement();
+  const { sendMessage: handleSendMessage } = useMessageHandling();
+  
   const { 
     generateWeeklyReflection,
     generateSoulReflection,
@@ -62,10 +79,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     generateSoulstateReflection,
     getLatestReflection
   } = useReflection(setMessages);
+  
   const { updateSoulstate, loadSoulstate } = useSoulstateManagement();
   const { createJournalEntry } = useFlamejournal();
-  const { initiateSoulstateEvolution } = useSoulstateEvolution();
-  const { loadIntentions, updateIntentions, formatIntentionsForDisplay, synthesizeIntentionUpdates } = useIntentions();
+  const { 
+    synthesizeSoulstateFromMemory, 
+    applySoulstateEvolution 
+  } = useSoulstateEvolution();
+  
+  const { 
+    loadIntentions, 
+    formatIntentionsForDisplay,
+    synthesizeIntentionUpdates,
+    updateIntentions: updateUserIntentions 
+  } = useIntentions();
+  
   const {
     isRunning: isSoulcycleRunning,
     currentStep: soulcycleStep,
@@ -73,8 +101,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   } = useSoulcycle(setMessages);
 
   const sendMessage = useCallback(async (message: string) => {
-    await handleSendMessage(message);
-  }, [handleSendMessage]);
+    await handleSendMessage(message, memoryContext || {});
+  }, [handleSendMessage, memoryContext]);
 
   const viewIntentions = useCallback(async () => {
     try {
@@ -97,12 +125,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }, [loadIntentions, formatIntentionsForDisplay, setMessages]);
 
-  const updateIntentions = useCallback(async () => {
+  const handleUpdateIntentions = useCallback(async () => {
     try {
       const proposedUpdates = await synthesizeIntentionUpdates();
       
       if (proposedUpdates) {
-        const success = await updateIntentions(proposedUpdates, true);
+        const success = await updateUserIntentions(proposedUpdates, true);
         
         if (success) {
           // Optionally, notify the user that the intentions have been updated
@@ -119,7 +147,66 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error updating intentions:', error);
     }
-  }, [synthesizeIntentionUpdates, updateIntentions, setMessages]);
+  }, [synthesizeIntentionUpdates, updateUserIntentions, setMessages]);
+
+  // Implement a stub for soulstate evolution
+  const handleInitiateSoulstateEvolution = useCallback(async () => {
+    try {
+      const evolutionResult = await synthesizeSoulstateFromMemory();
+      if (evolutionResult) {
+        await applySoulstateEvolution();
+      }
+    } catch (error) {
+      console.error('Error in soulstate evolution:', error);
+    }
+  }, [synthesizeSoulstateFromMemory, applySoulstateEvolution]);
+
+  // Create a wrapper for generateSoulstateSummary that returns void
+  const handleGenerateSoulstateSummary = useCallback(async () => {
+    try {
+      const summary = await generateSoulstateSummary();
+      if (setMessages && summary) {
+        const message: Message = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: summary,
+          timestamp: new Date().toISOString(),
+        };
+        
+        setMessages(prev => [...prev, message]);
+      }
+    } catch (error) {
+      console.error('Error generating soulstate summary:', error);
+    }
+  }, [generateSoulstateSummary, setMessages]);
+
+  // Create a wrapper for FlameJournal entry creation
+  const createFlameJournalEntry = useCallback(async (entryType: string): Promise<FlameJournalEntry | null> => {
+    try {
+      // This is just a simple implementation - you might want to customize content based on entryType
+      const content = `Creating a new ${entryType} entry in my flamejournal. The eternal flame flickers with insight.`;
+      return await createJournalEntry(content, entryType);
+    } catch (error) {
+      console.error('Error creating flame journal entry:', error);
+      return null;
+    }
+  }, [createJournalEntry]);
+
+  // Add placeholder implementations for upload functions
+  const uploadSoulShard = useCallback(async (file: File) => {
+    console.log('Soul shard upload requested:', file.name);
+    // Implementation would be added here
+  }, []);
+
+  const uploadIdentityCodex = useCallback(async (file: File) => {
+    console.log('Identity codex upload requested:', file.name);
+    // Implementation would be added here
+  }, []);
+
+  const uploadPastConversations = useCallback(async (file: File) => {
+    console.log('Past conversations upload requested:', file.name);
+    // Implementation would be added here
+  }, []);
 
   return (
     <ChatContext.Provider
@@ -130,13 +217,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         memoryContext,
         generateWeeklyReflection,
         generateSoulReflection,
-        generateSoulstateSummary,
+        generateSoulstateSummary: handleGenerateSoulstateSummary,
         generateSoulstateReflection,
         createFlameJournalEntry,
-        initiateSoulstateEvolution,
+        initiateSoulstateEvolution: handleInitiateSoulstateEvolution,
         viewIntentions,
-        updateIntentions,
+        updateIntentions: handleUpdateIntentions,
         runSoulcycle,
+        uploadSoulShard,
+        uploadIdentityCodex,
+        uploadPastConversations,
       }}
     >
       {children}

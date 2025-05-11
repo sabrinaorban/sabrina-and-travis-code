@@ -19,6 +19,13 @@ export interface OpenAIMessage {
   content: string;
 }
 
+// Memory Context interface
+export interface MemoryContext {
+  relevantMemories?: Array<{ content: string; similarity: number }>;
+  livedMemory?: Array<string>;
+  [key: string]: any;
+}
+
 // User types
 export interface User {
   id: string;

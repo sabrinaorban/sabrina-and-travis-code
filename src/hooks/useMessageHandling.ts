@@ -1,5 +1,6 @@
+
 import { useState, useEffect } from 'react';
-import { Message } from '../types';
+import { Message, MemoryContext } from '../types';
 import { useToast } from './use-toast';
 import { FileOperation } from '../types/chat';
 import { useAuth } from '../contexts/AuthContext';
@@ -55,7 +56,7 @@ export const useMessageHandling = () => {
   }, [user, messages.length, processMessageHistory]);
 
   // Function to send message
-  const sendMessage = async (content: string, memoryContext: any) => {
+  const sendMessage = async (content: string, memoryContext: MemoryContext = {}) => {
     if (!user) {
       toast({
         title: 'Error',
