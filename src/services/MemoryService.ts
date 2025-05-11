@@ -1,6 +1,6 @@
 
 import { supabase, generateUUID, getOrCreateUserProfile } from '../lib/supabase';
-import { Message } from '../types';
+import { Message, MemoryEmbedding } from '../types';
 
 export interface MemoryContext {
   recentMessages: Message[];
@@ -47,6 +47,11 @@ export interface MemoryContext {
     topic: string;
     summary: string;
     timestamp: number;
+  }>;
+  // Relevant memories from vector similarity search
+  relevantMemories?: Array<{
+    content: string;
+    similarity: number;
   }>;
 }
 

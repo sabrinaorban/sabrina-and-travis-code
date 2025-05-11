@@ -1,4 +1,5 @@
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
 import { Message } from '../types';
 import { useToast } from './use-toast';
 import { FileOperation } from '../types/chat';
@@ -6,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useGitHub } from '../contexts/github';
 import { useFileSystem } from '../contexts/FileSystemContext';
 import { MemoryService } from '../services/MemoryService';
+import { useEmbeddingMemory } from './useEmbeddingMemory';
 import { 
   storeUserMessage, 
   storeAssistantMessage,
@@ -33,6 +35,19 @@ export const useMessageHandling = () => {
   const { user } = useAuth();
   const github = useGitHub();
   const fileSystem = useFileSystem();
+  const {
+    storeMemoryEmbedding,
+    retrieveRelevantMemories,
+    processMessageHistory
+  } = useEmbeddingMemory();
+
+  // Process existing messages to create embeddings when component mounts
+  useEffect(() => {
+    if (user && messages.length > 0) {
+      // Don't await - let it run in background
+      processMessageHistory(messages).catch(console.error);
+    }
+  }, [user, messages.length, processMessageHistory]);
 
   // Function to send message
   const sendMessage = async (content: string, memoryContext: any) => {
@@ -62,6 +77,29 @@ export const useMessageHandling = () => {
       setIsTyping(true);
 
       try {
+        // Store the user message as an embedding for future recall
+        storeMemoryEmbedding(content, 'chat', ['user']).catch(err => {
+          console.warn('Failed to store message embedding, continuing without it:', err);
+        });
+        
+        // Retrieve relevant past memories based on the current message
+        let enhancedMemoryContext = { ...memoryContext };
+        
+        try {
+          const relevantMemories = await retrieveRelevantMemories(content);
+          if (relevantMemories.length > 0) {
+            // Add relevant memories to the context
+            enhancedMemoryContext.relevantMemories = relevantMemories.map(mem => ({
+              content: mem.content,
+              similarity: mem.similarity
+            }));
+            
+            console.log(`Added ${relevantMemories.length} relevant memories to context`);
+          }
+        } catch (memoryError) {
+          console.warn('Error retrieving relevant memories, continuing without them:', memoryError);
+        }
+
         // Always get project structure for context - important for file editing
         const projectStructure = await getProjectStructure(fileSystem);
         console.log('Project structure for Travis:', projectStructure ? 'Available' : 'Not available');
@@ -79,7 +117,7 @@ export const useMessageHandling = () => {
         const openAIMessages = await createOpenAIMessages(
           messages, 
           newUserMessage, 
-          memoryContext,
+          enhancedMemoryContext,
           github.authState.isAuthenticated ? {
             username: github.authState.username,
             currentRepo: github.currentRepo?.full_name,
@@ -91,7 +129,7 @@ export const useMessageHandling = () => {
         // Call OpenAI API through Supabase Edge Function
         const response = await callOpenAI(
           openAIMessages,
-          memoryContext,
+          enhancedMemoryContext,
           shouldEnableFileOps, // Only enable file operations if detected
           projectStructure
         );
@@ -131,6 +169,11 @@ export const useMessageHandling = () => {
         
         // Store the response
         const newAssistantMessage = await storeAssistantMessage(user.id, assistantResponse);
+        
+        // Also store the assistant message as an embedding for future recall
+        storeMemoryEmbedding(assistantResponse, 'chat', ['assistant']).catch(err => {
+          console.warn('Failed to store assistant message embedding, continuing without it:', err);
+        });
         
         // Add to local state
         setMessages((prev) => [...prev, newAssistantMessage]);

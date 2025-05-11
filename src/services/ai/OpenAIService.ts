@@ -127,6 +127,23 @@ Always align your responses with these traits, values, and relationship guidelin
     }
   }
 
+  // Add relevant memories from vector similarity search if available
+  if (memoryContext?.relevantMemories && memoryContext.relevantMemories.length > 0) {
+    const relevantMemoriesContent = memoryContext.relevantMemories
+      .map((mem: any, i: number) => 
+        `${i+1}. [Similarity: ${(mem.similarity * 100).toFixed(2)}%] ${mem.content.substring(0, 300)}${mem.content.length > 300 ? '...' : ''}`
+      )
+      .join('\n\n');
+    
+    openAIMessages.push({
+      role: 'system',
+      content: `RELEVANT MEMORIES (CONTEXTUAL RECALL - HIGH PRIORITY):
+${relevantMemoriesContent}
+
+These are memories that seem relevant to the current conversation. Use them to inform your response and maintain continuity. These memories were retrieved based on vector similarity to the user's current message.`
+    });
+  }
+
   // Enhanced past conversations recall with improved prioritization
   if (memoryContext?.pastConversations && memoryContext.pastConversations.length > 0) {
     const pastConversationsContent = memoryContext.pastConversations

@@ -45,6 +45,17 @@ export interface FileSystemState {
   selectedFile: FileEntry | null;
 }
 
+// Memory embedding types
+export interface MemoryEmbedding {
+  id: string;
+  content: string;
+  embedding?: number[];
+  message_type: string;
+  created_at: string;
+  tags?: string[];
+  similarity?: number;
+}
+
 // Re-export other specific types
 export type { FileOperation } from './chat';
 export type { Reflection } from './reflection';
