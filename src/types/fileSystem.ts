@@ -1,5 +1,5 @@
 
-import { FileEntry, FileSystemState } from './';
+import { FileEntry, FileSystemState } from './index';
 
 export interface FileSystemContextType {
   fileSystem: FileSystemState;
