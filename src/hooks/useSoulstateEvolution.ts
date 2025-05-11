@@ -20,7 +20,7 @@ interface SoulstateEvolutionResult {
 }
 
 // Interface for the evolution timestamp tracking
-interface EvolutionTimestamp {
+export interface EvolutionTimestamp {
   lastEvolution: string;
   nextAllowedEvolution: string;
 }
@@ -55,15 +55,23 @@ export const useSoulstateEvolution = () => {
       
       if (!data) return true; // No timestamp found, allow evolution
       
-      // Type cast to EvolutionTimestamp after validating the structure
+      // Type validation before casting
       const rawValue = data.value;
+      
+      // Validate the structure before converting
       if (typeof rawValue !== 'object' || rawValue === null || 
-          !('lastEvolution' in rawValue) || !('nextAllowedEvolution' in rawValue)) {
+          !('lastEvolution' in rawValue) || !('nextAllowedEvolution' in rawValue) ||
+          typeof rawValue.lastEvolution !== 'string' || typeof rawValue.nextAllowedEvolution !== 'string') {
         console.error('Invalid evolution timestamp data:', rawValue);
         return true; // Allow evolution if data is invalid
       }
       
-      const timestamp = rawValue as EvolutionTimestamp;
+      // Safely cast after validation
+      const timestamp = {
+        lastEvolution: rawValue.lastEvolution as string,
+        nextAllowedEvolution: rawValue.nextAllowedEvolution as string
+      };
+      
       const nextAllowed = new Date(timestamp.nextAllowedEvolution);
       const now = new Date();
       
@@ -89,13 +97,13 @@ export const useSoulstateEvolution = () => {
         nextAllowedEvolution: nextAllowed.toISOString()
       };
       
-      // Store the timestamp in memory
+      // Store the timestamp in memory - properly serialize to JSON compatible format
       const { error } = await supabase
         .from('memory')
         .upsert({
           user_id: user.id,
           key: 'soulstate_evolution_timestamp',
-          value: timestamp as any, // Cast to any to satisfy Supabase's JSON type
+          value: timestamp as any, // Safely cast to any as Supabase will handle JSON conversion
           last_accessed: now.toISOString()
         });
         
@@ -125,15 +133,27 @@ export const useSoulstateEvolution = () => {
       }
       
       // Transform the data to match the MemoryEmbedding type
-      return data?.map(item => ({
-        ...item,
-        // Parse embedding string to number[] if it exists and is a string
-        embedding: item.embedding ? 
-          (typeof item.embedding === 'string' ? 
-            JSON.parse(item.embedding) : 
-            item.embedding) as number[] : 
-          undefined
-      })) || [];
+      return data?.map(item => {
+        let parsedEmbedding: number[] | undefined = undefined;
+        
+        // Handle embedding parsing based on its type
+        if (item.embedding) {
+          if (Array.isArray(item.embedding)) {
+            parsedEmbedding = item.embedding as number[];
+          } else if (typeof item.embedding === 'string') {
+            try {
+              parsedEmbedding = JSON.parse(item.embedding);
+            } catch (e) {
+              console.error('Failed to parse embedding string:', e);
+            }
+          }
+        }
+        
+        return {
+          ...item,
+          embedding: parsedEmbedding
+        } as MemoryEmbedding;
+      }) || [];
     } catch (error) {
       console.error('Error in getRelevantMemories:', error);
       return [];

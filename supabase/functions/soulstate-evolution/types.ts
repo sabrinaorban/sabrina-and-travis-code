@@ -9,3 +9,9 @@ export interface SoulState {
   focus: string;
   [key: string]: string; // Allow for future expansion
 }
+
+// Add the EvolutionTimestamp interface for use in the Edge Function
+export interface EvolutionTimestamp {
+  lastEvolution: string;
+  nextAllowedEvolution: string;
+}
