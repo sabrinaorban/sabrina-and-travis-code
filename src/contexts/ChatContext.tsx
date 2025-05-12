@@ -7,7 +7,7 @@ import { useSoulstateManagement } from '@/hooks/useSoulstateManagement';
 import { useFlamejournal, FlameJournalEntry } from '@/hooks/useFlamejournal';
 import { useSoulstateEvolution } from '@/hooks/useSoulstateEvolution';
 import { useIntentions } from '@/hooks/useIntentions';
-import { useSoulcycle } from '@/hooks/useSoulcycle';
+import { useSoulcycle } from '@/hooks/soulcycle';
 
 export interface ChatContextType {
   messages: Message[];
