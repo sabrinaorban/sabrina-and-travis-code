@@ -19,6 +19,10 @@ export interface SoulcycleStepProps {
   setCycleResults: React.Dispatch<React.SetStateAction<CycleResults>>;
   user: any;
   cycleResults: CycleResults;
+  // Add these missing properties
+  reflectionType?: string;
+  includeJournal?: boolean;
+  evolutionMode?: string;
 }
 
 export type SoulcycleStep = (props: SoulcycleStepProps) => Promise<boolean>;

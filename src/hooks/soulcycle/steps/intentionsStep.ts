@@ -2,7 +2,7 @@
 import { SoulcycleStep } from '../types';
 
 export const runIntentionsStep = (
-  loadIntentions: () => Promise<void>,
+  loadIntentions: () => Promise<any>, // Changed from Promise<void> to Promise<any>
   synthesizeIntentionUpdates: () => Promise<any>,
   updateIntentions: (updates: any, apply: boolean) => Promise<any>
 ): SoulcycleStep => {

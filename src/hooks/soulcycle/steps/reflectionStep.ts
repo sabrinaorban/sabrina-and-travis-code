@@ -7,19 +7,17 @@ export const runReflectionStep = (
 ): SoulcycleStep => {
   return async ({ 
     addSystemMessage, 
-    setCycleResults, 
-    reflectionType 
+    setCycleResults,
+    reflectionType = 'weekly' // Set default value if not provided 
   }) => {
     try {
-      addSystemMessage(`📝 Initiating Soulcycle...\n\nStep 1/5: Generating ${reflectionType} reflection...`);
+      addSystemMessage(`📝 Initiating Soulcycle...\n\nStep 1/5: Generating ${reflectionType || 'weekly'} reflection...`);
       
       let reflection;
-      if (reflectionType === 'weekly') {
-        reflection = await generateWeeklyReflection();
-      } else if (reflectionType === 'soulstate') {
+      if (reflectionType === 'soulstate') {
         reflection = await generateSoulstateReflection();
       } else {
-        // Default to weekly
+        // Default to weekly for any other value
         reflection = await generateWeeklyReflection();
       }
       

@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useCallback } from 'react';
 import { Message, MemoryContext } from '../types';
 import { useChatManagement } from '@/hooks/useChatManagement';
@@ -205,6 +206,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   // Fix: Ensure the runSoulcycle function matches the executeSoulcycle signature
   const runSoulcycle = useCallback(async (): Promise<boolean> => {
     console.log("Running soul cycle...");
+    // Pass all three required arguments to executeSoulcycle
     return await executeSoulcycle("weekly", true, "standard");
   }, [executeSoulcycle]);
 
