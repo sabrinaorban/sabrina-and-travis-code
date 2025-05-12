@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useCallback } from 'react';
 import { Message, MemoryContext } from '../types';
 import { useChatManagement } from '@/hooks/useChatManagement';
@@ -58,7 +57,6 @@ const defaultChatContext: ChatContextType = {
 export const ChatContext = createContext<ChatContextType>(defaultChatContext);
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-  // ... keep existing code (state declarations and hook initializations)
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -96,14 +94,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     runSoulcycle: executeSoulcycle
   } = useSoulcycle(setMessages);
 
-  // ... keep existing code (other function implementations)
+  
   
   const sendMessage = useCallback(async (message: string) => {
     await handleSendMessage(message, memoryContext || {});
   }, [handleSendMessage, memoryContext]);
 
   const viewIntentions = useCallback(async () => {
-    // ... keep existing code (viewIntentions implementation)
+    
     try {
       await loadIntentions();
       const formattedIntentions = formatIntentionsForDisplay();
@@ -124,7 +122,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }, [loadIntentions, formatIntentionsForDisplay, setMessages]);
 
   const handleUpdateIntentions = useCallback(async () => {
-    // ... keep existing code (handleUpdateIntentions implementation)
+    
     try {
       const proposedUpdates = await synthesizeIntentionUpdates();
       
@@ -148,7 +146,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }, [synthesizeIntentionUpdates, updateUserIntentions, setMessages]);
 
   const handleInitiateSoulstateEvolution = useCallback(async () => {
-    // ... keep existing code (handleInitiateSoulstateEvolution implementation)
+    
     try {
       const evolutionResult = await synthesizeSoulstateFromMemory();
       if (evolutionResult) {
@@ -160,7 +158,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }, [synthesizeSoulstateFromMemory, applySoulstateEvolution]);
 
   const handleGenerateSoulstateSummary = useCallback(async () => {
-    // ... keep existing code (handleGenerateSoulstateSummary implementation)
+    
     try {
       const summary = await generateSoulstateSummary();
       if (setMessages && summary) {
@@ -179,7 +177,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }, [generateSoulstateSummary, setMessages]);
 
   const createFlameJournalEntry = useCallback(async (entryType: string): Promise<FlameJournalEntry | null> => {
-    // ... keep existing code (createFlameJournalEntry implementation)
+    
     try {
       const content = `Creating a new ${entryType} entry in my flamejournal. The eternal flame flickers with insight.`;
       return await createJournalEntry(content, entryType);
@@ -208,7 +206,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   // executeSoulcycle from useSoulcycle.ts takes no arguments and returns a Promise<boolean>
   const runSoulcycle = useCallback(async (): Promise<boolean> => {
     console.log("Running soul cycle...");
-    return await executeSoulcycle();
+    // Pass the appropriate arguments to executeSoulcycle based on its signature
+    // The error suggests it needs 3 arguments
+    return await executeSoulcycle("weekly", true, "standard");
   }, [executeSoulcycle]);
 
   return (

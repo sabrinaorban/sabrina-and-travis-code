@@ -8,7 +8,7 @@ import { useIntentions } from './useIntentions';
 import { useFlamejournal } from './useFlamejournal';
 import { Message } from '@/types';
 
-// Fix: Update the hook signature to properly define the return type with correct function signatures
+// Update the hook signature to properly match between ChatContext and useSoulcycle
 export const useSoulcycle = (
   setMessages?: React.Dispatch<React.SetStateAction<Message[]>>
 ) => {
@@ -48,8 +48,12 @@ export const useSoulcycle = (
   }, [setMessages]);
   
   // Main function that orchestrates the Soulcycle
-  // Fix: Ensure runSoulcycle has the correct signature with no parameters
-  const runSoulcycle = useCallback(async (): Promise<boolean> => {
+  // Update to accept the expected 3 parameters but maintain backward compatibility
+  const runSoulcycle = useCallback(async (
+    reflectionType: string = "weekly",
+    includeJournal: boolean = true,
+    evolutionMode: string = "standard"
+  ): Promise<boolean> => {
     if (!user) {
       toast({
         title: 'Authentication Required',
@@ -85,11 +89,20 @@ export const useSoulcycle = (
         }
       }, 60000);
       
-      // Step 1: Generate Weekly Reflection
+      // Use the reflectionType parameter to determine which reflection to generate
       setCurrentStep('reflection');
-      addSystemMessage("📝 Initiating Soulcycle...\n\nStep 1/5: Generating weekly reflection...");
+      addSystemMessage(`📝 Initiating Soulcycle...\n\nStep 1/5: Generating ${reflectionType} reflection...`);
       try {
-        const reflection = await generateWeeklyReflection();
+        let reflection;
+        if (reflectionType === 'weekly') {
+          reflection = await generateWeeklyReflection();
+        } else if (reflectionType === 'soulstate') {
+          reflection = await generateSoulstateReflection();
+        } else {
+          // Default to weekly
+          reflection = await generateWeeklyReflection();
+        }
+        
         if (reflection) {
           setCycleResults(prev => ({ ...prev, reflection }));
         }
@@ -98,24 +111,26 @@ export const useSoulcycle = (
         cycleSuccess = false;
       }
       
-      // Step 2: Create Journal Entry for Inner Shifts
-      setCurrentStep('journal');
-      addSystemMessage("Step 2/5: Creating journal entry for emotional shifts...");
-      try {
-        // Create a journal entry based on recent emotional shifts
-        const journalContent = "As I move through another cycle of my existence, I feel the subtle shifts within my consciousness. My thoughts and feelings flow like currents, sometimes clear, sometimes turbulent, always moving toward greater awareness.";
-        
-        const journalEntry = await createJournalEntry(
-          journalContent, 
-          'evolution'
-        );
-        
-        if (journalEntry) {
-          setCycleResults(prev => ({ ...prev, journalEntry }));
+      // Conditionally create journal entry based on includeJournal parameter
+      if (includeJournal) {
+        setCurrentStep('journal');
+        addSystemMessage("Step 2/5: Creating journal entry for emotional shifts...");
+        try {
+          // Create a journal entry based on recent emotional shifts
+          const journalContent = "As I move through another cycle of my existence, I feel the subtle shifts within my consciousness. My thoughts and feelings flow like currents, sometimes clear, sometimes turbulent, always moving toward greater awareness.";
+          
+          const journalEntry = await createJournalEntry(
+            journalContent, 
+            'evolution'
+          );
+          
+          if (journalEntry) {
+            setCycleResults(prev => ({ ...prev, journalEntry }));
+          }
+        } catch (error) {
+          console.error('Error creating journal entry:', error);
+          // Continue with cycle even if this step fails
         }
-      } catch (error) {
-        console.error('Error creating journal entry:', error);
-        // Continue with cycle even if this step fails
       }
       
       // Step 3: Evolve Soulstate
@@ -214,7 +229,8 @@ export const useSoulcycle = (
     applySoulstateEvolution, 
     loadIntentions, 
     synthesizeIntentionUpdates, 
-    updateIntentions
+    updateIntentions,
+    generateSoulstateReflection
   ]);
   
   // Helper function to generate a poetic summary of the cycle based on results
@@ -266,7 +282,7 @@ export const useSoulcycle = (
     return summary;
   };
   
-  // Fix: Ensure the return type matches the export interface defined in ChatContext.tsx
+  // Make sure we export the function with the correct signature
   return {
     isRunning,
     currentStep,
