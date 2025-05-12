@@ -48,7 +48,7 @@ export const useSoulcycle = (
   }, [setMessages]);
   
   // Main function that orchestrates the Soulcycle
-  // Update to accept the expected 3 parameters but maintain backward compatibility
+  // Explicitly document that this function expects 3 parameters
   const runSoulcycle = useCallback(async (
     reflectionType: string = "weekly",
     includeJournal: boolean = true,
@@ -282,7 +282,7 @@ export const useSoulcycle = (
     return summary;
   };
   
-  // Make sure we export the function with the correct signature
+  // Make sure we document that runSoulcycle requires 3 arguments
   return {
     isRunning,
     currentStep,

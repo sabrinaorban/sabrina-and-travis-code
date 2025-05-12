@@ -202,12 +202,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Implementation would be added here
   }, []);
   
-  // Fixed: Ensure the runSoulcycle function matches the executeSoulcycle signature
-  // executeSoulcycle from useSoulcycle.ts takes no arguments and returns a Promise<boolean>
+  // Fix: Ensure the runSoulcycle function matches the executeSoulcycle signature
+  // executeSoulcycle from useSoulcycle.ts takes 3 arguments
   const runSoulcycle = useCallback(async (): Promise<boolean> => {
     console.log("Running soul cycle...");
-    // Pass the appropriate arguments to executeSoulcycle based on its signature
-    // The error suggests it needs 3 arguments
+    // Pass the required arguments to executeSoulcycle based on its signature
     return await executeSoulcycle("weekly", true, "standard");
   }, [executeSoulcycle]);
 
