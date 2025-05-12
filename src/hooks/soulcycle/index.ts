@@ -60,7 +60,7 @@ export const useSoulcycle = (
   
   // Main function that orchestrates the Soulcycle
   // This function expects 3 parameters to match the call in ChatContext.tsx
-  const runSoulcycle = useCallback(async (
+  const executeSoulcycle = useCallback(async (
     reflectionType: string = "weekly",
     includeJournal: boolean = true,
     evolutionMode: string = "standard"
@@ -179,12 +179,12 @@ export const useSoulcycle = (
     generateSoulstateReflection
   ]);
   
-  // Export with the runSoulcycle that expects 3 arguments to match ChatContext.tsx call
+  // Export with the executeSoulcycle that expects 3 arguments to match ChatContext.tsx call
   return {
     isRunning,
     currentStep,
     cycleResults,
-    runSoulcycle
+    executeSoulcycle
   };
 };
 
