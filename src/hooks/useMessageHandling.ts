@@ -257,7 +257,7 @@ export const useMessageHandling = (
   return {
     messages,
     setMessages,
-    isTyping,
+    isTyping: setIsTyping ? (externalSetIsTyping ? isTyping : internalIsTyping) : false,
     setIsTyping,
     fileOperationResults,
     setFileOperationResults,
