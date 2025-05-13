@@ -3,5 +3,11 @@ import { useContext } from 'react';
 import { ChatContext } from './ChatContext';
 
 export const useChat = () => {
-  return useContext(ChatContext);
+  const context = useContext(ChatContext);
+  
+  if (context === undefined) {
+    throw new Error('useChat must be used within a ChatProvider');
+  }
+  
+  return context;
 };

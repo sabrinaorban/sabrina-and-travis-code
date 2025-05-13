@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { SendHorizonal, Loader2 } from 'lucide-react';
-import { useChat } from '@/contexts/ChatContext';
+import { useChat } from '@/contexts/chat';
 
 export const ChatInput: React.FC = () => {
   const [message, setMessage] = useState('');

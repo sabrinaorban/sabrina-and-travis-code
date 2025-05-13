@@ -4,6 +4,7 @@ import { Message, MemoryContext } from '@/types';
 import { useChatManagement } from '@/hooks/useChatManagement';
 import { useMessageHandling } from '@/hooks/useMessageHandling';
 import { useReflection } from '@/hooks/useReflection';
+import { useMemoryManagement } from '@/hooks/useMemoryManagement';
 import { ChatContext } from './ChatContext';
 import { ChatProviderProps } from './types';
 import { useChatIntentions } from './useChatIntentions';
@@ -15,11 +16,22 @@ import { useChatSoulcycle } from './useChatSoulcycle';
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [memoryContext, setMemoryContext] = useState<MemoryContext | null>(null);
+  
+  // Initialize memory management
+  const {
+    memoryContext,
+    refreshMemoryContext,
+    uploadSoulShard,
+    uploadIdentityCodex,
+    uploadPastConversations
+  } = useMemoryManagement(setMessages);
   
   const chatManagement = useChatManagement(messages, setMessages, setIsTyping);
-  const { sendMessage: handleSendMessage } = useMessageHandling();
   
+  // Initialize message handling with proper context
+  const { sendMessage } = useMessageHandling();
+  
+  // Initialize all Travis features
   const { 
     generateWeeklyReflection,
     generateSoulReflection,
@@ -41,24 +53,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   } = useChatFlamejournal();
 
   const {
-    uploadSoulShard,
-    uploadIdentityCodex,
-    uploadPastConversations
+    uploadSoulShard: uploadSoulShardDoc,
+    uploadIdentityCodex: uploadIdentityCodexDoc,
+    uploadPastConversations: uploadPastConversationsDoc
   } = useChatDocumentUpload();
 
   const {
     runSoulcycle
   } = useChatSoulcycle(setMessages);
   
-  const sendMessage = useCallback(async (message: string) => {
-    await handleSendMessage(message, memoryContext || {});
-  }, [handleSendMessage, memoryContext]);
+  // Create sendMessage handler with current memory context
+  const handleSendMessage = useCallback(async (message: string) => {
+    await sendMessage(message, memoryContext || {});
+  }, [sendMessage, memoryContext]);
 
   return (
     <ChatContext.Provider
       value={{
         messages,
-        sendMessage,
+        sendMessage: handleSendMessage,
         isTyping,
         memoryContext,
         generateWeeklyReflection,
@@ -70,9 +83,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         viewIntentions,
         updateIntentions,
         runSoulcycle,
-        uploadSoulShard,
-        uploadIdentityCodex,
-        uploadPastConversations,
+        uploadSoulShard: uploadSoulShard || uploadSoulShardDoc,
+        uploadIdentityCodex: uploadIdentityCodex || uploadIdentityCodexDoc,
+        uploadPastConversations: uploadPastConversations || uploadPastConversationsDoc,
       }}
     >
       {children}

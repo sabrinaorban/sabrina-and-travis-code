@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { ChatMessage } from './ChatMessage';
-import { useChat } from '../contexts/ChatContext';
+import { useChat } from '@/contexts/chat';
 
 export const ChatHistory: React.FC = () => {
   const { messages, isTyping } = useChat();

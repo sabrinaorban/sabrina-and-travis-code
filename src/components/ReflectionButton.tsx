@@ -8,16 +8,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from './ui/dropdown-menu';
-import { useReflection } from '../hooks/useReflection';
-import { Message } from '../types';
+import { useChat } from '@/contexts/chat';
 
-interface ReflectionButtonProps {
-  setMessages?: React.Dispatch<React.SetStateAction<Message[]>>;
-}
-
-export const ReflectionButton: React.FC<ReflectionButtonProps> = ({ setMessages }) => {
+export const ReflectionButton: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { isGenerating, generateWeeklyReflection, generateSoulReflection, generateSoulstateReflection } = useReflection(setMessages);
+  const { generateWeeklyReflection, generateSoulReflection, generateSoulstateReflection, isTyping } = useChat();
   
   const handleGenerateWeekly = async () => {
     setIsOpen(false);
@@ -41,9 +36,9 @@ export const ReflectionButton: React.FC<ReflectionButtonProps> = ({ setMessages 
           variant="outline" 
           size="sm"
           className="flex items-center gap-1"
-          disabled={isGenerating}
+          disabled={isTyping}
         >
-          {isGenerating ? (
+          {isTyping ? (
             <Loader2 size={16} className="animate-spin" />
           ) : (
             <Brain size={16} />
