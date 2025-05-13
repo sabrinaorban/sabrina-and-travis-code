@@ -1,18 +1,17 @@
 
 import { useCallback } from 'react';
 import { useSoulcycle } from '@/hooks/soulcycle';
+import { Message } from '@/types';
 
-export const useChatSoulcycle = (setMessages?: React.Dispatch<React.SetStateAction<any>>) => {
-  const {
-    executeSoulcycle
-  } = useSoulcycle(setMessages);
-  
+export const useChatSoulcycle = (setMessages: React.Dispatch<React.SetStateAction<Message[]>> | undefined) => {
+  const { executeSoulcycle, isProcessing } = useSoulcycle(setMessages);
+
   const runSoulcycle = useCallback(async (): Promise<boolean> => {
-    console.log("Running soul cycle...");
-    return await executeSoulcycle("weekly", true, "standard");
+    return await executeSoulcycle('weekly', true, 'standard');
   }, [executeSoulcycle]);
 
   return {
-    runSoulcycle
+    runSoulcycle,
+    isProcessingSoulcycle: isProcessing
   };
 };
