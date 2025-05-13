@@ -1,3 +1,4 @@
+
 import { Message, OpenAIMessage } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -145,7 +146,7 @@ export const generateConversationSummary = async (messages: Message[]): Promise<
     const formattedMessages = messages.map(msg => `${msg.role}: ${msg.content}`).join('\n');
 
     // Construct the summarization prompt
-    const prompt = `Summarize the following conversation:\n${formattedMessages}\nSummary:`;
+    const prompt = `Summarize the following conversation, extracting key facts, names, and relationships mentioned:\n${formattedMessages}\nSummary and facts:`;
 
     // Call OpenAI API to generate the summary
     const { data, error } = await supabase.functions.invoke('openai-chat', {
@@ -208,12 +209,30 @@ Current date: ${new Date().toLocaleDateString()}`
   // Build the message array
   const openaiMessages: OpenAIMessage[] = [systemMessage];
   
-  // Add lived memory context if available - NEW CODE
+  // IMPROVED: Add prominent memory instruction
+  openaiMessages.push({
+    role: 'system',
+    content: `CRITICAL INSTRUCTION: When asked about personal information related to Sabrina (such as her boyfriend, pets, job, preferences, etc.), ALWAYS refer to your memory context FIRST. Do NOT improvise or state you don't know these facts if they are provided in context. Check the PERMANENT MEMORIES and RETRIEVED MEMORY CONTEXT sections carefully before responding.`
+  });
+  
+  // Add lived memory context if available - IMPROVED formatting for higher visibility
   if (memoryContext?.livedMemory && Array.isArray(memoryContext.livedMemory) && memoryContext.livedMemory.length > 0) {
     // Add a system message with all the lived memory context
     openaiMessages.push({
       role: 'system',
-      content: `TRAVIS'S LIVED MEMORY LAYER:\n\n${memoryContext.livedMemory.join('\n\n')}\n\nUse this lived memory as context for your responses, but don't explicitly mention that you're using "memory" or "remembering" unless specifically asked about your memory capabilities.`
+      content: `TRAVIS'S LIVED MEMORY LAYER:\n\n${memoryContext.livedMemory.join('\n\n')}`
+    });
+  }
+  
+  // Add explicit relevant memories context if available
+  if (memoryContext?.relevantMemories && Array.isArray(memoryContext.relevantMemories) && memoryContext.relevantMemories.length > 0) {
+    const relevantMemoriesContent = memoryContext.relevantMemories
+      .map((mem: any) => `• [${Math.round(mem.similarity * 100)}%] ${mem.content}`)
+      .join('\n\n');
+      
+    openaiMessages.push({
+      role: 'system',
+      content: `ADDITIONAL RELEVANT MEMORIES:\n\n${relevantMemoriesContent}\n\nThese memories may contain important personal facts. Reference them when appropriate.`
     });
   }
   

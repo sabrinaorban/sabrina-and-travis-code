@@ -6,6 +6,7 @@ import { useReflection } from './useReflection';
 import { useSoulstateManagement } from './useSoulstateManagement';
 import { useAuth } from '@/contexts/AuthContext';
 import { MemoryService } from '../services/MemoryService';
+import { toast } from './use-toast';
 
 /**
  * Hook for synthesizing Travis's lived memory into coherent context blocks
@@ -38,19 +39,7 @@ export const useLivedMemory = () => {
     try {
       const contextBlocks: string[] = [];
       
-      // 1. Get relevant memories from embeddings - IMPROVED priority & formatting
-      const relevantMemories = await retrieveRelevantMemories(inputMessage, 7); // Increased from 5
-      if (relevantMemories.length > 0) {
-        // Format as bulleted list with higher prominence
-        const memoryBlock = relevantMemories
-          .map(mem => `• ${mem.content}`)
-          .join('\n\n');
-          
-        // Add this with highest priority
-        contextBlocks.unshift(`### IMPORTANT MEMORY CONTEXT (ALWAYS REFER TO THESE FACTS)\n${memoryBlock}`);
-      }
-      
-      // 2. Get persistent memories from MemoryService
+      // 1. Get persistent memories from MemoryService - IMPROVED: Get this first as highest priority
       try {
         const persistentMemories = await MemoryService.retrieveMemory(user.id, 'persistent_facts');
         if (persistentMemories) {
@@ -59,10 +48,38 @@ export const useLivedMemory = () => {
             (typeof persistentMemories === 'string' ? 
               persistentMemories : JSON.stringify(persistentMemories));
           
-          contextBlocks.unshift(`### PERMANENT MEMORIES\n${factsBlock}`);
+          // Place persistent facts at the very top with highest priority
+          contextBlocks.unshift(`### PERMANENT MEMORIES (HIGHEST PRIORITY)\n${factsBlock}`);
         }
       } catch (error) {
         console.warn('Could not retrieve persistent memories:', error);
+      }
+      
+      // 2. Get relevant memories from embeddings - IMPROVED priority & formatting
+      const relevantMemories = await retrieveRelevantMemories(inputMessage, 10); // Increased from 7 to 10
+      if (relevantMemories.length > 0) {
+        console.log('Retrieved memories for context:', relevantMemories);
+        
+        // Format memories by similarity for better prompt engineering
+        const highPriorityMemories = relevantMemories
+          .filter(mem => mem.similarity > 0.85)
+          .map(mem => `• [HIGH] ${mem.content.trim()}`);
+          
+        const mediumPriorityMemories = relevantMemories
+          .filter(mem => mem.similarity <= 0.85 && mem.similarity > 0.78)
+          .map(mem => `• [MED] ${mem.content.trim()}`);
+          
+        const lowerPriorityMemories = relevantMemories
+          .filter(mem => mem.similarity <= 0.78)
+          .map(mem => `• [REF] ${mem.content.trim()}`);
+          
+        // Add memories by priority, ensuring personal facts are highlighted
+        const allMemories = [...highPriorityMemories, ...mediumPriorityMemories, ...lowerPriorityMemories];
+        
+        if (allMemories.length > 0) {
+          // Add this with high priority right after permanent facts
+          contextBlocks.unshift(`### RETRIEVED MEMORY CONTEXT (IMPORTANT FACTS)\n${allMemories.join('\n\n')}`);
+        }
       }
       
       // 3. Get the most recent reflection
@@ -110,7 +127,7 @@ export const useLivedMemory = () => {
     }
   }, [user, retrieveRelevantMemories, getLatestReflection, loadSoulstate, getLatestJournalEntry]);
 
-  // New method to store persistent facts about the user
+  // Method to store persistent facts about the user
   const storePersistentFact = useCallback(async (fact: string): Promise<void> => {
     if (!user || !fact) return;
     
@@ -122,19 +139,35 @@ export const useLivedMemory = () => {
       if (Array.isArray(existingFacts)) {
         if (!existingFacts.includes(fact)) {
           await MemoryService.storeMemory(user.id, 'persistent_facts', [...existingFacts, fact]);
+          
+          // Also store as embedding for retrieval
+          const { storeMemoryEmbedding } = useEmbeddingMemory();
+          await storeMemoryEmbedding(fact, 'persistent', ['fact', 'important']);
+          
+          toast({
+            title: "Memory Stored",
+            description: "New persistent fact stored in Travis's memory.",
+          });
+          
+          console.log('Persistent fact stored successfully');
         }
       } else {
         // Create new array if not exists
         await MemoryService.storeMemory(user.id, 'persistent_facts', [fact]);
+        
+        // Also store as embedding for retrieval
+        const { storeMemoryEmbedding } = useEmbeddingMemory();
+        await storeMemoryEmbedding(fact, 'persistent', ['fact', 'important']);
+        
+        console.log('Persistent fact stored successfully (new array)');
       }
-      
-      // Also store as embedding for retrieval
-      const { storeMemoryEmbedding } = useEmbeddingMemory();
-      await storeMemoryEmbedding(fact, 'persistent', ['fact', 'important']);
-      
-      console.log('Persistent fact stored successfully');
     } catch (error) {
       console.error('Error storing persistent fact:', error);
+      toast({
+        title: "Memory Storage Failed",
+        description: "Could not store the fact in memory.",
+        variant: "destructive",
+      });
     }
   }, [user]);
 

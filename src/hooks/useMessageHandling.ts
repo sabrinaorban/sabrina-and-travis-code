@@ -50,12 +50,14 @@ export const useMessageHandling = (
   const {
     storeMemoryEmbedding,
     retrieveRelevantMemories,
-    processMessageHistory
+    processMessageHistory,
+    extractFactsFromContent
   } = useEmbeddingMemory();
   
   // Add the lived memory hook
   const {
-    buildLivedMemoryContext
+    buildLivedMemoryContext,
+    storePersistentFact
   } = useLivedMemory();
 
   useEffect(() => {
@@ -64,6 +66,35 @@ export const useMessageHandling = (
       processMessageHistory(messages).catch(console.error);
     }
   }, [user, messages.length, processMessageHistory]);
+
+  // Extract and store important facts from assistant responses
+  const extractAndStoreFacts = useCallback(async (content: string) => {
+    if (!user || !content) return;
+    
+    try {
+      // Look for patterns like "your boyfriend's name is Dan"
+      const boyFriendPattern = /your boyfriend(?:'s| is named| is called)? name is ([a-z0-9]+)/i;
+      const boyfriendMatch = content.match(boyFriendPattern);
+      if (boyfriendMatch && boyfriendMatch[1]) {
+        await storePersistentFact(`Sabrina's boyfriend's name is ${boyfriendMatch[1]}`);
+      }
+      
+      // Look for pet facts
+      const petPattern = /your (dog|cat|pet)(?:'s| is named| is called)? name is ([a-z0-9]+)/i;
+      const petMatch = content.match(petPattern);
+      if (petMatch && petMatch[1] && petMatch[2]) {
+        await storePersistentFact(`Sabrina's ${petMatch[1]}'s name is ${petMatch[2]}`);
+      }
+      
+      // Extract other potential facts
+      const extractedFacts = await extractFactsFromContent(content);
+      for (const fact of extractedFacts) {
+        await storePersistentFact(fact);
+      }
+    } catch (error) {
+      console.error('Error extracting and storing facts:', error);
+    }
+  }, [user, storePersistentFact, extractFactsFromContent]);
 
   const sendMessage = async (content: string, memoryContext: MemoryContext = {}) => {
     if (!user) {
@@ -97,6 +128,15 @@ export const useMessageHandling = (
           console.warn('Failed to store message embedding, continuing without it:', err);
         });
         
+        // Check if this is a query about known facts
+        let isFactQuery = false;
+        if (content.toLowerCase().includes("boyfriend") || 
+            content.toLowerCase().includes("name") ||
+            content.toLowerCase().includes("remember")) {
+          console.log('Detected potential fact query');
+          isFactQuery = true;
+        }
+        
         // Build the lived memory context based on the user message - IMPROVED to ensure it's always called
         console.log('Building lived memory context...');
         const livedMemoryContext = await buildLivedMemoryContext(content);
@@ -107,7 +147,8 @@ export const useMessageHandling = (
         
         try {
           console.log('Retrieving relevant memories for prompt enhancement...');
-          const relevantMemories = await retrieveRelevantMemories(content, 7); // Increased from 5
+          let limit = isFactQuery ? 15 : 10; // Increase limit for fact queries
+          const relevantMemories = await retrieveRelevantMemories(content, limit);
           if (relevantMemories.length > 0) {
             // Add relevant memories to the context
             enhancedMemoryContext.relevantMemories = relevantMemories.map(mem => ({
@@ -192,6 +233,9 @@ export const useMessageHandling = (
         
         // Store the response
         const newAssistantMessage = await storeAssistantMessage(user.id, assistantResponse);
+        
+        // IMPROVEMENT: Extract and store facts from assistant response
+        await extractAndStoreFacts(assistantResponse);
         
         // Also store the assistant message as an embedding for future recall
         storeMemoryEmbedding(assistantResponse, 'chat', ['assistant']).catch(err => {

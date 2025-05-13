@@ -1,7 +1,6 @@
 
-// This file exports everything from the soulcycle directory
-export * from './steps';
-export * from './steps/index';
+// Export all the components from this module
+export * from './cycleSummary';
 export * from './types';
 export { steps } from './steps';
 
