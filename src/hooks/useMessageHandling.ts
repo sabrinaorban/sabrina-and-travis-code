@@ -8,7 +8,7 @@ import { useGitHub } from '../contexts/github';
 import { useFileSystem } from '../contexts/FileSystemContext';
 import { MemoryService } from '../services/MemoryService';
 import { useEmbeddingMemory } from './useEmbeddingMemory';
-import { useLivedMemory } from './useLivedMemory'; // Import the new hook
+import { useLivedMemory } from './useLivedMemory';
 import { 
   storeUserMessage, 
   storeAssistantMessage,
@@ -26,9 +26,20 @@ import {
   getProjectContext
 } from '../services/chat';
 
-export const useMessageHandling = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
+export const useMessageHandling = (
+  externalMessages?: Message[],
+  externalSetMessages?: React.Dispatch<React.SetStateAction<Message[]>>,
+  externalSetIsTyping?: React.Dispatch<React.SetStateAction<boolean>>
+) => {
+  // Use internal state only if external state is not provided
+  const [internalMessages, setInternalMessages] = useState<Message[]>([]);
+  const [internalIsTyping, setInternalIsTyping] = useState(false);
+  
+  // Use either external or internal state
+  const messages = externalMessages || internalMessages;
+  const setMessages = externalSetMessages || setInternalMessages;
+  const setIsTyping = externalSetIsTyping || setInternalIsTyping;
+  
   const [fileOperationResults, setFileOperationResults] = useState<FileOperation[] | undefined>(undefined);
   const [projectContext, setProjectContext] = useState<any>(null);
   

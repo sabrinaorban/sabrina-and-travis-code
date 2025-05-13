@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useChatManagement } from '@/hooks/useChatManagement';
@@ -26,10 +25,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     uploadPastConversations
   } = useMemoryManagement(setMessages);
   
+  // Initialize chat management 
+  // (Note: not using this directly anymore, but keeping for compatibility)
   const chatManagement = useChatManagement(messages, setMessages, setIsTyping);
   
   // Initialize message handling with proper context
-  const { sendMessage } = useMessageHandling();
+  const { sendMessage } = useMessageHandling(messages, setMessages, setIsTyping);
   
   // Initialize all Travis features
   const { 
@@ -59,7 +60,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   } = useChatDocumentUpload();
 
   const {
-    runSoulcycle
+    runSoulcycle,
+    isProcessingSoulcycle
   } = useChatSoulcycle(setMessages);
   
   // Create sendMessage handler with current memory context
