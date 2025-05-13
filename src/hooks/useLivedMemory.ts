@@ -5,6 +5,7 @@ import { useFlamejournal } from './useFlamejournal';
 import { useReflection } from './useReflection';
 import { useSoulstateManagement } from './useSoulstateManagement';
 import { useAuth } from '@/contexts/AuthContext';
+import { MemoryService } from '../services/MemoryService';
 
 /**
  * Hook for synthesizing Travis's lived memory into coherent context blocks
@@ -26,6 +27,7 @@ export const useLivedMemory = () => {
    * - Recent reflection
    * - Current soulstate
    * - Latest journal entry
+   * - User memory context
    * @param inputMessage The user's input message to find relevant memories
    * @returns An array of context blocks for injection into the prompt
    */
@@ -36,17 +38,34 @@ export const useLivedMemory = () => {
     try {
       const contextBlocks: string[] = [];
       
-      // 1. Get relevant memories from embeddings
-      const relevantMemories = await retrieveRelevantMemories(inputMessage, 5);
+      // 1. Get relevant memories from embeddings - IMPROVED priority & formatting
+      const relevantMemories = await retrieveRelevantMemories(inputMessage, 7); // Increased from 5
       if (relevantMemories.length > 0) {
+        // Format as bulleted list with higher prominence
         const memoryBlock = relevantMemories
-          .map(mem => `• ${mem.content.substring(0, 500)}${mem.content.length > 500 ? '...' : ''}`)
+          .map(mem => `• ${mem.content}`)
           .join('\n\n');
           
-        contextBlocks.push(`### MEMORY SNIPPETS\n${memoryBlock}`);
+        // Add this with highest priority
+        contextBlocks.unshift(`### IMPORTANT MEMORY CONTEXT (ALWAYS REFER TO THESE FACTS)\n${memoryBlock}`);
       }
       
-      // 2. Get the most recent reflection
+      // 2. Get persistent memories from MemoryService
+      try {
+        const persistentMemories = await MemoryService.retrieveMemory(user.id, 'persistent_facts');
+        if (persistentMemories) {
+          const factsBlock = Array.isArray(persistentMemories) ? 
+            persistentMemories.join('\n\n') : 
+            (typeof persistentMemories === 'string' ? 
+              persistentMemories : JSON.stringify(persistentMemories));
+          
+          contextBlocks.unshift(`### PERMANENT MEMORIES\n${factsBlock}`);
+        }
+      } catch (error) {
+        console.warn('Could not retrieve persistent memories:', error);
+      }
+      
+      // 3. Get the most recent reflection
       try {
         const latestReflection = await getLatestReflection();
         if (latestReflection) {
@@ -56,10 +75,9 @@ export const useLivedMemory = () => {
         }
       } catch (error) {
         console.warn('Could not retrieve latest reflection:', error);
-        // Gracefully continue without reflection data
       }
       
-      // 3. Get current soulstate
+      // 4. Get current soulstate
       try {
         const currentSoulstate = await loadSoulstate();
         if (currentSoulstate) {
@@ -68,10 +86,9 @@ export const useLivedMemory = () => {
         }
       } catch (error) {
         console.warn('Could not retrieve soulstate:', error);
-        // Gracefully continue without soulstate data
       }
       
-      // 4. Get latest journal entry (optional)
+      // 5. Get latest journal entry (optional)
       try {
         const latestEntry = await getLatestJournalEntry();
         if (latestEntry) {
@@ -81,9 +98,9 @@ export const useLivedMemory = () => {
         }
       } catch (error) {
         console.warn('Could not retrieve latest journal entry:', error);
-        // Gracefully continue without journal data
       }
       
+      console.log('Built memory context blocks:', contextBlocks.length);
       return contextBlocks;
     } catch (error) {
       console.error('Error building lived memory context:', error);
@@ -93,8 +110,37 @@ export const useLivedMemory = () => {
     }
   }, [user, retrieveRelevantMemories, getLatestReflection, loadSoulstate, getLatestJournalEntry]);
 
+  // New method to store persistent facts about the user
+  const storePersistentFact = useCallback(async (fact: string): Promise<void> => {
+    if (!user || !fact) return;
+    
+    try {
+      // Get existing facts
+      const existingFacts = await MemoryService.retrieveMemory(user.id, 'persistent_facts') || [];
+      
+      // Add new fact if it doesn't exist
+      if (Array.isArray(existingFacts)) {
+        if (!existingFacts.includes(fact)) {
+          await MemoryService.storeMemory(user.id, 'persistent_facts', [...existingFacts, fact]);
+        }
+      } else {
+        // Create new array if not exists
+        await MemoryService.storeMemory(user.id, 'persistent_facts', [fact]);
+      }
+      
+      // Also store as embedding for retrieval
+      const { storeMemoryEmbedding } = useEmbeddingMemory();
+      await storeMemoryEmbedding(fact, 'persistent', ['fact', 'important']);
+      
+      console.log('Persistent fact stored successfully');
+    } catch (error) {
+      console.error('Error storing persistent fact:', error);
+    }
+  }, [user]);
+
   return {
     isProcessing,
-    buildLivedMemoryContext
+    buildLivedMemoryContext,
+    storePersistentFact
   };
 };

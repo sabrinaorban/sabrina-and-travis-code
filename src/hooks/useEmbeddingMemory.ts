@@ -54,13 +54,12 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
       const embedding = await generateEmbedding(content);
       if (!embedding) return;
       
-      // Store in database - Using the correct type for the embedding field
+      // Store in database - FIXED: Storing as proper vector type, not as a string
       const { error } = await supabase
         .from('memory_embeddings')
         .insert({
           content,
-          // Convert number[] to string to satisfy TypeScript
-          embedding: JSON.stringify(embedding) as any,
+          embedding,
           message_type: messageType,
           tags,
           user_id: user.id
@@ -79,7 +78,7 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
     }
   }, [user, generateEmbedding, toast]);
 
-  // Retrieve relevant memories based on a query
+  // Retrieve relevant memories based on a query - IMPROVED search logic
   const retrieveRelevantMemories = useCallback(async (query: string, limit: number = maxRecallResults): Promise<{content: string, similarity: number}[]> => {
     if (!user || !query) return [];
     
@@ -88,8 +87,47 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
       const queryEmbedding = await generateEmbedding(query);
       if (!queryEmbedding) return [];
       
-      // Use the SQL function defined in the migration to match memories
-      // Use a raw SQL call via Supabase since the RPC method has type limitations
+      console.log('Fetching relevant memories with embedding');
+      
+      // FIXED: Using the match_memories function properly
+      const { data, error } = await supabase.rpc(
+        'match_memories',
+        {
+          query_embedding: queryEmbedding,
+          match_threshold: similarityThreshold,
+          match_count: limit,
+          user_id: user.id
+        }
+      );
+      
+      if (error) {
+        console.error('RPC match_memories error:', error);
+        
+        // Fallback to manual calculation if RPC fails
+        console.log('Falling back to direct query and manual calculation');
+        return await performManualMemoryLookup(queryEmbedding, limit);
+      }
+      
+      console.log(`Retrieved ${data?.length || 0} memory matches via RPC`);
+      return data || [];
+    } catch (error) {
+      console.error('Error retrieving relevant memories:', error);
+      // Try the manual lookup as fallback
+      console.log('Error occurred, falling back to direct query');
+      const queryEmbedding = await generateEmbedding(query);
+      if (queryEmbedding) {
+        return await performManualMemoryLookup(queryEmbedding, limit);
+      }
+      return [];
+    }
+  }, [user, generateEmbedding, maxRecallResults, similarityThreshold]);
+  
+  // Helper method for fallback calculation when RPC fails
+  const performManualMemoryLookup = async (queryEmbedding: number[], limit: number): Promise<{content: string, similarity: number}[]> => {
+    if (!user) return [];
+    
+    try {
+      // Get memories directly
       const { data, error } = await supabase
         .from('memory_embeddings')
         .select('content, embedding')
@@ -104,7 +142,7 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
       const withSimilarity = data
         .filter(item => item.embedding !== null)
         .map(item => {
-          // Parse the embedding from JSON string if needed
+          // Ensure proper parsing of embeddings
           const itemEmbedding = typeof item.embedding === 'string' 
             ? JSON.parse(item.embedding) 
             : item.embedding;
@@ -121,10 +159,10 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
         .filter(item => item.similarity > similarityThreshold)
         .slice(0, limit);
     } catch (error) {
-      console.error('Error retrieving relevant memories:', error);
+      console.error('Error in manual memory lookup:', error);
       return [];
     }
-  }, [user, generateEmbedding, maxRecallResults, similarityThreshold]);
+  };
   
   // Create memory embeddings for recent messages in bulk
   const processMessageHistory = useCallback(async (messages: Message[]): Promise<void> => {

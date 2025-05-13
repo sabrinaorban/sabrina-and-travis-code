@@ -53,7 +53,7 @@ export const useMessageHandling = (
     processMessageHistory
   } = useEmbeddingMemory();
   
-  // Add the new lived memory hook
+  // Add the lived memory hook
   const {
     buildLivedMemoryContext
   } = useLivedMemory();
@@ -97,7 +97,8 @@ export const useMessageHandling = (
           console.warn('Failed to store message embedding, continuing without it:', err);
         });
         
-        // Build the lived memory context based on the user message
+        // Build the lived memory context based on the user message - IMPROVED to ensure it's always called
+        console.log('Building lived memory context...');
         const livedMemoryContext = await buildLivedMemoryContext(content);
         console.log('Generated lived memory context blocks:', livedMemoryContext.length);
         
@@ -105,7 +106,8 @@ export const useMessageHandling = (
         let enhancedMemoryContext = { ...memoryContext, livedMemory: livedMemoryContext };
         
         try {
-          const relevantMemories = await retrieveRelevantMemories(content);
+          console.log('Retrieving relevant memories for prompt enhancement...');
+          const relevantMemories = await retrieveRelevantMemories(content, 7); // Increased from 5
           if (relevantMemories.length > 0) {
             // Add relevant memories to the context
             enhancedMemoryContext.relevantMemories = relevantMemories.map(mem => ({
@@ -114,6 +116,8 @@ export const useMessageHandling = (
             }));
             
             console.log(`Added ${relevantMemories.length} relevant memories to context`);
+          } else {
+            console.log('No relevant memories found for this query');
           }
         } catch (memoryError) {
           console.warn('Error retrieving relevant memories, continuing without them:', memoryError);
@@ -255,7 +259,7 @@ export const useMessageHandling = (
   return {
     messages,
     setMessages,
-    isTyping: externalSetIsTyping ? internalIsTyping : internalIsTyping,
+    isTyping: internalIsTyping,
     setIsTyping,
     fileOperationResults,
     setFileOperationResults,
