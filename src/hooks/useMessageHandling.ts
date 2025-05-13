@@ -57,7 +57,6 @@ export const useMessageHandling = (
     buildLivedMemoryContext
   } = useLivedMemory();
 
-  // Process existing messages to create embeddings when component mounts
   useEffect(() => {
     if (user && messages.length > 0) {
       // Don't await - let it run in background
@@ -65,7 +64,6 @@ export const useMessageHandling = (
     }
   }, [user, messages.length, processMessageHistory]);
 
-  // Function to send message
   const sendMessage = async (content: string, memoryContext: MemoryContext = {}) => {
     if (!user) {
       toast({
@@ -256,7 +254,7 @@ export const useMessageHandling = (
   return {
     messages,
     setMessages,
-    isTyping: externalSetIsTyping ? (externalSetIsTyping ? isTyping : internalIsTyping) : false,
+    isTyping: externalSetIsTyping ? (externalSetIsTyping ? internalIsTyping : internalIsTyping) : internalIsTyping,
     setIsTyping,
     fileOperationResults,
     setFileOperationResults,
