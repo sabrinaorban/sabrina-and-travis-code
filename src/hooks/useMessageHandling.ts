@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Message, MemoryContext } from '../types';
 import { useToast } from './use-toast';
@@ -37,7 +38,7 @@ export const useMessageHandling = (
   // Use either external or internal state
   const messages = externalMessages || internalMessages;
   const setMessages = externalSetMessages || setInternalMessages;
-  const setIsTyping = externalSetIsTyping || setInternalSetIsTyping;
+  const setIsTyping = externalSetIsTyping || setInternalIsTyping;
   
   const [fileOperationResults, setFileOperationResults] = useState<FileOperation[] | undefined>(undefined);
   const [projectContext, setProjectContext] = useState<any>(null);
@@ -254,7 +255,7 @@ export const useMessageHandling = (
   return {
     messages,
     setMessages,
-    isTyping: externalSetIsTyping ? (externalSetIsTyping ? internalIsTyping : internalIsTyping) : internalIsTyping,
+    isTyping: externalSetIsTyping ? internalIsTyping : internalIsTyping,
     setIsTyping,
     fileOperationResults,
     setFileOperationResults,
