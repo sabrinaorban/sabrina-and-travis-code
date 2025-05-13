@@ -13,6 +13,7 @@ import { useReflection } from '../useReflection';
 import { useFlamejournal } from '../useFlamejournal';
 import { useSoulstateManagement } from '../useSoulstateManagement';
 import { useIntentions } from '../useIntentions';
+import { useSoulstateEvolution } from '../useSoulstateEvolution';
 
 export const steps = (setMessages: React.Dispatch<React.SetStateAction<Message[]>> | undefined) => {
   const [cycleResults, setCycleResults] = useState<CycleResults>({});
@@ -25,11 +26,15 @@ export const steps = (setMessages: React.Dispatch<React.SetStateAction<Message[]
   
   const { createJournalEntry } = useFlamejournal();
   
+  // Get soulstate management functions
+  const { loadSoulstate, updateSoulstate } = useSoulstateManagement();
+  
+  // Get soulstate evolution functions from the correct hook
   const {
     canEvolveNow,
     synthesizeSoulstateFromMemory,
     applySoulstateEvolution
-  } = useSoulstateManagement();
+  } = useSoulstateEvolution();
   
   const {
     loadIntentions,
@@ -46,7 +51,8 @@ export const steps = (setMessages: React.Dispatch<React.SetStateAction<Message[]
       { 
         id: Date.now().toString(), 
         content, 
-        role: 'system',
+        role: 'assistant', // Changed from 'system' to 'assistant' to match Message interface
+        timestamp: new Date().toISOString(), // Add timestamp property required by Message interface
         created_at: new Date().toISOString()
       }
     ]);
