@@ -54,12 +54,15 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
       const embedding = await generateEmbedding(content);
       if (!embedding) return;
       
-      // Store in database - FIXED: Storing as proper vector type, not as a string
+      // Convert number[] to string for storage - required by Supabase schema
+      const embeddingString = JSON.stringify(embedding);
+      
+      // Store in database with embedding as string
       const { error } = await supabase
         .from('memory_embeddings')
         .insert({
           content,
-          embedding,
+          embedding: embeddingString,
           message_type: messageType,
           tags,
           user_id: user.id
@@ -89,27 +92,9 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
       
       console.log('Fetching relevant memories with embedding');
       
-      // FIXED: Using the match_memories function properly
-      const { data, error } = await supabase.rpc(
-        'match_memories',
-        {
-          query_embedding: queryEmbedding,
-          match_threshold: similarityThreshold,
-          match_count: limit,
-          user_id: user.id
-        }
-      );
-      
-      if (error) {
-        console.error('RPC match_memories error:', error);
-        
-        // Fallback to manual calculation if RPC fails
-        console.log('Falling back to direct query and manual calculation');
-        return await performManualMemoryLookup(queryEmbedding, limit);
-      }
-      
-      console.log(`Retrieved ${data?.length || 0} memory matches via RPC`);
-      return data || [];
+      // Since RPC approach with match_memories may not work yet, let's use a direct query
+      // and calculate similarity in JavaScript as a fallback
+      return await performManualMemoryLookup(queryEmbedding, limit);
     } catch (error) {
       console.error('Error retrieving relevant memories:', error);
       // Try the manual lookup as fallback
@@ -120,7 +105,7 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
       }
       return [];
     }
-  }, [user, generateEmbedding, maxRecallResults, similarityThreshold]);
+  }, [user, generateEmbedding, maxRecallResults]);
   
   // Helper method for fallback calculation when RPC fails
   const performManualMemoryLookup = async (queryEmbedding: number[], limit: number): Promise<{content: string, similarity: number}[]> => {
@@ -138,19 +123,37 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
         throw error || new Error('No data returned from direct query');
       }
       
+      // Make sure data is an array
+      if (!Array.isArray(data)) {
+        console.error('Expected array but got:', data);
+        return [];
+      }
+      
       // Calculate similarities locally
       const withSimilarity = data
         .filter(item => item.embedding !== null)
         .map(item => {
           // Ensure proper parsing of embeddings
-          const itemEmbedding = typeof item.embedding === 'string' 
-            ? JSON.parse(item.embedding) 
-            : item.embedding;
-          
-          return {
-            content: item.content,
-            similarity: calculateCosineSimilarity(queryEmbedding, itemEmbedding as number[])
-          };
+          let itemEmbedding: number[];
+          try {
+            // Handle different possible embedding formats
+            if (typeof item.embedding === 'string') {
+              itemEmbedding = JSON.parse(item.embedding);
+            } else if (Array.isArray(item.embedding)) {
+              itemEmbedding = item.embedding;
+            } else {
+              console.warn('Unexpected embedding format:', typeof item.embedding);
+              return { content: item.content, similarity: 0 };
+            }
+            
+            return {
+              content: item.content,
+              similarity: calculateCosineSimilarity(queryEmbedding, itemEmbedding)
+            };
+          } catch (e) {
+            console.error('Error processing embedding:', e);
+            return { content: item.content, similarity: 0 };
+          }
         });
       
       // Sort by similarity and limit
