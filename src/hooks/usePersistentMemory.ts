@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react';
 import { MemoryService } from '../services/MemoryService';
 import { useEmbeddingMemory } from './useEmbeddingMemory';
 import { useAuth } from '@/contexts/AuthContext'; 
-import { useToast } from './use-toast';
+import { useToast } from '@/components/ui/use-toast';
 
 /**
  * Hook for managing persistent memories - these are facts that should always be

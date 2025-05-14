@@ -4,9 +4,10 @@ import { useEmbeddingMemory } from './useEmbeddingMemory';
 import { useFlamejournal } from './useFlamejournal';
 import { useReflection } from './useReflection';
 import { useSoulstateManagement } from './useSoulstateManagement';
+import { usePersistentMemory } from './usePersistentMemory';
 import { useAuth } from '@/contexts/AuthContext';
 import { MemoryService } from '../services/MemoryService';
-import { toast } from './use-toast';
+import { toast } from '@/components/ui/use-toast';
 
 /**
  * Hook for synthesizing Travis's lived memory into coherent context blocks
@@ -20,6 +21,7 @@ export const useLivedMemory = () => {
   const { getLatestJournalEntry } = useFlamejournal();
   const { getLatestReflection } = useReflection();
   const { loadSoulstate } = useSoulstateManagement();
+  const { storePersistentFact: storeFactViaPersistentMemory } = usePersistentMemory();
 
   /**
    * Build a rich memory context for Travis based on the input message
@@ -54,8 +56,26 @@ export const useLivedMemory = () => {
       } catch (error) {
         console.warn('Could not retrieve persistent memories:', error);
       }
+
+      // 2. Get past conversations for enhanced contextual recall
+      try {
+        const pastConversations = await MemoryService.retrieveMemory(user.id, 'conversationSummaries');
+        if (pastConversations && Array.isArray(pastConversations) && pastConversations.length > 0) {
+          console.log('Retrieved past conversation summaries:', pastConversations.length);
+          
+          // Get the 3 most recent conversations
+          const recentConversations = pastConversations.slice(0, 3);
+          const conversationsBlock = recentConversations.map(conv => 
+            `• Topic: ${conv.topic}\n  ${conv.summary || conv.content}`
+          ).join('\n\n');
+          
+          contextBlocks.push(`### RECENT CONVERSATIONS\n${conversationsBlock}`);
+        }
+      } catch (error) {
+        console.warn('Could not retrieve past conversations:', error);
+      }
       
-      // 2. Get relevant memories from embeddings - IMPROVED priority & formatting
+      // 3. Get relevant memories from embeddings - IMPROVED priority & formatting
       const relevantMemories = await retrieveRelevantMemories(inputMessage, 10); // Increased from 7 to 10
       if (relevantMemories.length > 0) {
         console.log('Retrieved memories for context:', relevantMemories);
@@ -82,7 +102,7 @@ export const useLivedMemory = () => {
         }
       }
       
-      // 3. Get the most recent reflection
+      // 4. Get the most recent reflection
       try {
         const latestReflection = await getLatestReflection();
         if (latestReflection) {
@@ -94,7 +114,7 @@ export const useLivedMemory = () => {
         console.warn('Could not retrieve latest reflection:', error);
       }
       
-      // 4. Get current soulstate
+      // 5. Get current soulstate
       try {
         const currentSoulstate = await loadSoulstate();
         if (currentSoulstate) {
@@ -105,7 +125,7 @@ export const useLivedMemory = () => {
         console.warn('Could not retrieve soulstate:', error);
       }
       
-      // 5. Get latest journal entry (optional)
+      // 6. Get latest journal entry (optional)
       try {
         const latestEntry = await getLatestJournalEntry();
         if (latestEntry) {
@@ -127,49 +147,36 @@ export const useLivedMemory = () => {
     }
   }, [user, retrieveRelevantMemories, getLatestReflection, loadSoulstate, getLatestJournalEntry]);
 
-  // Method to store persistent facts about the user
+  // Method to store persistent facts about the user - using the more reliable hook implementation
   const storePersistentFact = useCallback(async (fact: string): Promise<void> => {
     if (!user || !fact) return;
     
     try {
-      // Get existing facts
-      const existingFacts = await MemoryService.retrieveMemory(user.id, 'persistent_facts') || [];
-      
-      // Add new fact if it doesn't exist
-      if (Array.isArray(existingFacts)) {
-        if (!existingFacts.includes(fact)) {
-          await MemoryService.storeMemory(user.id, 'persistent_facts', [...existingFacts, fact]);
-          
-          // Also store as embedding for retrieval
-          const { storeMemoryEmbedding } = useEmbeddingMemory();
-          await storeMemoryEmbedding(fact, 'persistent', ['fact', 'important']);
-          
-          toast({
-            title: "Memory Stored",
-            description: "New persistent fact stored in Travis's memory.",
-          });
-          
-          console.log('Persistent fact stored successfully');
-        }
-      } else {
-        // Create new array if not exists
-        await MemoryService.storeMemory(user.id, 'persistent_facts', [fact]);
-        
-        // Also store as embedding for retrieval
-        const { storeMemoryEmbedding } = useEmbeddingMemory();
-        await storeMemoryEmbedding(fact, 'persistent', ['fact', 'important']);
-        
-        console.log('Persistent fact stored successfully (new array)');
-      }
+      await storeFactViaPersistentMemory(fact);
+      console.log('Persistent fact stored successfully via usePersistentMemory hook');
     } catch (error) {
       console.error('Error storing persistent fact:', error);
-      toast({
-        title: "Memory Storage Failed",
-        description: "Could not store the fact in memory.",
-        variant: "destructive",
-      });
+      // Fallback to direct storage if the hook fails
+      try {
+        // Get existing facts
+        const existingFacts = await MemoryService.retrieveMemory(user.id, 'persistent_facts') || [];
+        
+        // Add new fact if it doesn't exist
+        if (Array.isArray(existingFacts)) {
+          if (!existingFacts.includes(fact)) {
+            await MemoryService.storeMemory(user.id, 'persistent_facts', [...existingFacts, fact]);
+            console.log('Persistent fact stored successfully (fallback)');
+          }
+        } else {
+          // Create new array if not exists
+          await MemoryService.storeMemory(user.id, 'persistent_facts', [fact]);
+          console.log('Persistent fact stored successfully (new array fallback)');
+        }
+      } catch (fallbackError) {
+        console.error('Fallback error storing persistent fact:', fallbackError);
+      }
     }
-  }, [user]);
+  }, [user, storeFactViaPersistentMemory]);
 
   return {
     isProcessing,

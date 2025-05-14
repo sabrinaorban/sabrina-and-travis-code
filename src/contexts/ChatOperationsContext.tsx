@@ -1,7 +1,7 @@
 
 import React, { createContext, useState, useContext, useCallback } from 'react';
 import { Message } from '../types';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from './AuthContext';
 import { 
   storeUserMessage, 

@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Message, MemoryContext } from '../types';
-import { useToast } from './use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { FileOperation } from '../types/chat';
 import { useAuth } from '../contexts/AuthContext';
 import { useGitHub } from '../contexts/github';
@@ -9,6 +9,7 @@ import { useFileSystem } from '../contexts/FileSystemContext';
 import { MemoryService } from '../services/MemoryService';
 import { useEmbeddingMemory } from './useEmbeddingMemory';
 import { useLivedMemory } from './useLivedMemory';
+import { usePersistentMemory } from './usePersistentMemory';
 import { 
   storeUserMessage, 
   storeAssistantMessage,
@@ -54,10 +55,12 @@ export const useMessageHandling = (
     extractFactsFromContent
   } = useEmbeddingMemory();
   
+  // Add the persistent memory hook for more reliable fact storage
+  const { storePersistentFact } = usePersistentMemory();
+  
   // Add the lived memory hook
   const {
-    buildLivedMemoryContext,
-    storePersistentFact
+    buildLivedMemoryContext
   } = useLivedMemory();
 
   useEffect(() => {
@@ -77,6 +80,13 @@ export const useMessageHandling = (
       const boyfriendMatch = content.match(boyFriendPattern);
       if (boyfriendMatch && boyfriendMatch[1]) {
         await storePersistentFact(`Sabrina's boyfriend's name is ${boyfriendMatch[1]}`);
+      }
+      
+      // Also store direct mentions of boyfriend name from the user
+      const directBoyFriendPattern = /(?:his|boyfriend's) name is ([a-z0-9]+)/i;
+      const directMatch = content.match(directBoyFriendPattern);
+      if (directMatch && directMatch[1]) {
+        await storePersistentFact(`Sabrina's boyfriend's name is ${directMatch[1]}`);
       }
       
       // Look for pet facts
@@ -123,6 +133,9 @@ export const useMessageHandling = (
       setIsTyping(true);
 
       try {
+        // Process the user message for fact extraction
+        await extractAndStoreFacts(content);
+        
         // Store the user message as an embedding for future recall
         storeMemoryEmbedding(content, 'chat', ['user']).catch(err => {
           console.warn('Failed to store message embedding, continuing without it:', err);
@@ -132,7 +145,8 @@ export const useMessageHandling = (
         let isFactQuery = false;
         if (content.toLowerCase().includes("boyfriend") || 
             content.toLowerCase().includes("name") ||
-            content.toLowerCase().includes("remember")) {
+            content.toLowerCase().includes("remember") ||
+            content.toLowerCase().includes("recall")) {
           console.log('Detected potential fact query');
           isFactQuery = true;
         }
@@ -165,13 +179,22 @@ export const useMessageHandling = (
         }
 
         // Always get project structure for context - important for file editing
-        const projectStructure = await getProjectStructure(fileSystem);
-        console.log('Project structure for Travis:', projectStructure ? 'Available' : 'Not available');
+        let projectStructure = null;
+        try {
+          projectStructure = await getProjectStructure(fileSystem);
+          console.log('Project structure for Travis:', projectStructure ? 'Available' : 'Not available');
+        } catch (error) {
+          console.warn('Error getting project structure, continuing without it:', error);
+        }
         
         // Get current project context for tracking
-        const currentContext = await getProjectContext(fileSystem);
-        setProjectContext(currentContext);
-        console.log('Current project context:', currentContext);
+        try {
+          const currentContext = await getProjectContext(fileSystem);
+          setProjectContext(currentContext);
+          console.log('Current project context:', currentContext);
+        } catch (error) {
+          console.warn('Error getting project context, continuing without it:', error);
+        }
         
         // Determine if this is likely a file operation request - with improved detection
         const shouldEnableFileOps = isFileOperation(content);
@@ -206,26 +229,30 @@ export const useMessageHandling = (
         if (fileOperations.length > 0) {
           console.log('Processing file operations:', fileOperations.length, fileOperations);
           
-          // Add project context to operations
-          const enhancedOperations = fileOperations.map((op: FileOperation) => ({
-            ...op,
-            projectContext: currentContext,
-            duplicateCheck: true // Enable duplicate checking
-          }));
-          
-          const processedOperations = await processFileOperations(fileSystem, enhancedOperations);
-          
-          // Update file operation results for UI feedback
-          if (processedOperations && processedOperations.length > 0) {
-            setFileOperationResults(processedOperations as FileOperation[]);
+          try {
+            // Add project context to operations
+            const enhancedOperations = fileOperations.map((op: FileOperation) => ({
+              ...op,
+              projectContext: projectContext,
+              duplicateCheck: true // Enable duplicate checking
+            }));
             
-            // Refresh files after operations
-            await fileSystem.refreshFiles();
-            console.log('Files refreshed after operations');
+            const processedOperations = await processFileOperations(fileSystem, enhancedOperations);
             
-            // Update project context after operations
-            const newContext = await getProjectContext(fileSystem);
-            setProjectContext(newContext);
+            // Update file operation results for UI feedback
+            if (processedOperations && processedOperations.length > 0) {
+              setFileOperationResults(processedOperations as FileOperation[]);
+              
+              // Refresh files after operations
+              await fileSystem.refreshFiles();
+              console.log('Files refreshed after operations');
+              
+              // Update project context after operations
+              const newContext = await getProjectContext(fileSystem);
+              setProjectContext(newContext);
+            }
+          } catch (error) {
+            console.warn('Error processing file operations, continuing without them:', error);
           }
         } else {
           console.log('No file operations to process');
@@ -255,7 +282,7 @@ export const useMessageHandling = (
             topic,
             timestamp: Date.now(),
             messageCount: messages.length + 2,
-            projectContext: currentContext,
+            projectContext: projectContext,
             githubContext: github.authState.isAuthenticated ? {
               repo: github.currentRepo?.full_name,
               branch: github.currentBranch
