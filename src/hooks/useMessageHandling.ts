@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Message, MemoryContext } from '../types';
 import { useToast } from './use-toast';
 import { FileOperation } from '../types/chat';

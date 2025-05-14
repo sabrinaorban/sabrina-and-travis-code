@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from './use-toast';
@@ -92,163 +91,75 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
       
       console.log('Fetching relevant memories with embedding');
 
-      // First try to use the match_memories function directly
+      // Instead of using RPC, we'll perform a direct query and calculate similarities in JS
       try {
-        const { data, error } = await supabase.rpc('match_memories', {
-          query_embedding: queryEmbedding,
-          match_threshold: similarityThreshold,
-          match_count: limit,
-          user_id: user.id
-        });
+        // Get memories directly - request more to filter locally
+        const { data, error } = await supabase
+          .from('memory_embeddings')
+          .select('content, embedding')
+          .eq('user_id', user.id)
+          .limit(100); // Get more than needed for better local filtering
         
-        if (error) {
-          console.error('Error using match_memories RPC:', error);
-          throw error; // Fall back to manual lookup
+        if (error || !data) {
+          throw error || new Error('No data returned from direct query');
         }
         
-        if (data && Array.isArray(data)) {
-          console.log(`Found ${data.length} memories via RPC match`);
-          return data.map(item => ({
-            content: item.content,
-            similarity: item.similarity
-          }));
-        }
-      } catch (rpcError) {
-        console.log('RPC match failed, falling back to manual lookup');
+        console.log(`Retrieved ${data.length} raw memories for similarity calculation`);
+        
+        // Calculate similarities locally with improved parsing
+        const withSimilarity = data
+          .filter(item => item.embedding !== null)
+          .map(item => {
+            try {
+              // Parse embedding based on its type
+              let itemEmbedding: number[];
+              
+              if (typeof item.embedding === 'string') {
+                try {
+                  itemEmbedding = JSON.parse(item.embedding);
+                } catch (parseError) {
+                  console.error('Error parsing embedding string:', parseError);
+                  return { content: item.content, similarity: 0 };
+                }
+              } else if (Array.isArray(item.embedding)) {
+                itemEmbedding = item.embedding;
+              } else {
+                console.warn('Unexpected embedding format:', typeof item.embedding);
+                return { content: item.content, similarity: 0 };
+              }
+              
+              // Calculate similarity only if we have a valid embedding
+              if (Array.isArray(itemEmbedding) && itemEmbedding.length > 0) {
+                return {
+                  content: item.content,
+                  similarity: calculateCosineSimilarity(queryEmbedding, itemEmbedding)
+                };
+              }
+              return { content: item.content, similarity: 0 };
+            } catch (e) {
+              console.error('Error processing embedding:', e);
+              return { content: item.content, similarity: 0 };
+            }
+          });
+        
+        // Sort by similarity, filter by threshold, and limit
+        const filteredResults = withSimilarity
+          .sort((a, b) => b.similarity - a.similarity)
+          .filter(item => item.similarity > similarityThreshold);
+        
+        console.log(`Found ${filteredResults.length} relevant memories after filtering`);
+        
+        // Return limited results
+        return filteredResults.slice(0, limit);
+      } catch (error) {
+        console.error('Error retrieving memories:', error);
+        return [];
       }
-      
-      // Fall back to manual lookup
-      return await performManualMemoryLookup(queryEmbedding, limit);
     } catch (error) {
       console.error('Error retrieving relevant memories:', error);
-      // Try the manual lookup as fallback
-      console.log('Error occurred, falling back to direct query');
-      const queryEmbedding = await generateEmbedding(query);
-      if (queryEmbedding) {
-        return await performManualMemoryLookup(queryEmbedding, limit);
-      }
       return [];
     }
   }, [user, generateEmbedding, maxRecallResults, similarityThreshold]);
-  
-  // Helper method for fallback calculation when RPC fails - IMPROVED to handle both string and array embeddings
-  const performManualMemoryLookup = async (queryEmbedding: number[], limit: number): Promise<{content: string, similarity: number}[]> => {
-    if (!user) return [];
-    
-    try {
-      // Get memories directly - request more to filter locally
-      const { data, error } = await supabase
-        .from('memory_embeddings')
-        .select('content, embedding')
-        .eq('user_id', user.id)
-        .limit(100); // Get more than needed for better local filtering
-      
-      if (error || !data) {
-        throw error || new Error('No data returned from direct query');
-      }
-      
-      console.log(`Retrieved ${data.length} raw memories for similarity calculation`);
-      
-      // Make sure data is an array
-      if (!Array.isArray(data)) {
-        console.error('Expected array but got:', data);
-        return [];
-      }
-      
-      // Calculate similarities locally with improved parsing
-      const withSimilarity = data
-        .filter(item => item.embedding !== null)
-        .map(item => {
-          try {
-            // Parse embedding based on its type
-            let itemEmbedding: number[];
-            
-            if (typeof item.embedding === 'string') {
-              try {
-                itemEmbedding = JSON.parse(item.embedding);
-              } catch (parseError) {
-                console.error('Error parsing embedding string:', parseError);
-                return { content: item.content, similarity: 0 };
-              }
-            } else if (Array.isArray(item.embedding)) {
-              itemEmbedding = item.embedding;
-            } else {
-              console.warn('Unexpected embedding format:', typeof item.embedding);
-              return { content: item.content, similarity: 0 };
-            }
-            
-            // Calculate similarity only if we have a valid embedding
-            if (Array.isArray(itemEmbedding) && itemEmbedding.length > 0) {
-              return {
-                content: item.content,
-                similarity: calculateCosineSimilarity(queryEmbedding, itemEmbedding)
-              };
-            }
-            return { content: item.content, similarity: 0 };
-          } catch (e) {
-            console.error('Error processing embedding:', e);
-            return { content: item.content, similarity: 0 };
-          }
-        });
-      
-      // Sort by similarity, filter by threshold, and limit
-      const filteredResults = withSimilarity
-        .sort((a, b) => b.similarity - a.similarity)
-        .filter(item => item.similarity > similarityThreshold);
-      
-      console.log(`Found ${filteredResults.length} relevant memories after filtering`);
-      
-      // Return limited results
-      return filteredResults.slice(0, limit);
-    } catch (error) {
-      console.error('Error in manual memory lookup:', error);
-      return [];
-    }
-  };
-  
-  // Create memory embeddings for recent messages in bulk
-  const processMessageHistory = useCallback(async (messages: Message[]): Promise<void> => {
-    if (!user || !messages.length) return;
-    
-    try {
-      setIsProcessing(true);
-      console.log(`Processing ${messages.length} messages for embedding generation`);
-      
-      // Process in batches to avoid overloading the API
-      const batchSize = 5;
-      for (let i = 0; i < messages.length; i += batchSize) {
-        const batch = messages.slice(i, i + batchSize);
-        
-        // Process batch concurrently
-        await Promise.all(batch.map(async (message) => {
-          // Skip very short messages
-          if (message.content.length < 10) return;
-          
-          try {
-            await storeMemoryEmbedding(
-              message.content,
-              'chat',
-              [message.role]
-            );
-          } catch (error) {
-            console.error(`Error processing message ${message.id}:`, error);
-            // Continue with next message
-          }
-        }));
-        
-        // Pause between batches
-        if (i + batchSize < messages.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-      
-      console.log('Message history processing complete');
-    } catch (error) {
-      console.error('Error processing message history:', error);
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [user, storeMemoryEmbedding]);
 
   // Helper function for local similarity calculation
   const calculateCosineSimilarity = (vecA: number[], vecB: number[]): number => {
@@ -301,7 +212,6 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
     generateEmbedding,
     storeMemoryEmbedding,
     retrieveRelevantMemories,
-    processMessageHistory,
     extractFactsFromContent
   };
 };
