@@ -14,6 +14,7 @@ export const useGitHubContextSync = (
   
   // Create a ref to track if a sync is already in progress
   const syncInProgressRef = useRef<boolean>(false);
+  const pendingSyncRef = useRef<{owner: string, repo: string, branch: string} | null>(null);
   const { toast } = useToast();
 
   // Get last sync state
@@ -35,9 +36,11 @@ export const useGitHubContextSync = (
     createFolder: any,
     refreshFiles: any
   ): Promise<boolean> => {
-    // If a sync is already in progress, prevent starting another
+    // If a sync is already in progress, store the request and prevent starting another
     if (syncInProgressRef.current) {
-      console.log('useGitHubContextSync - Sync already in progress, aborting new sync request');
+      console.log('useGitHubContextSync - Sync already in progress, storing request for later');
+      pendingSyncRef.current = { owner, repo, branch };
+      
       toast({
         title: "Sync in progress",
         description: "Please wait for the current sync operation to complete",
@@ -95,6 +98,18 @@ export const useGitHubContextSync = (
       setTimeout(() => {
         syncInProgressRef.current = false;
         setIsSyncing(false);
+        
+        // Check if there's a pending sync request and execute it
+        if (pendingSyncRef.current) {
+          const { owner, repo, branch } = pendingSyncRef.current;
+          pendingSyncRef.current = null;
+          console.log(`useGitHubContextSync - Processing pending sync for ${owner}/${repo}`);
+          
+          // Execute the pending sync after a short delay
+          setTimeout(() => {
+            handleSyncRepoToFileSystem(owner, repo, branch, createFile, createFolder, refreshFiles);
+          }, 300);
+        }
       }, 1000);
     }
   };

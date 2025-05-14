@@ -22,12 +22,13 @@ export const useGitHubAuth = (
   const { toast } = useToast();
   const tokenSavedRef = useRef(false);
   const authInitializedRef = useRef(false);
+  const authenticationInProgress = useRef(false);
   const lastAuthStateRef = useRef({ 
     isAuthenticated: false, 
     token: null as string | null,
     username: null as string | null
   });
-
+  
   // When used without parameters, call the original hook
   if (!user && !authState && !logoutFn) {
     return useGithubAuth();
@@ -72,7 +73,7 @@ export const useGitHubAuth = (
     };
     
     saveToken();
-  }, [authState, user, toast]);
+  }, [authState?.isAuthenticated, authState?.token, authState?.username, user?.id, toast]);
 
   // Handle logout with token cleanup
   const handleLogout = async () => {
@@ -110,8 +111,26 @@ export const useGitHubAuth = (
       loading: false,
       error: null
     },
-    authenticate: async () => {
-      console.warn('authenticate not implemented in this context');
+    authenticate: async (token: string) => {
+      // Prevent multiple simultaneous authentication attempts
+      if (authenticationInProgress.current) {
+        console.log('Authentication already in progress, skipping duplicate request');
+        return;
+      }
+      
+      try {
+        authenticationInProgress.current = true;
+        if (useGithubAuth().authenticate) {
+          await useGithubAuth().authenticate(token);
+        } else {
+          console.warn('authenticate not implemented in this context');
+        }
+      } finally {
+        // Clear the lock after a delay
+        setTimeout(() => {
+          authenticationInProgress.current = false;
+        }, 1000);
+      }
     },
     logout: logoutFn || (() => {
       console.warn('logout not implemented in this context');

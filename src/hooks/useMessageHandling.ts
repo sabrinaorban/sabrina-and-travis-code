@@ -1,7 +1,7 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Message, MemoryContext } from '../types';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { FileOperation } from '../types/chat';
 import { useAuth } from '../contexts/AuthContext';
 import { useGitHub } from '../contexts/github';
@@ -16,7 +16,6 @@ import {
   createOpenAIMessages,
   callOpenAI,
   extractTopicFromMessages,
-  simulateAssistantResponse,
   generateConversationSummary,
   isFileOperationRequest
 } from '../services/ChatService';
@@ -26,6 +25,26 @@ import {
   isFileOperation,
   getProjectContext
 } from '../services/chat';
+
+// Create a debounce function to prevent too frequent calls
+const debounce = <F extends (...args: any[]) => any>(
+  func: F,
+  waitFor: number
+): ((...args: Parameters<F>) => Promise<ReturnType<F>>) => {
+  let timeout: NodeJS.Timeout | null = null;
+  
+  return (...args: Parameters<F>): Promise<ReturnType<F>> => {
+    return new Promise((resolve) => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      
+      timeout = setTimeout(() => {
+        resolve(func(...args));
+      }, waitFor);
+    });
+  };
+};
 
 export const useMessageHandling = (
   externalMessages?: Message[],
@@ -43,6 +62,9 @@ export const useMessageHandling = (
   
   const [fileOperationResults, setFileOperationResults] = useState<FileOperation[] | undefined>(undefined);
   const [projectContext, setProjectContext] = useState<any>(null);
+  
+  // Track if a message is being sent to prevent duplicate sends
+  const isSendingMessageRef = useRef(false);
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -63,10 +85,19 @@ export const useMessageHandling = (
     buildLivedMemoryContext
   } = useLivedMemory();
 
+  // Process message history in the background
   useEffect(() => {
     if (user && messages.length > 0) {
-      // Don't await - let it run in background
-      processMessageHistory(messages).catch(console.error);
+      // Create a debounced version of processMessageHistory
+      const debouncedProcess = debounce(async () => {
+        try {
+          await processMessageHistory(messages);
+        } catch (error) {
+          console.error('Error processing message history:', error);
+        }
+      }, 3000); // Wait 3 seconds after last change
+      
+      debouncedProcess();
     }
   }, [user, messages.length, processMessageHistory]);
 
@@ -96,10 +127,11 @@ export const useMessageHandling = (
         await storePersistentFact(`Sabrina's ${petMatch[1]}'s name is ${petMatch[2]}`);
       }
       
-      // Extract other potential facts
+      // Use the batch API for multiple facts extraction to improve performance
       const extractedFacts = await extractFactsFromContent(content);
-      for (const fact of extractedFacts) {
-        await storePersistentFact(fact);
+      if (extractedFacts.length > 0) {
+        // Use Promise.all for parallel execution
+        await Promise.all(extractedFacts.map(fact => storePersistentFact(fact)));
       }
     } catch (error) {
       console.error('Error extracting and storing facts:', error);
@@ -118,7 +150,14 @@ export const useMessageHandling = (
     
     // Don't send empty messages
     if (!content.trim()) return;
+    
+    // Prevent multiple sends in parallel
+    if (isSendingMessageRef.current) {
+      console.log('Already sending a message, please wait...');
+      return;
+    }
 
+    isSendingMessageRef.current = true;
     try {
       // Reset file operation results
       setFileOperationResults(undefined);
@@ -133,10 +172,12 @@ export const useMessageHandling = (
       setIsTyping(true);
 
       try {
-        // Process the user message for fact extraction
-        await extractAndStoreFacts(content);
+        // Process the user message for fact extraction - do this in the background
+        extractAndStoreFacts(content).catch(err => {
+          console.warn('Failed to extract facts, continuing without it:', err);
+        });
         
-        // Store the user message as an embedding for future recall
+        // Store the user message as an embedding for future recall - do this in the background
         storeMemoryEmbedding(content, 'chat', ['user']).catch(err => {
           console.warn('Failed to store message embedding, continuing without it:', err);
         });
@@ -262,11 +303,13 @@ export const useMessageHandling = (
         const newAssistantMessage = await storeAssistantMessage(user.id, assistantResponse);
         
         // IMPROVEMENT: Extract and store facts from assistant response
-        await extractAndStoreFacts(assistantResponse);
+        extractAndStoreFacts(assistantResponse).catch(err => {
+          console.warn('Failed to extract facts from assistant response:', err);
+        });
         
         // Also store the assistant message as an embedding for future recall
         storeMemoryEmbedding(assistantResponse, 'chat', ['assistant']).catch(err => {
-          console.warn('Failed to store assistant message embedding, continuing without it:', err);
+          console.warn('Failed to store assistant message embedding:', err);
         });
         
         // Add to local state
@@ -276,21 +319,29 @@ export const useMessageHandling = (
         if (user) {
           // Extract topic and store conversation summary
           const topic = extractTopicFromMessages([...messages, newUserMessage, newAssistantMessage]);
-          const summary = await generateConversationSummary([...messages, newUserMessage, newAssistantMessage]);
           
-          await MemoryService.storeMemory(user.id, 'last_conversation', {
-            topic,
-            timestamp: Date.now(),
-            messageCount: messages.length + 2,
-            projectContext: projectContext,
-            githubContext: github.authState.isAuthenticated ? {
-              repo: github.currentRepo?.full_name,
-              branch: github.currentBranch
-            } : undefined
-          });
-          
-          // Store conversation summary
-          await MemoryService.storeConversationSummary(user.id, summary, topic);
+          // Generate summary in the background
+          (async () => {
+            try {
+              const summary = await generateConversationSummary([...messages, newUserMessage, newAssistantMessage]);
+              
+              await MemoryService.storeMemory(user.id, 'last_conversation', {
+                topic,
+                timestamp: Date.now(),
+                messageCount: messages.length + 2,
+                projectContext: projectContext,
+                githubContext: github.authState.isAuthenticated ? {
+                  repo: github.currentRepo?.full_name,
+                  branch: github.currentBranch
+                } : undefined
+              });
+              
+              // Store conversation summary
+              await MemoryService.storeConversationSummary(user.id, summary, topic);
+            } catch (error) {
+              console.error('Error generating conversation summary:', error);
+            }
+          })();
         }
       } catch (error) {
         // If the OpenAI call fails, fall back to simulated responses
@@ -324,6 +375,10 @@ export const useMessageHandling = (
       });
     } finally {
       setIsTyping(false);
+      // Reset sending state after a small delay to prevent accidental double-sends
+      setTimeout(() => {
+        isSendingMessageRef.current = false;
+      }, 300);
     }
   };
 
