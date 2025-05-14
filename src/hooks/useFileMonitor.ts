@@ -49,7 +49,6 @@ export const useFileMonitor = () => {
           title: 'Warning: File Deletion Risk',
           description: `Detected ${deleteWarnings.length} risky delete operations. Check console for details.`,
           variant: 'destructive',
-          duration: 5000,
         });
       }
       
@@ -58,7 +57,6 @@ export const useFileMonitor = () => {
           title: 'Warning: Incomplete File Move',
           description: `Detected ${moveWarnings.length} move operations missing steps. Check console for details.`,
           variant: 'destructive',
-          duration: 5000,
         });
       }
       
@@ -66,8 +64,7 @@ export const useFileMonitor = () => {
         toast({
           title: 'Warning: Potential File Operation Issues',
           description: `Detected ${otherWarnings.length} potential issues with file operations.`,
-          variant: 'destructive', 
-          duration: 5000,
+          variant: 'destructive',
         });
       }
       
@@ -106,7 +103,6 @@ export const useFileMonitor = () => {
     toast({
       title: 'Running File System Tests',
       description: 'Testing file creation, modification, and deletion capabilities...',
-      duration: 3000,
     });
     
     try {
@@ -120,7 +116,6 @@ export const useFileMonitor = () => {
         title: success ? 'File System Tests Passed' : 'File System Tests Failed',
         description: `${results.filter(r => r.passed).length}/${results.length} tests passed. See console for details.`,
         variant: success ? 'default' : 'destructive',
-        duration: 5000,
       });
       
       // If any tests failed, log details
@@ -140,7 +135,6 @@ export const useFileMonitor = () => {
         title: 'File System Test Error',
         description: `An error occurred while testing: ${error instanceof Error ? error.message : String(error)}`,
         variant: 'destructive',
-        duration: 5000,
       });
       
       return {
@@ -173,7 +167,6 @@ export const useFileMonitor = () => {
         title: 'File Operation Failed',
         description: `${operation} operation on ${path} failed: ${errorMessage}`,
         variant: 'destructive',
-        duration: 5000,
       });
     }
   }, [isActive, toast, fileOpTest]);
