@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Message, MemoryContext } from '../types';
 import { useToast } from '@/hooks/use-toast';
@@ -25,6 +24,7 @@ import {
   isFileOperation,
   getProjectContext
 } from '../services/chat';
+import { simulateAssistantResponse } from '../services/utils/ConversationUtils';
 
 // Create a debounce function to prevent too frequent calls
 const debounce = <F extends (...args: any[]) => any>(
