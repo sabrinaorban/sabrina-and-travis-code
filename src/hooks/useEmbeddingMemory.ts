@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from './use-toast';
@@ -79,6 +80,44 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
       });
     }
   }, [user, generateEmbedding, toast]);
+
+  // Process message history to extract and store important information
+  const processMessageHistory = useCallback(async (messages: Message[]): Promise<void> => {
+    if (!user || messages.length === 0) return;
+    
+    try {
+      console.log('Processing message history for embeddings...');
+      
+      // Find messages that have not been processed yet
+      // In a real implementation, you might want to track which messages have been processed
+      // For now, we'll just process the last few messages to avoid duplicates
+      const recentMessages = messages.slice(-3);
+      
+      for (const message of recentMessages) {
+        // Only process messages with content
+        if (!message.content) continue;
+        
+        // Store different types of messages with appropriate tags
+        if (message.role === 'assistant') {
+          await storeMemoryEmbedding(
+            message.content, 
+            'chat', 
+            ['assistant', 'response']
+          );
+        } else if (message.role === 'user') {
+          await storeMemoryEmbedding(
+            message.content, 
+            'chat', 
+            ['user', 'query']
+          );
+        }
+      }
+      
+      console.log(`Processed ${recentMessages.length} recent messages for embedding storage`);
+    } catch (error) {
+      console.error('Error processing message history:', error);
+    }
+  }, [user, storeMemoryEmbedding]);
 
   // Retrieve relevant memories based on a query - IMPROVED search logic with better parsing
   const retrieveRelevantMemories = useCallback(async (query: string, limit: number = maxRecallResults): Promise<{content: string, similarity: number}[]> => {
@@ -212,6 +251,7 @@ export const useEmbeddingMemory = (options: EmbeddingMemoryOptions = {}) => {
     generateEmbedding,
     storeMemoryEmbedding,
     retrieveRelevantMemories,
-    extractFactsFromContent
+    extractFactsFromContent,
+    processMessageHistory // Added the missing function
   };
 };
