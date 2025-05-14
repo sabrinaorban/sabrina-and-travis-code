@@ -9,6 +9,7 @@ import { MemoryService } from '../services/MemoryService';
 import { useEmbeddingMemory } from './useEmbeddingMemory';
 import { useLivedMemory } from './useLivedMemory';
 import { usePersistentMemory } from './usePersistentMemory';
+import { useEmotionRecognition } from './useEmotionRecognition';
 import { 
   storeUserMessage, 
   storeAssistantMessage,
@@ -85,6 +86,12 @@ export const useMessageHandling = (
     buildLivedMemoryContext
   } = useLivedMemory();
 
+  const { 
+    analyzeEmotion, 
+    storeMessageEmotion,
+    getEmotionalResponseContext 
+  } = useEmotionRecognition();
+  
   // Process message history in the background
   useEffect(() => {
     if (user && messages.length > 0) {
@@ -162,8 +169,12 @@ export const useMessageHandling = (
       // Reset file operation results
       setFileOperationResults(undefined);
       
-      // Create and add user message
-      const newUserMessage = await storeUserMessage(user.id, content);
+      // Detect emotion in user message
+      const { emotion, confidence } = await analyzeEmotion(content);
+      console.log(`Detected emotion: ${emotion} with confidence: ${confidence}`);
+      
+      // Create and add user message with emotion
+      const newUserMessage = await storeUserMessage(user.id, content, emotion);
       
       // Add message to local state immediately for UI responsiveness
       setMessages((prev) => [...prev, newUserMessage]);
@@ -197,8 +208,19 @@ export const useMessageHandling = (
         const livedMemoryContext = await buildLivedMemoryContext(content);
         console.log('Generated lived memory context blocks:', livedMemoryContext.length);
         
+        // Get emotional response context if confidence is high enough
+        let emotionalContext = '';
+        if (confidence > 0.7 && emotion !== 'neutral') {
+          emotionalContext = getEmotionalResponseContext(emotion);
+          console.log('Added emotional context:', emotionalContext);
+        }
+        
         // Retrieve relevant past memories based on the current message
-        let enhancedMemoryContext = { ...memoryContext, livedMemory: livedMemoryContext };
+        let enhancedMemoryContext = { 
+          ...memoryContext, 
+          livedMemory: livedMemoryContext,
+          emotionalContext: emotionalContext
+        };
         
         try {
           console.log('Retrieving relevant memories for prompt enhancement...');
@@ -299,8 +321,17 @@ export const useMessageHandling = (
           console.log('No file operations to process');
         }
         
-        // Store the response
-        const newAssistantMessage = await storeAssistantMessage(user.id, assistantResponse);
+        // Determine emotional response (neutral by default)
+        // For assistant responses, we could use a more subtle emotion classification
+        // In a more sophisticated implementation, we might use AI to generate an appropriate emotion
+        const assistantEmotion = emotion === 'neutral' ? 'neutral' : 
+                               (emotion === 'joy' ? 'joy' : 
+                               (emotion === 'sadness' ? 'empathy' : 
+                               (emotion === 'anger' ? 'calm' : 
+                               (emotion === 'fear' ? 'reassurance' : 'neutral'))));
+        
+        // Store the response with emotional context
+        const newAssistantMessage = await storeAssistantMessage(user.id, assistantResponse, assistantEmotion);
         
         // IMPROVEMENT: Extract and store facts from assistant response
         extractAndStoreFacts(assistantResponse).catch(err => {
@@ -355,8 +386,11 @@ export const useMessageHandling = (
           currentBranch: github.currentBranch
         });
 
+        // Determine fallback emotion
+        const fallbackEmotion = 'neutral';
+        
         // Add the fallback assistant's response
-        const newFallbackMessage = await storeAssistantMessage(user.id, assistantResponse);
+        const newFallbackMessage = await storeAssistantMessage(user.id, assistantResponse, fallbackEmotion);
         
         setMessages((prev) => [...prev, newFallbackMessage]);
           

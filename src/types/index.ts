@@ -12,6 +12,7 @@ export interface Message {
   role: 'user' | 'assistant';
   timestamp: string;
   createdAt?: string;
+  emotion?: string | null; // Added emotion field
 }
 
 export interface OpenAIMessage {
@@ -23,6 +24,7 @@ export interface OpenAIMessage {
 export interface MemoryContext {
   relevantMemories?: Array<{ content: string; similarity: number }>;
   livedMemory?: Array<string>;
+  emotionalContext?: string; // Added emotional context
   [key: string]: any;
 }
 

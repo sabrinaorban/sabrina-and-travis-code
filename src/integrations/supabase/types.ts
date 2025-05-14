@@ -172,6 +172,7 @@ export type Database = {
       messages: {
         Row: {
           content: string
+          emotion: string | null
           id: string
           role: string
           timestamp: string
@@ -179,6 +180,7 @@ export type Database = {
         }
         Insert: {
           content: string
+          emotion?: string | null
           id?: string
           role: string
           timestamp?: string
@@ -186,6 +188,7 @@ export type Database = {
         }
         Update: {
           content?: string
+          emotion?: string | null
           id?: string
           role?: string
           timestamp?: string

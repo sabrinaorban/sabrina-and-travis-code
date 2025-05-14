@@ -1,77 +1,52 @@
 
 import React from 'react';
 import { Message } from '../types';
-import { cn } from '../lib/utils';
+import { Avatar } from '@/components/ui/avatar';
+import { MessageBubble } from '@/components/ui/message-bubble';
+import { formatDistanceToNow } from 'date-fns';
 
 interface ChatMessageProps {
   message: Message;
 }
 
-const formatCode = (content: string): React.ReactNode => {
-  // Simple regex to find code blocks (```code```)
-  const codeBlockRegex = /```([\s\S]*?)```/g;
-  
-  // Split the content by code blocks
-  const parts = content.split(codeBlockRegex);
-  
-  if (parts.length === 1) {
-    return <p className="whitespace-pre-wrap">{content}</p>;
-  }
-
-  const result: React.ReactNode[] = [];
-  
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    
-    // Even indices are text, odd indices are code blocks
-    if (i % 2 === 0) {
-      if (part) {
-        result.push(<p key={i} className="whitespace-pre-wrap">{part}</p>);
-      }
-    } else {
-      result.push(
-        <pre key={i} className="text-sm my-2 p-3 bg-muted rounded-md overflow-x-auto">
-          <code>{part}</code>
-        </pre>
-      );
-    }
-  }
-  
-  return <>{result}</>;
-};
-
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const isUser = message.role === 'user';
-  // Use createdAt if available, otherwise fallback to timestamp
-  const formattedDate = message.createdAt 
-    ? new Date(message.createdAt).toLocaleTimeString() 
-    : message.timestamp 
-      ? new Date(message.timestamp).toLocaleTimeString()
-      : '';
   
+  // Format timestamp
+  const formattedTime = message.timestamp 
+    ? formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })
+    : '';
+
   return (
-    <div
-      className={cn(
-        'flex w-full mb-4',
-        isUser ? 'justify-end' : 'justify-start'
-      )}
-    >
-      <div
-        className={cn(
-          'max-w-[80%] rounded-lg p-4',
-          isUser 
-            ? 'bg-sabrina-light text-gray-800' 
-            : 'bg-travis-light text-gray-800'
-        )}
-      >
-        <div className="flex items-center mb-1">
-          <span className="font-semibold">
-            {isUser ? 'Sabrina' : 'Travis'}
-          </span>
-          <span className="text-xs text-gray-500 ml-2">{formattedDate}</span>
+    <div className={`flex items-start mb-4 ${isUser ? 'justify-end' : ''}`}>
+      {!isUser && (
+        <div className="mr-2 mt-1">
+          <Avatar>
+            <div className="h-10 w-10 rounded-full bg-travis-primary text-white flex items-center justify-center">
+              T
+            </div>
+          </Avatar>
         </div>
-        <div className="mt-1">{formatCode(message.content)}</div>
+      )}
+      
+      <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[80%]`}>
+        <div className="flex items-center mb-1">
+          <span className="font-semibold">{isUser ? 'You' : 'Travis'}</span>
+          <span className="text-xs text-gray-500 ml-2">{formattedTime}</span>
+        </div>
+        
+        <MessageBubble message={message} />
       </div>
+      
+      {isUser && (
+        <div className="ml-2 mt-1">
+          <Avatar>
+            <div className="h-10 w-10 rounded-full bg-blue-500 text-white flex items-center justify-center">
+              S
+            </div>
+          </Avatar>
+        </div>
+      )}
     </div>
   );
 };
