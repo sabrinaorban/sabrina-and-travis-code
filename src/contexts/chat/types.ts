@@ -1,11 +1,13 @@
 
-import { Message, MemoryContext } from '../../types';
-import { FlameJournalEntry } from '@/hooks/useFlamejournal';
-import { EvolutionProposal } from '@/hooks/useEvolutionCycle';
+import { Message, MemoryContext, Reflection, FlameJournalEntry } from '@/types';
+
+export interface ChatProviderProps {
+  children: React.ReactNode;
+}
 
 export interface ChatContextType {
   messages: Message[];
-  sendMessage: (message: string) => Promise<void>;
+  sendMessage: (content: string, memoryContext?: MemoryContext) => Promise<void>;
   isTyping: boolean;
   memoryContext: MemoryContext | null;
   generateWeeklyReflection: () => Promise<void>;
@@ -21,12 +23,9 @@ export interface ChatContextType {
   uploadIdentityCodex: (file: File) => Promise<void>;
   uploadPastConversations: (file: File) => Promise<void>;
   generateInsight: () => Promise<void>;
-  // New evolution cycle methods
+  generateDream: () => Promise<FlameJournalEntry | null>; // New dream generation function
+  // Evolution cycle methods
   checkEvolutionCycle: () => Promise<boolean>;
-  currentEvolutionProposal: EvolutionProposal | null;
+  currentEvolutionProposal: any | null;
   isEvolutionChecking: boolean;
-}
-
-export interface ChatProviderProps {
-  children: React.ReactNode;
 }

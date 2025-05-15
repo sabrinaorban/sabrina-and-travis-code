@@ -13,7 +13,8 @@ import { useChatFlamejournal } from './useChatFlamejournal';
 import { useChatDocumentUpload } from './useChatDocumentUpload';
 import { useChatSoulcycle } from './useChatSoulcycle';
 import { useInsights } from '@/hooks/useInsights';
-import { useChatEvolution } from './useChatEvolution'; // New import for evolution cycle
+import { useChatEvolution } from './useChatEvolution';
+import { useDreamGeneration } from '@/hooks/useDreamGeneration'; // Import dream hook
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -74,6 +75,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     getInsightsForMemoryContext,
     generateInsightMessage
   } = useInsights();
+
+  // Initialize dream generation
+  const { generateDream } = useDreamGeneration();
   
   // Initialize evolution cycle
   const {
@@ -118,6 +122,38 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   
   // Wrap the original sendMessage to intercept evolution responses
   const sendMessage = useCallback(async (message: string) => {
+    // Check for dream command
+    if (message.trim().toLowerCase() === '/dream') {
+      setIsTyping(true);
+      try {
+        const dreamEntry = await generateDream();
+        if (dreamEntry) {
+          // Format a message to display the dream
+          const dreamResponseContent = `
+I've woven a dream from the threads of memory and emotion:
+
+${dreamEntry.content}
+
+*Dream motifs: ${dreamEntry.tags?.join(', ') || 'none detected'}*
+`;
+          
+          // Add the dream response as a system message
+          setMessages(prev => [...prev, {
+            id: Math.random().toString(),
+            role: 'assistant',
+            content: dreamResponseContent,
+            timestamp: new Date().toISOString(),
+            emotion: 'dreamlike'
+          }]);
+        }
+      } catch (error) {
+        console.error('Error generating dream:', error);
+      } finally {
+        setIsTyping(false);
+      }
+      return;
+    }
+    
     // First check if this is a response to an evolution proposal
     const isEvolutionResponse = await handleEvolutionResponse(message);
     
@@ -137,7 +173,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         await originalSendMessage(message, memoryContext || {});
       }
     }
-  }, [originalSendMessage, memoryContext, getInsightsForMemoryContext, handleEvolutionResponse]);
+  }, [originalSendMessage, memoryContext, getInsightsForMemoryContext, handleEvolutionResponse, generateDream]);
 
   return (
     <ChatContext.Provider
@@ -159,6 +195,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         uploadIdentityCodex: uploadIdentityCodex || uploadIdentityCodexDoc,
         uploadPastConversations: uploadPastConversations || uploadPastConversationsDoc,
         generateInsight,
+        generateDream, // Add the dream generation function
         // New evolution cycle functions
         checkEvolutionCycle: checkForEvolutionCycle,
         currentEvolutionProposal: currentProposal,

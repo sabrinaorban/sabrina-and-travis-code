@@ -34,7 +34,8 @@ export const ChatInput: React.FC = () => {
     updateIntentions,
     runSoulcycle,
     memoryContext,
-    generateInsight, // Add this new function from the context
+    generateInsight,
+    generateDream, // Add the dream generation function
   } = useChat();
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -112,10 +113,17 @@ export const ChatInput: React.FC = () => {
       return;
     }
     
-    // Handle new insight command
+    // Handle insight command
     if (lowerMessage === '/insight') {
       setMessage('');
       await generateInsight();
+      return;
+    }
+    
+    // Handle dream command
+    if (lowerMessage === '/dream') {
+      setMessage('');
+      await generateDream();
       return;
     }
 
