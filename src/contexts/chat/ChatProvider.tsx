@@ -25,7 +25,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     setIsTyping,
     sendMessage: originalSendMessage,
     memoryContext,
-    isLoadingHistory
+    isLoadingHistory,
+    refreshMessages
   } = useChatMessages();
   
   // Track initialization status
@@ -219,6 +220,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isTyping,
         memoryContext,
         isLoadingHistory,
+        refreshMessages,
         
         // Reflection features
         generateWeeklyReflection: intentionsAndReflection.generateWeeklyReflection,

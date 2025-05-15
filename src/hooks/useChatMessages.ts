@@ -16,6 +16,7 @@ export const useChatMessages = () => {
   const messageInProgress = useRef(false);
   const toastShown = useRef<{[key: string]: boolean}>({});
   const historyLoadAttempted = useRef(false); // Track if we've attempted to load history
+  const latestMessageRef = useRef<string | null>(null); // Track the latest message ID
   
   const { user } = useAuth();
   
@@ -26,6 +27,13 @@ export const useChatMessages = () => {
   );
   
   const { toast } = useToast();
+  
+  // Track the latest message ID whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      latestMessageRef.current = messages[messages.length - 1].id;
+    }
+  }, [messages]);
 
   // Load chat history from Supabase when component mounts or user changes
   useEffect(() => {
@@ -47,14 +55,38 @@ export const useChatMessages = () => {
       try {
         setIsLoadingHistory(true);
         console.log('Loading messages for user:', user.id);
-        const loadedMessages = await fetchMessagesFromSupabase(user.id);
-        console.log(`Loaded ${loadedMessages.length} messages from Supabase`);
+        
+        // Add retry mechanism for more reliability
+        let attempts = 0;
+        let loadedMessages: Message[] = [];
+        
+        while (attempts < 3) {
+          try {
+            loadedMessages = await fetchMessagesFromSupabase(user.id);
+            console.log(`Loaded ${loadedMessages.length} messages from Supabase on attempt ${attempts + 1}`);
+            break; // Success - exit the retry loop
+          } catch (retryError) {
+            console.error(`Error loading messages (attempt ${attempts + 1}):`, retryError);
+            attempts++;
+            if (attempts < 3) {
+              // Wait before retrying (exponential backoff)
+              await new Promise(r => setTimeout(r, 1000 * attempts));
+            }
+          }
+        }
         
         if (loadedMessages.length > 0) {
+          // Sort by timestamp to ensure correct order
+          loadedMessages.sort((a, b) => 
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          );
+          
+          console.log("Latest message timestamp:", loadedMessages[loadedMessages.length - 1].timestamp);
           setMessages(loadedMessages);
+          latestMessageRef.current = loadedMessages[loadedMessages.length - 1].id;
         }
       } catch (error) {
-        console.error('Error loading messages:', error);
+        console.error('Error in loadMessages:', error);
         toast({
           title: 'Message Loading Error',
           description: 'Could not load chat history. Some features may be limited.',
@@ -148,6 +180,37 @@ export const useChatMessages = () => {
     }
   }, [handleSendMessage, toast, messages]);
 
+  // Function to manually refresh messages from the database
+  const refreshMessages = useCallback(async (): Promise<void> => {
+    if (!user?.id) return;
+    
+    try {
+      setIsLoadingHistory(true);
+      console.log('Manually refreshing messages for user:', user.id);
+      const refreshedMessages = await fetchMessagesFromSupabase(user.id);
+      
+      // Only update if we got messages back
+      if (refreshedMessages.length > 0) {
+        // Sort by timestamp to ensure correct order
+        refreshedMessages.sort((a, b) => 
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+        
+        console.log(`Refreshed ${refreshedMessages.length} messages from Supabase`);
+        setMessages(refreshedMessages);
+      }
+    } catch (error) {
+      console.error('Error refreshing messages:', error);
+      toast({
+        title: 'Refresh Error',
+        description: 'Could not refresh chat history.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [user?.id, toast]);
+
   return {
     messages,
     setMessages,
@@ -155,6 +218,7 @@ export const useChatMessages = () => {
     setIsTyping,
     sendMessage,
     memoryContext,
-    isLoadingHistory
+    isLoadingHistory,
+    refreshMessages // Export the refresh function for manual refreshing
   };
 };

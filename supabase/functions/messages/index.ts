@@ -40,6 +40,8 @@ serve(async (req) => {
         );
       }
       
+      console.log(`Fetching messages for user: ${userId}`);
+      
       // Fetch messages for the specified user
       const { data, error } = await supabase
         .from('messages')
@@ -47,7 +49,12 @@ serve(async (req) => {
         .eq('user_id', userId)
         .order('timestamp', { ascending: true });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching messages:', error);
+        throw error;
+      }
+      
+      console.log(`Fetched ${data?.length || 0} messages for user: ${userId}`);
       
       return new Response(
         JSON.stringify(data),
@@ -60,7 +67,8 @@ serve(async (req) => {
     
     // Process POST requests (create new message)
     else if (req.method === 'POST') {
-      const { userId, content, role } = await req.json();
+      const body = await req.json();
+      const { userId, content, role, id, timestamp, emotion } = body;
       
       if (!userId || !content || !role) {
         return new Response(
@@ -72,26 +80,35 @@ serve(async (req) => {
         );
       }
       
-      // Generate a timestamp for the message
-      const timestamp = new Date().toISOString();
-      const id = crypto.randomUUID();
+      // Generate a timestamp for the message if not provided
+      const messageTimestamp = timestamp || new Date().toISOString();
+      // Generate an ID if not provided
+      const messageId = id || crypto.randomUUID();
+      
+      console.log(`Storing message for user ${userId}: id=${messageId.substring(0,8)}, role=${role}`);
       
       // Insert the message into the database
       const { data, error } = await supabase
         .from('messages')
         .insert([
           {
-            id,
+            id: messageId,
             user_id: userId,
             content,
             role,
-            timestamp
+            timestamp: messageTimestamp,
+            emotion: emotion || null
           }
         ])
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error storing message:', error);
+        throw error;
+      }
+      
+      console.log(`Message stored successfully: ${messageId.substring(0,8)}`);
       
       return new Response(
         JSON.stringify(data),
@@ -116,13 +133,20 @@ serve(async (req) => {
         );
       }
       
+      console.log(`Deleting all messages for user: ${userId}`);
+      
       // Delete all messages for the specified user
       const { error } = await supabase
         .from('messages')
         .delete()
         .eq('user_id', userId);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error deleting messages:', error);
+        throw error;
+      }
+      
+      console.log(`Successfully deleted messages for user: ${userId}`);
       
       return new Response(
         JSON.stringify({ success: true }),

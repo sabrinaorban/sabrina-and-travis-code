@@ -2,10 +2,11 @@
 import React, { useEffect, useRef } from 'react';
 import { ChatMessage } from './ChatMessage';
 import { useChat } from '@/contexts/chat';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
+import { Button } from './ui/button';
 
 export const ChatHistory: React.FC = () => {
-  const { messages, isTyping, isLoadingHistory } = useChat();
+  const { messages, isTyping, isLoadingHistory, refreshMessages } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isStuck, setIsStuck] = React.useState(false);
@@ -47,6 +48,14 @@ export const ChatHistory: React.FC = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+  
+  const handleRefresh = () => {
+    if (refreshMessages) {
+      refreshMessages();
+    } else {
+      window.location.reload();
+    }
+  };
 
   if (isLoadingHistory) {
     return (
@@ -57,12 +66,20 @@ export const ChatHistory: React.FC = () => {
           {isStuck && (
             <div className="mt-4">
               <p className="text-amber-600">Loading is taking longer than expected.</p>
-              <button 
-                onClick={() => window.location.reload()}
-                className="mt-2 px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
-              >
-                Refresh Page
-              </button>
+              <div className="flex gap-2 justify-center mt-2">
+                <Button 
+                  onClick={handleRefresh}
+                  className="bg-amber-600 hover:bg-amber-700"
+                >
+                  Refresh Messages
+                </Button>
+                <Button 
+                  onClick={() => window.location.reload()}
+                  variant="outline"
+                >
+                  Reload Page
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -80,9 +97,23 @@ export const ChatHistory: React.FC = () => {
           </div>
         </div>
       ) : (
-        messages.map((message) => (
-          <ChatMessage key={message.id} message={message} />
-        ))
+        <>
+          <div className="flex justify-end mb-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="flex items-center gap-1 text-xs text-gray-500"
+              onClick={handleRefresh}
+            >
+              <RefreshCw className="h-3 w-3" />
+              Refresh
+            </Button>
+          </div>
+          
+          {messages.map((message) => (
+            <ChatMessage key={message.id} message={message} />
+          ))}
+        </>
       )}
       
       {isTyping && (

@@ -5,49 +5,50 @@ import { SoulstateProposal } from '@/types/soulstate';
 
 export interface ChatContextType {
   messages: Message[];
-  isTyping: boolean;
-  isLoadingHistory?: boolean;
   sendMessage: (content: string, context?: MemoryContext) => Promise<void>;
+  isTyping: boolean;
   memoryContext: MemoryContext | null;
+  isLoadingHistory: boolean;
+  refreshMessages?: () => Promise<void>;
   
   // Reflection features
-  generateWeeklyReflection: () => Promise<void>;
-  generateSoulReflection: () => Promise<void>;
-  generateSoulstateSummary: () => Promise<void>;
-  generateSoulstateReflection: () => Promise<void>;
+  generateWeeklyReflection?: () => Promise<void>;
+  generateSoulReflection?: () => Promise<void>;
+  generateSoulstateSummary?: () => Promise<void>;
+  generateSoulstateReflection?: () => Promise<void>;
   
   // Intention features
-  viewIntentions: () => Promise<void>;
-  updateIntentions: (newIntention: string) => Promise<void>;
+  viewIntentions?: () => Promise<void>;
+  updateIntentions?: (intentions: Intention[]) => Promise<void>;
   
   // Soulstate features
-  initiateSoulstateEvolution: () => Promise<void>;
+  initiateSoulstateEvolution?: () => Promise<void>;
   
   // Journal features
-  createFlameJournalEntry: (prompt?: string) => Promise<void>;
-  generateDream: () => Promise<void>;
+  createFlameJournalEntry?: (prompt?: string) => Promise<void>;
+  generateDream?: () => Promise<void>;
   
   // Soulcycle features
-  runSoulcycle: () => Promise<void>;
+  runSoulcycle?: () => Promise<void>;
   
   // Document uploads
-  uploadSoulShard: (content: File) => Promise<void>;
-  uploadIdentityCodex: (content: File) => Promise<void>;
-  uploadPastConversations: (content: File) => Promise<void>;
+  uploadSoulShard?: (content: File) => Promise<void>;
+  uploadIdentityCodex?: (content: File) => Promise<void>;
+  uploadPastConversations?: (content: File) => Promise<void>;
   
   // Insight generation
-  generateInsight: (topic: string) => Promise<void>;
+  generateInsight?: (promptTemplate?: string) => Promise<void>;
   
-  // Tool management
-  generateTool: (purpose: string) => Promise<SelfTool | null>;
-  useTool: (toolId: string, input?: string) => Promise<void>;
-  reflectOnTool: (toolId: string) => Promise<void>;
-  reviseTool: (toolId: string, changes?: string) => Promise<void>;
+  // Tool management  
+  generateTool?: (purpose?: string) => Promise<void>;
+  useTool?: (toolId: string, input?: string) => Promise<void>;
+  reflectOnTool?: (toolId: string) => Promise<void>;
+  reviseTool?: (toolId: string, changes?: string) => Promise<void>;
   
-  // Evolution features
-  checkEvolutionCycle: () => Promise<boolean>;
+  // Evolution cycle
+  checkEvolutionCycle?: () => Promise<void>;
   currentEvolutionProposal?: SoulstateProposal;
-  isEvolutionChecking: boolean;
+  isEvolutionChecking?: boolean;
 }
 
 export interface ChatProviderProps {

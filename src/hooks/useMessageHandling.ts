@@ -3,7 +3,8 @@ import { Message, MemoryContext } from '@/types';
 import { useMemoryManagement } from './useMemoryManagement';
 import { useToast } from '@/hooks/use-toast';
 import { useLivedMemory } from './useLivedMemory';
-import { callOpenAI } from '@/services/ChatService';
+import { callOpenAI, storeUserMessage, storeAssistantMessage } from '@/services/ChatService';
+import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Hook for handling message sending and processing
@@ -18,19 +19,34 @@ export const useMessageHandling = (
   const { refreshMemoryContext } = useMemoryManagement(setMessages);
   const { buildLivedMemoryContext, storePersistentFact } = useLivedMemory();
   const apiErrorCount = useRef(0);
+  const { user } = useAuth();
 
   // Function to send a message
   const sendMessage = useCallback(async (content: string, context: MemoryContext = {}) => {
-    if (!content.trim()) return;
+    if (!content.trim() || !user?.id) return;
     
     try {
-      // Add user message to the chat
-      const userMessage: Message = {
-        id: crypto.randomUUID(),
-        content,
-        role: 'user',
-        timestamp: new Date().toISOString(),
-      };
+      // Add user message to the chat and persist to Supabase
+      let userMessage: Message;
+      try {
+        userMessage = await storeUserMessage(user.id, content);
+        console.log("Message stored in Supabase with ID:", userMessage.id);
+      } catch (storeError) {
+        console.error("Failed to store user message in Supabase:", storeError);
+        // Create local message if storage fails
+        userMessage = {
+          id: crypto.randomUUID(),
+          content,
+          role: 'user',
+          timestamp: new Date().toISOString(),
+        };
+        // Show persistence error to user
+        toast({
+          title: 'Storage Warning',
+          description: 'Your message was sent but may not persist after page refresh',
+          variant: 'warning',
+        });
+      }
       
       console.log("useMessageHandling: Adding user message to chat:", userMessage.id);
       setMessages(prev => [...prev, userMessage]);
@@ -49,7 +65,7 @@ export const useMessageHandling = (
       
       console.log("useMessageHandling: Sending request to API with context:", Object.keys(updatedContext));
       
-      // FIXED: Use callOpenAI from ChatService instead of fetch to /api/messages
+      // Use callOpenAI from ChatService
       let responseData;
       try {
         // Convert messages to OpenAI format
@@ -89,18 +105,25 @@ export const useMessageHandling = (
         throw new Error('Invalid response format from API');
       }
       
-      // Add assistant message to the chat
-      const assistantMessage: Message = {
-        id: crypto.randomUUID(),
-        content: assistantContent,
-        role: 'assistant',
-        timestamp: new Date().toISOString(),
-        emotion: responseData.emotion || null,
-      };
+      // Save assistant message to Supabase and add to chat
+      let assistantMessage: Message;
+      try {
+        assistantMessage = await storeAssistantMessage(user.id, assistantContent, responseData.emotion || null);
+      } catch (storeError) {
+        console.error("Failed to store assistant message in Supabase:", storeError);
+        // Create local message if storage fails
+        assistantMessage = {
+          id: crypto.randomUUID(),
+          content: assistantContent,
+          role: 'assistant',
+          timestamp: new Date().toISOString(),
+          emotion: responseData.emotion || null,
+        };
+      }
       
       console.log("useMessageHandling: Adding assistant response to messages:", assistantMessage.id);
       
-      // CRITICAL: Ensure we're properly updating the state with the new message
+      // Update the state with the new message
       setMessages(prev => {
         const newMessages = [...prev, assistantMessage];
         console.log("New messages state:", newMessages.map(m => `${m.id.substring(0,6)}:${m.role}`));
@@ -133,6 +156,15 @@ export const useMessageHandling = (
         timestamp: new Date().toISOString(),
       };
       
+      // Try to persist the fallback message if possible
+      if (user?.id) {
+        try {
+          await storeAssistantMessage(user.id, fallbackMessage.content);
+        } catch (e) {
+          console.error("Failed to store fallback message:", e);
+        }
+      }
+      
       // Add the fallback message to keep the conversation flowing
       setMessages(prev => [...prev, fallbackMessage]);
       
@@ -141,7 +173,7 @@ export const useMessageHandling = (
       console.log("useMessageHandling: Message handling complete, setting isTyping to false");
       setIsTyping(false);
     }
-  }, [refreshMemoryContext, buildLivedMemoryContext, setMessages, setIsTyping, toast, storePersistentFact, messages]);
+  }, [refreshMemoryContext, buildLivedMemoryContext, setMessages, setIsTyping, toast, storePersistentFact, messages, user]);
 
   return {
     sendMessage,

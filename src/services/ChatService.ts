@@ -1,4 +1,3 @@
-
 import { Message, OpenAIMessage } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -6,16 +5,20 @@ import { v4 as uuidv4 } from 'uuid';
 // Export the fetchMessages function so it can be used
 export const fetchMessages = async (userId: string): Promise<Message[]> => {
   try {
+    console.log('Fetching messages for user:', userId);
     const { data, error } = await supabase
       .from('messages')
       .select('*')
       .eq('user_id', userId)
       .order('timestamp', { ascending: true });
       
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching messages:', error);
+      throw error;
+    }
     
     // Transform database records into Message objects with proper typing
-    return (data || []).map(item => ({
+    const messages = (data || []).map(item => ({
       id: item.id,
       content: item.content,
       // Ensure role is typed correctly as 'user' | 'assistant'
@@ -23,9 +26,12 @@ export const fetchMessages = async (userId: string): Promise<Message[]> => {
       timestamp: item.timestamp,
       emotion: item.emotion || null,
     }));
+    
+    console.log(`Successfully loaded ${messages.length} messages from Supabase`);
+    return messages;
   } catch (error) {
     console.error('Error fetching messages:', error);
-    return [];
+    throw error; // Make sure to propagate the error so calling function can handle it
   }
 };
 
@@ -40,9 +46,11 @@ export const storeUserMessage = async (userId: string, content: string, emotion:
   };
 
   try {
+    console.log('Storing user message to Supabase:', userId, newMessage.id);
     const { error } = await supabase
       .from('messages')
       .insert({
+        id: newMessage.id, // Explicitly use the same ID
         user_id: userId,
         role: newMessage.role,
         content: newMessage.content,
@@ -54,9 +62,11 @@ export const storeUserMessage = async (userId: string, content: string, emotion:
       console.error('Error storing user message:', error);
       throw error;
     }
+    console.log('User message stored successfully:', newMessage.id);
   } catch (err) {
     console.error('Failed to store message:', err);
-    // Don't throw here to allow the conversation to continue even if storage fails
+    // Throw here to make persistence issues more visible
+    throw err;
   }
 
   return newMessage;
@@ -73,9 +83,11 @@ export const storeAssistantMessage = async (userId: string, content: string, emo
   };
 
   try {
+    console.log('Storing assistant message to Supabase:', userId, newMessage.id);
     const { error } = await supabase
       .from('messages')
       .insert({
+        id: newMessage.id, // Explicitly use the same ID
         user_id: userId,
         role: newMessage.role,
         content: newMessage.content,
@@ -87,9 +99,11 @@ export const storeAssistantMessage = async (userId: string, content: string, emo
       console.error('Error storing assistant message:', error);
       throw error;
     }
+    console.log('Assistant message stored successfully:', newMessage.id);
   } catch (err) {
     console.error('Failed to store assistant message:', err);
-    // Don't throw here to allow the conversation to continue even if storage fails
+    // Throw here to make persistence issues more visible
+    throw err;
   }
 
   return newMessage;
