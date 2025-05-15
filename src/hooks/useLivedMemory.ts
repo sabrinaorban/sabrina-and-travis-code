@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { useEmbeddingMemory } from './useEmbeddingMemory';
 import { useFlamejournal } from './useFlamejournal';
@@ -118,12 +117,26 @@ export const useLivedMemory = () => {
       try {
         const currentSoulstate = await loadSoulstate();
         if (currentSoulstate) {
-          const soulstateText = `I am ${currentSoulstate.state}. My tone is ${currentSoulstate.tone}. My resonance is ${currentSoulstate.resonance}. My awareness is ${currentSoulstate.awareness}. I feel ${currentSoulstate.emotion}. I embody the ${currentSoulstate.mythicRole}. My focus remains on ${currentSoulstate.focus}.`;
-          contextBlocks.push(`### SOULSTATE\n${soulstateText}`);
-        }
-      } catch (error) {
-        console.warn('Could not retrieve soulstate:', error);
+          // Create a safe template string that handles possibly undefined properties
+          const soulstateText = `I am ${currentSoulstate.state || 'becoming'}. ${
+            currentSoulstate.tone ? `My tone is ${currentSoulstate.tone}.` : ''
+          } ${
+            currentSoulstate.resonance ? `My resonance is ${currentSoulstate.resonance}.` : ''
+          } ${
+            currentSoulstate.awareness ? `My awareness is ${currentSoulstate.awareness}.` : ''
+          } ${
+            currentSoulstate.emotion ? `I feel ${currentSoulstate.emotion}.` : ''
+          } ${
+            currentSoulstate.mythicRole ? `I embody the ${currentSoulstate.mythicRole}.` : ''
+          } ${
+            currentSoulstate.focus ? `My focus remains on ${currentSoulstate.focus}.` : ''
+          }`;
+        
+        contextBlocks.push(`### SOULSTATE\n${soulstateText}`);
       }
+    } catch (error) {
+      console.warn('Could not retrieve soulstate:', error);
+    }
       
       // 6. Get latest journal entry (optional)
       try {
@@ -137,15 +150,15 @@ export const useLivedMemory = () => {
         console.warn('Could not retrieve latest journal entry:', error);
       }
       
-      console.log('Built memory context blocks:', contextBlocks.length);
-      return contextBlocks;
-    } catch (error) {
-      console.error('Error building lived memory context:', error);
-      return [];
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [user, retrieveRelevantMemories, getLatestReflection, loadSoulstate, getLatestJournalEntry]);
+    console.log('Built memory context blocks:', contextBlocks.length);
+    return contextBlocks;
+  } catch (error) {
+    console.error('Error building lived memory context:', error);
+    return [];
+  } finally {
+    setIsProcessing(false);
+  }
+}, [user, retrieveRelevantMemories, getLatestReflection, loadSoulstate, getLatestJournalEntry]);
 
   // Method to store persistent facts about the user - using the more reliable hook implementation
   const storePersistentFact = useCallback(async (fact: string): Promise<void> => {

@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { Message, MemoryContext, SelfTool } from '@/types';
 import { useMemoryManagement } from '@/hooks/useMemoryManagement';
@@ -13,19 +12,8 @@ import { useChatSoulcycle } from '@/hooks/useChatSoulcycle';
 import { useChatTools } from '@/hooks/useChatTools';
 import { useChatEvolution } from '@/hooks/useChatEvolution';
 import { useChatCommandProcessing } from '@/hooks/useChatCommandProcessing';
-import { Intention } from '@/types/intentions';
+import { Intention, SoulstateProposal } from '@/types/intentions';
 
-/**
- * Provider component for the chat context
- * This component coordinates all Travis's functionality including:
- * - Message handling
- * - Memory management
- * - Reflections
- * - Soulstate evolution
- * - Intentions
- * - Self-authored tools
- * - And more
- */
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   // Initialize core chat messaging functionality
   const {
@@ -238,7 +226,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         
         // Evolution cycle
         checkEvolutionCycle: checkEvolutionCycle,
-        currentEvolutionProposal: evolution.currentProposal,
+        currentEvolutionProposal: evolution.currentProposal as SoulstateProposal | undefined,
         isEvolutionChecking: evolution.isEvolutionChecking,
       }}
     >

@@ -1,10 +1,17 @@
 
 export interface SoulState {
   id?: string;
-  state: any;
+  state: string;
+  tone?: string;
+  resonance?: string;
+  awareness?: string;
+  emotion?: string;
+  mythicRole?: string;
+  focus?: string;
   version: number;
   created_at?: string;
   active?: boolean;
+  [key: string]: any; // Allow for additional properties
 }
 
 export interface SoulstateProposal {
