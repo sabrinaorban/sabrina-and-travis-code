@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Message, MemoryContext, SelfTool } from '@/types';
 import { useMemoryManagement } from '@/hooks/useMemoryManagement';
@@ -194,6 +195,26 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     await tools.reviseTool(toolId);
   }, [tools]);
 
+  // Convert EvolutionProposal to SoulstateProposal if needed
+  const convertToSoulstateProposal = (evolutionProposal: any): SoulstateProposal | undefined => {
+    if (!evolutionProposal) return undefined;
+    
+    // Extract the soulstate evolution part from the evolution proposal
+    const soulstateEvolution = evolutionProposal.soulstateEvolution;
+    
+    // If there's no soulstate evolution data, return undefined
+    if (!soulstateEvolution) return undefined;
+    
+    // Create a SoulstateProposal object with the required fields
+    return {
+      id: evolutionProposal.id || crypto.randomUUID(),
+      currentState: soulstateEvolution.currentState || {},
+      proposedChanges: soulstateEvolution.proposedState || {},
+      reasoning: evolutionProposal.message || "Evolution based on recent interactions",
+      created_at: evolutionProposal.timestamp || new Date().toISOString()
+    };
+  };
+
   return (
     <ChatContext.Provider
       value={{
@@ -239,7 +260,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         
         // Evolution cycle
         checkEvolutionCycle: checkEvolutionCycle,
-        currentEvolutionProposal: evolution.currentProposal as SoulstateProposal | undefined,
+        currentEvolutionProposal: convertToSoulstateProposal(evolution.currentProposal),
         isEvolutionChecking: evolution.isEvolutionChecking,
       }}
     >
