@@ -13,7 +13,6 @@ import { useToast } from '@/hooks/use-toast';
 import { GitHubAuth } from '@/components/GitHubAuth';
 import { GitHubRepoSelector } from '@/components/GitHubRepoSelector';
 import { GitHubProvider, useGitHub } from '@/contexts/github';
-import { TestButton } from '@/components/TestButton';
 import { GitHubCommitPanelContainer } from '@/components/github/commit/GitHubCommitPanelContainer';
 import { ReflectionButton } from '@/components/ReflectionButton';
 import { 
@@ -202,7 +201,6 @@ const DashboardContent = () => {
         </div>
         <div className="flex items-center gap-4">
           {/* Add TestButton next to GitHub button */}
-          <TestButton />
           
           {/* Add Reflection Button */}
           <ReflectionButton />
