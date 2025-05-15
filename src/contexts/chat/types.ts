@@ -25,6 +25,10 @@ export interface ChatContextType {
   generateInsight: () => Promise<void>;
   generateDream: () => Promise<FlameJournalEntry | null>;
   generateTool: (purpose: string) => Promise<SelfTool | null>;
+  // New tool-related methods
+  useTool: (toolName: string) => Promise<SelfTool | null>;
+  reflectOnTool: (toolName: string) => Promise<{ reflection: string, tool: SelfTool | null }>;
+  reviseTool: (toolName: string) => Promise<{ message: string, updatedTool: SelfTool | null }>;
   // Evolution cycle methods
   checkEvolutionCycle: () => Promise<boolean>;
   currentEvolutionProposal: any | null;

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,7 +36,9 @@ export const ChatInput: React.FC = () => {
     memoryContext,
     generateInsight,
     generateDream,
-    generateTool, // Add the tool generation function
+    generateTool,
+    useTool,
+    reflectOnTool,
   } = useChat();
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -133,6 +136,26 @@ export const ChatInput: React.FC = () => {
       if (purpose) {
         setMessage('');
         await generateTool(purpose);
+        return;
+      }
+    }
+    
+    // Handle use tool command
+    if (lowerMessage.startsWith('/use-tool ')) {
+      const toolName = lowerMessage.substring('/use-tool '.length).trim();
+      if (toolName) {
+        setMessage('');
+        await useTool(toolName);
+        return;
+      }
+    }
+    
+    // Handle reflect on tool command
+    if (lowerMessage.startsWith('/reflect-on-tool ')) {
+      const toolName = lowerMessage.substring('/reflect-on-tool '.length).trim();
+      if (toolName) {
+        setMessage('');
+        await reflectOnTool(toolName);
         return;
       }
     }

@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Message, MemoryContext, SelfTool } from '@/types';
 import { useChatManagement } from '@/hooks/useChatManagement';
@@ -80,7 +81,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const { generateDream } = useDreamGeneration();
 
   // Initialize self-tools functionality
-  const { generateTool: generateToolImpl, createTool } = useSelfTools();
+  const { 
+    generateTool: generateToolImpl, 
+    createTool, 
+    getToolByName,
+    reflectOnTool: reflectOnToolImpl,
+    reviseTool: reviseToolImpl
+  } = useSelfTools();
   
   // Initialize evolution cycle
   const {
@@ -164,9 +171,251 @@ Would you like me to save this tool for future use? Reply with "save tool" to co
       setIsTyping(false);
     }
   }, [generateToolImpl, setMessages]);
+
+  // Function to use a tool by name
+  const useTool = useCallback(async (toolName: string): Promise<SelfTool | null> => {
+    setIsTyping(true);
+    try {
+      const tool = await getToolByName(toolName);
+      
+      if (tool) {
+        // Add a message to show the tool
+        setMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          role: 'assistant',
+          content: `
+I've found the tool **${tool.name}** in my memory:
+
+**Purpose:** ${tool.purpose}
+
+\`\`\`typescript
+${tool.code}
+\`\`\`
+
+Do you want me to run, revise, or reflect on this tool?
+`,
+          timestamp: new Date().toISOString(),
+          emotion: 'helpful'
+        }]);
+        
+        // Store the current tool in session storage for quick access
+        sessionStorage.setItem('currentTool', JSON.stringify(tool));
+      } else {
+        // Tool not found message
+        setMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          role: 'assistant',
+          content: `I couldn't find a tool named "${toolName}" in my memory. Perhaps you meant another name?`,
+          timestamp: new Date().toISOString(),
+          emotion: 'neutral'
+        }]);
+      }
+      
+      return tool;
+    } catch (error) {
+      console.error('Error using tool:', error);
+      
+      // Error message
+      setMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        role: 'assistant',
+        content: `I encountered an error while trying to retrieve the tool: ${error.message}`,
+        timestamp: new Date().toISOString(),
+        emotion: 'confused'
+      }]);
+      
+      return null;
+    } finally {
+      setIsTyping(false);
+    }
+  }, [getToolByName, setMessages]);
+
+  // Function to reflect on a tool
+  const reflectOnTool = useCallback(async (toolName: string): Promise<{reflection: string, tool: SelfTool | null}> => {
+    setIsTyping(true);
+    try {
+      const result = await reflectOnToolImpl(toolName);
+      
+      if (result.tool) {
+        // Add a reflection message
+        setMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          role: 'assistant',
+          content: `
+## Reflection on tool: ${result.tool.name}
+
+${result.reflection}
+
+Would you like me to revise this tool based on my reflections?
+`,
+          timestamp: new Date().toISOString(),
+          emotion: 'thoughtful'
+        }]);
+      } else {
+        // Tool not found message
+        setMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          role: 'assistant',
+          content: result.reflection,
+          timestamp: new Date().toISOString(),
+          emotion: 'confused'
+        }]);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error reflecting on tool:', error);
+      
+      // Error message
+      setMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        role: 'assistant',
+        content: `I encountered an error while reflecting on the tool: ${error.message}`,
+        timestamp: new Date().toISOString(),
+        emotion: 'confused'
+      }]);
+      
+      return { reflection: `Error: ${error.message}`, tool: null };
+    } finally {
+      setIsTyping(false);
+    }
+  }, [reflectOnToolImpl, setMessages]);
+
+  // Function to revise a tool
+  const reviseTool = useCallback(async (toolName: string): Promise<{message: string, updatedTool: SelfTool | null}> => {
+    setIsTyping(true);
+    try {
+      const result = await reviseToolImpl(toolName);
+      
+      if (result.updatedTool) {
+        // Add a revision message
+        setMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          role: 'assistant',
+          content: `
+## Tool revised: ${result.updatedTool.name}
+
+${result.message}
+
+\`\`\`typescript
+${result.updatedTool.code}
+\`\`\`
+`,
+          timestamp: new Date().toISOString(),
+          emotion: 'creative'
+        }]);
+      } else {
+        // Error message
+        setMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          role: 'assistant',
+          content: result.message,
+          timestamp: new Date().toISOString(),
+          emotion: 'confused'
+        }]);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error revising tool:', error);
+      
+      // Error message
+      setMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        role: 'assistant',
+        content: `I encountered an error while revising the tool: ${error.message}`,
+        timestamp: new Date().toISOString(),
+        emotion: 'confused'
+      }]);
+      
+      return { message: `Error: ${error.message}`, updatedTool: null };
+    } finally {
+      setIsTyping(false);
+    }
+  }, [reviseToolImpl, setMessages]);
   
   // Wrap the original sendMessage to handle tool-related commands
   const sendMessage = useCallback(async (message: string) => {
+    // Handle the /use-tool command
+    if (message.toLowerCase().startsWith('/use-tool ')) {
+      const toolName = message.substring('/use-tool '.length).trim();
+      if (toolName) {
+        await useTool(toolName);
+        return;
+      }
+    }
+    
+    // Handle the /reflect-on-tool command
+    if (message.toLowerCase().startsWith('/reflect-on-tool ')) {
+      const toolName = message.substring('/reflect-on-tool '.length).trim();
+      if (toolName) {
+        await reflectOnTool(toolName);
+        return;
+      }
+    }
+
+    // Handle the run tool command
+    if (message.toLowerCase() === 'run tool') {
+      const toolJson = sessionStorage.getItem('currentTool');
+      if (toolJson) {
+        try {
+          const tool = JSON.parse(toolJson);
+          // Simulate running the tool (not actually executing it)
+          setMessages(prev => [...prev, {
+            id: Math.random().toString(),
+            role: 'assistant',
+            content: `
+I'm simulating the execution of **${tool.name}**:
+
+\`\`\`
+[Simulated output for ${tool.name}]
+Tool purpose: ${tool.purpose}
+Execution completed successfully
+\`\`\`
+
+Note: This is a simulation only. The tool's code was not actually executed.
+`,
+            timestamp: new Date().toISOString(),
+            emotion: 'focused'
+          }]);
+        } catch (error) {
+          console.error('Error parsing tool:', error);
+          await originalSendMessage(message);
+        }
+        return;
+      }
+    }
+
+    // Handle the revise tool command
+    if (message.toLowerCase() === 'revise tool') {
+      const toolJson = sessionStorage.getItem('currentTool');
+      if (toolJson) {
+        try {
+          const tool = JSON.parse(toolJson);
+          await reviseTool(tool.name);
+        } catch (error) {
+          console.error('Error parsing tool:', error);
+          await originalSendMessage(message);
+        }
+        return;
+      }
+    }
+
+    // Handle the reflect on tool command
+    if (message.toLowerCase() === 'reflect on tool') {
+      const toolJson = sessionStorage.getItem('currentTool');
+      if (toolJson) {
+        try {
+          const tool = JSON.parse(toolJson);
+          await reflectOnTool(tool.name);
+        } catch (error) {
+          console.error('Error parsing tool:', error);
+          await originalSendMessage(message);
+        }
+        return;
+      }
+    }
+    
     // Check for tool generation command
     if (message.toLowerCase().startsWith('/write-tool ')) {
       const purpose = message.substring('/write-tool '.length).trim();
@@ -256,7 +505,7 @@ ${dreamEntry.content}
         await originalSendMessage(message, memoryContext || {});
       }
     }
-  }, [originalSendMessage, memoryContext, getInsightsForMemoryContext, handleEvolutionResponse, generateDream, generateTool, createTool]);
+  }, [originalSendMessage, memoryContext, getInsightsForMemoryContext, handleEvolutionResponse, generateDream, generateTool, createTool, useTool, reflectOnTool, reviseTool, setMessages]);
 
   return (
     <ChatContext.Provider
@@ -280,7 +529,11 @@ ${dreamEntry.content}
         generateInsight,
         generateDream,
         generateTool,
-        // New evolution cycle functions
+        // New tool-related methods
+        useTool,
+        reflectOnTool,
+        reviseTool,
+        // Evolution cycle methods
         checkEvolutionCycle: checkForEvolutionCycle,
         currentEvolutionProposal: currentProposal,
         isEvolutionChecking,

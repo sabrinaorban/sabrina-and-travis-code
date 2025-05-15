@@ -23,7 +23,11 @@ const defaultChatContext: ChatContextType = {
   generateInsight: async () => {},
   generateDream: async () => null,
   generateTool: async () => null,
-  // New evolution cycle methods
+  // New tool-related methods
+  useTool: async () => null,
+  reflectOnTool: async () => ({ reflection: '', tool: null }),
+  reviseTool: async () => ({ message: '', updatedTool: null }),
+  // Evolution cycle methods
   checkEvolutionCycle: async () => false,
   currentEvolutionProposal: null,
   isEvolutionChecking: false,
