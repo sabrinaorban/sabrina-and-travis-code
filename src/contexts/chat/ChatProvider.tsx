@@ -28,6 +28,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     isLoadingHistory
   } = useChatMessages();
   
+  // Track initialization status
+  const [isInitialized, setIsInitialized] = useState(false);
+  
   // Initialize all Travis's features
   const intentionsAndReflection = useChatIntentionsAndReflection(setMessages);
   const soulstate = useChatSoulstate(setMessages);
@@ -46,23 +49,31 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   
   // Process message history for insights after message changes
   useEffect(() => {
-    if (messages.length > 0 && !isLoadingHistory) {
+    if (messages.length > 0 && !isLoadingHistory && isInitialized) {
       intentionsAndReflection.processMessageHistoryForInsights(messages).catch(console.error);
     }
-  }, [messages, intentionsAndReflection, isLoadingHistory]);
+  }, [messages, intentionsAndReflection, isLoadingHistory, isInitialized]);
+  
+  // Mark as initialized once history is loaded
+  useEffect(() => {
+    if (!isLoadingHistory && !isInitialized) {
+      console.log("Chat system initialization complete");
+      setIsInitialized(true);
+    }
+  }, [isLoadingHistory, isInitialized]);
   
   // Check for evolution cycle on initial load
   useEffect(() => {
     // We'll check for evolution only once after initial load and once history is loaded
     // This will properly set up the mechanism to be triggered every 3 days
-    const initialCheckTimeout = setTimeout(() => {
-      if (messages.length > 0 && !isLoadingHistory) {
+    if (isInitialized && messages.length > 0) {
+      const initialCheckTimeout = setTimeout(() => {
         checkEvolutionCycle().catch(console.error);
-      }
-    }, 10000); // Wait 10 seconds after initial load
-    
-    return () => clearTimeout(initialCheckTimeout);
-  }, [messages, isLoadingHistory, checkEvolutionCycle]);
+      }, 10000); // Wait 10 seconds after initialization
+      
+      return () => clearTimeout(initialCheckTimeout);
+    }
+  }, [isInitialized, messages, checkEvolutionCycle]);
   
   // Create a wrapper for sendMessage that first checks for commands
   const sendMessage = useCallback(async (content: string, context?: MemoryContext): Promise<void> => {
@@ -127,45 +138,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     await soulcycle.runSoulcycle();
   }, [soulcycle]);
   
-  const uploadSoulShardWrapper = useCallback(async (content: File): Promise<void> => {
-    if (documentUpload.uploadSoulShard) {
-      await documentUpload.uploadSoulShard(content);
-    } else if (memoryManagement.uploadSoulShard) {
-      const text = await readFileAsText(content);
-      // The following line was the problem:
-      // await memoryManagement.uploadSoulShard(text);
-      // The corrected line is:
-      const file = new File([text], "soulshard.txt", { type: "text/plain" });
-      await memoryManagement.uploadSoulShard(file);
-    }
-  }, [documentUpload, memoryManagement]);
-  
-  const uploadIdentityCodexWrapper = useCallback(async (content: File): Promise<void> => {
-    if (documentUpload.uploadIdentityCodex) {
-      await documentUpload.uploadIdentityCodex(content);
-    } else if (memoryManagement.uploadIdentityCodex) {
-      const text = await readFileAsText(content);
-      // The following line was the problem:
-      // await memoryManagement.uploadIdentityCodex(text);
-      // The corrected line is:
-      const file = new File([text], "identitycodex.txt", { type: "text/plain" });
-      await memoryManagement.uploadIdentityCodex(file);
-    }
-  }, [documentUpload, memoryManagement]);
-  
-  const uploadPastConversationsWrapper = useCallback(async (content: File): Promise<void> => {
-    if (documentUpload.uploadPastConversations) {
-      await documentUpload.uploadPastConversations(content);
-    } else if (memoryManagement.uploadPastConversations) {
-      const text = await readFileAsText(content);
-      // The following line was the problem:
-      // await memoryManagement.uploadPastConversations(text);
-      // The corrected line is:
-      const file = new File([text], "pastconversations.json", { type: "application/json" });
-      await memoryManagement.uploadPastConversations(file);
-    }
-  }, [documentUpload, memoryManagement]);
-
   // Helper function to read file as text
   const readFileAsText = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -181,6 +153,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       reader.readAsText(file);
     });
   };
+  
+  const uploadSoulShardWrapper = useCallback(async (content: File): Promise<void> => {
+    if (documentUpload.uploadSoulShard) {
+      await documentUpload.uploadSoulShard(content);
+    } else if (memoryManagement.uploadSoulShard) {
+      await memoryManagement.uploadSoulShard(content);
+    }
+  }, [documentUpload, memoryManagement]);
+  
+  const uploadIdentityCodexWrapper = useCallback(async (content: File): Promise<void> => {
+    if (documentUpload.uploadIdentityCodex) {
+      await documentUpload.uploadIdentityCodex(content);
+    } else if (memoryManagement.uploadIdentityCodex) {
+      await memoryManagement.uploadIdentityCodex(content);
+    }
+  }, [documentUpload, memoryManagement]);
+  
+  const uploadPastConversationsWrapper = useCallback(async (content: File): Promise<void> => {
+    if (documentUpload.uploadPastConversations) {
+      await documentUpload.uploadPastConversations(content);
+    } else if (memoryManagement.uploadPastConversations) {
+      await memoryManagement.uploadPastConversations(content);
+    }
+  }, [documentUpload, memoryManagement]);
 
   // Tool wrappers
   const useToolWrapper = useCallback(async (toolId: string, input?: string): Promise<void> => {

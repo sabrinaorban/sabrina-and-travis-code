@@ -15,6 +15,7 @@ export const useChatMessages = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const messageInProgress = useRef(false);
   const toastShown = useRef<{[key: string]: boolean}>({});
+  const historyLoadAttempted = useRef(false); // Track if we've attempted to load history
   
   const { user } = useAuth();
   
@@ -28,11 +29,24 @@ export const useChatMessages = () => {
 
   // Load chat history from Supabase when component mounts or user changes
   useEffect(() => {
-    if (!user?.id) return;
+    // Skip if we don't have a user yet
+    if (!user?.id) {
+      // If no user, we're not actually loading
+      setIsLoadingHistory(false);
+      return;
+    }
+    
+    // Only attempt to load once per user
+    if (historyLoadAttempted.current) {
+      return;
+    }
+    
+    historyLoadAttempted.current = true;
     
     const loadMessages = async () => {
       try {
         setIsLoadingHistory(true);
+        console.log('Loading messages for user:', user.id);
         const loadedMessages = await fetchMessagesFromSupabase(user.id);
         console.log(`Loaded ${loadedMessages.length} messages from Supabase`);
         
@@ -47,6 +61,7 @@ export const useChatMessages = () => {
           variant: 'destructive',
         });
       } finally {
+        // Ensure we always set loading to false, even if there's an error
         setIsLoadingHistory(false);
       }
     };
@@ -58,6 +73,19 @@ export const useChatMessages = () => {
   useEffect(() => {
     console.log("useChatMessages: Messages state updated:", messages.length);
   }, [messages]);
+
+  // Add a safeguard to reset loading state after a timeout
+  useEffect(() => {
+    // If loading takes more than 10 seconds, force it to false
+    const loadingTimeout = setTimeout(() => {
+      if (isLoadingHistory) {
+        console.warn('Loading history timeout reached. Forcing loading state to false.');
+        setIsLoadingHistory(false);
+      }
+    }, 10000);
+    
+    return () => clearTimeout(loadingTimeout);
+  }, [isLoadingHistory]);
 
   // Wrapper for sendMessage to provide additional context or processing if needed
   const sendMessage = useCallback(async (content: string, context?: MemoryContext): Promise<void> => {

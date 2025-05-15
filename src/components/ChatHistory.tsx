@@ -7,6 +7,8 @@ import { Loader2 } from 'lucide-react';
 export const ChatHistory: React.FC = () => {
   const { messages, isTyping, isLoadingHistory } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isStuck, setIsStuck] = React.useState(false);
 
   // Scroll to bottom when messages change or when typing starts/stops
   useEffect(() => {
@@ -18,6 +20,30 @@ export const ChatHistory: React.FC = () => {
     console.log("ChatHistory received messages:", messages.length, messages.map(m => `${m.id.substring(0,6)}:${m.role}`));
   }, [messages]);
 
+  // Handle potential stuck loading state
+  useEffect(() => {
+    // If we're loading, set a timeout to detect if we're stuck
+    if (isLoadingHistory) {
+      loadingTimeoutRef.current = setTimeout(() => {
+        setIsStuck(true);
+      }, 10000); // 10 seconds timeout
+    } else {
+      // If we're not loading anymore, clear the timeout and reset stuck state
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+      setIsStuck(false);
+    }
+
+    // Clean up timeout on unmount
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, [isLoadingHistory]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -28,6 +54,17 @@ export const ChatHistory: React.FC = () => {
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-travis-primary mx-auto mb-4" />
           <p className="text-gray-500">Loading conversation history...</p>
+          {isStuck && (
+            <div className="mt-4">
+              <p className="text-amber-600">Loading is taking longer than expected.</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="mt-2 px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+              >
+                Refresh Page
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );

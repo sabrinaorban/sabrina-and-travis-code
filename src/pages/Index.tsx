@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Login from './Login';
 import Dashboard from './Dashboard';
@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 
 const Index = () => {
   const { user, isLoading } = useAuth();
+  const [authTimeout, setAuthTimeout] = useState(false);
   
   // Enhanced debugging
   useEffect(() => {
@@ -16,7 +17,8 @@ const Index = () => {
     if (isLoading) {
       const timeout = setTimeout(() => {
         console.log('Loading timeout reached - may indicate an issue with auth flow');
-      }, 5000);
+        setAuthTimeout(true);
+      }, 10000);
       
       return () => clearTimeout(timeout);
     }
@@ -27,6 +29,17 @@ const Index = () => {
       <div className="flex flex-col h-screen justify-center items-center">
         <Loader2 className="h-10 w-10 animate-spin text-travis mb-4" />
         <p className="text-gray-500">Authenticating...</p>
+        {authTimeout && (
+          <div className="mt-4 text-center">
+            <p className="text-amber-600">Authentication is taking longer than expected.</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="mt-2 px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+            >
+              Refresh Page
+            </button>
+          </div>
+        )}
         <p className="text-xs text-gray-400 mt-2">
           (If stuck here for more than 10 seconds, try refreshing the page)
         </p>
