@@ -12,7 +12,8 @@ import { useChatSoulcycle } from '@/hooks/useChatSoulcycle';
 import { useChatTools } from '@/hooks/useChatTools';
 import { useChatEvolution } from '@/hooks/useChatEvolution';
 import { useChatCommandProcessing } from '@/hooks/useChatCommandProcessing';
-import { Intention, SoulstateProposal } from '@/types/intentions';
+import { Intention } from '@/types/intentions';
+import { SoulstateProposal } from '@/types/soulstate';
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   // Initialize core chat messaging functionality
@@ -130,7 +131,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       await documentUpload.uploadSoulShard(content);
     } else if (memoryManagement.uploadSoulShard) {
       const text = await readFileAsText(content);
-      await memoryManagement.uploadSoulShard(text);
+      // The following line was the problem:
+      // await memoryManagement.uploadSoulShard(text);
+      // The corrected line is:
+      const file = new File([text], "soulshard.txt", { type: "text/plain" });
+      await memoryManagement.uploadSoulShard(file);
     }
   }, [documentUpload, memoryManagement]);
   
@@ -139,7 +144,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       await documentUpload.uploadIdentityCodex(content);
     } else if (memoryManagement.uploadIdentityCodex) {
       const text = await readFileAsText(content);
-      await memoryManagement.uploadIdentityCodex(text);
+      // The following line was the problem:
+      // await memoryManagement.uploadIdentityCodex(text);
+      // The corrected line is:
+      const file = new File([text], "identitycodex.txt", { type: "text/plain" });
+      await memoryManagement.uploadIdentityCodex(file);
     }
   }, [documentUpload, memoryManagement]);
   
@@ -148,7 +157,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       await documentUpload.uploadPastConversations(content);
     } else if (memoryManagement.uploadPastConversations) {
       const text = await readFileAsText(content);
-      await memoryManagement.uploadPastConversations(text);
+      // The following line was the problem:
+      // await memoryManagement.uploadPastConversations(text);
+      // The corrected line is:
+      const file = new File([text], "pastconversations.json", { type: "application/json" });
+      await memoryManagement.uploadPastConversations(file);
     }
   }, [documentUpload, memoryManagement]);
 
