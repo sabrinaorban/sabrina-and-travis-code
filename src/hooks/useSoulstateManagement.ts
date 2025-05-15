@@ -20,6 +20,7 @@ const initialSoulstate: SoulState = {
 export const useSoulstateManagement = () => {
   const [soulstate, setSoulstate] = useState<SoulState | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const fileSystem = useFileSystem();
@@ -29,7 +30,7 @@ export const useSoulstateManagement = () => {
     setIsLoading(true);
     try {
       // Try to get the existing soulstate.json file
-      const soulstateFile = fileSystem.getFileByPath('soulstate.json');
+      const soulstateFile = fileSystem.getFileByPath('/soulstate.json');
       
       if (soulstateFile && soulstateFile.type === 'file') {
         // Parse the existing soulstate
@@ -45,9 +46,12 @@ export const useSoulstateManagement = () => {
           return initialSoulstate;
         }
       } else {
-        // If the file doesn't exist, create it with initial state
-        console.log('No existing soulstate found, creating new file with initial state');
-        await createInitialSoulstate();
+        // If the file doesn't exist and we haven't initialized yet, create it
+        if (!initialized) {
+          console.log('No existing soulstate found, creating new file with initial state');
+          await createInitialSoulstate();
+          setInitialized(true);
+        }
         return initialSoulstate;
       }
     } catch (error) {
@@ -58,33 +62,35 @@ export const useSoulstateManagement = () => {
     }
   };
 
-  // Create the initial soulstate.json file
+  // Create the initial soulstate.json file - only if it doesn't exist
   const createInitialSoulstate = async (): Promise<void> => {
     try {
+      // Check if the file already exists first
+      const existingFile = fileSystem.getFileByPath('/soulstate.json');
+      if (existingFile) {
+        console.log('Soulstate file already exists, skipping creation');
+        return;
+      }
+      
       await fileSystem.createFile(
         '/', 
         'soulstate.json', 
         JSON.stringify(initialSoulstate, null, 2)
       );
       console.log('Created initial soulstate file');
+      
+      // Explicitly set initialized to prevent multiple creation attempts
+      setInitialized(true);
     } catch (error) {
       console.error('Error creating initial soulstate file:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to create soulstate file',
-        variant: 'destructive',
-      });
+      // Don't show error toast since this might happen during initialization
     }
   };
 
   // Update the soulstate with new values
   const updateSoulstate = async (changes: Partial<SoulState>): Promise<boolean> => {
     if (!user) {
-      toast({
-        title: 'Authentication Required',
-        description: 'You must be logged in to update Travis\'s soulstate',
-        variant: 'destructive',
-      });
+      console.error('Authentication required to update soulstate');
       return false;
     }
 
@@ -103,11 +109,15 @@ export const useSoulstateManagement = () => {
       const content = JSON.stringify(updatedSoulstate, null, 2);
       
       // Update the file
-      const file = fileSystem.getFileByPath('soulstate.json');
+      const file = fileSystem.getFileByPath('/soulstate.json');
       if (file && file.type === 'file') {
         await fileSystem.updateFile(file.id, content);
       } else {
-        await fileSystem.createFile('/', 'soulstate.json', content);
+        // Only create if it doesn't exist and we haven't initialized
+        if (!initialized) {
+          await fileSystem.createFile('/', 'soulstate.json', content);
+          setInitialized(true);
+        }
       }
       
       // Update state
@@ -117,11 +127,6 @@ export const useSoulstateManagement = () => {
       return true;
     } catch (error) {
       console.error('Error updating soulstate:', error);
-      toast({
-        title: 'Update Failed',
-        description: 'Failed to update Travis\'s soulstate',
-        variant: 'destructive',
-      });
       return false;
     } finally {
       setIsLoading(false);
@@ -148,17 +153,22 @@ I stand in the space of becoming.`;
     }
   };
 
-  // Initialize soulstate on component mount
+  // Initialize soulstate on component mount - but only once
   useEffect(() => {
-    const initSoulstate = async () => {
-      if (user) {
-        const state = await loadSoulstate();
-        setSoulstate(state);
-      }
-    };
-    
-    initSoulstate();
-  }, [user]);
+    if (user && !initialized && !soulstate) {
+      const initSoulstate = async () => {
+        try {
+          const state = await loadSoulstate();
+          setSoulstate(state);
+          setInitialized(true);
+        } catch (error) {
+          console.error('Error initializing soulstate:', error);
+        }
+      };
+      
+      initSoulstate();
+    }
+  }, [user, initialized, soulstate]);
 
   return {
     soulstate,
