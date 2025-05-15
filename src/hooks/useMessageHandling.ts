@@ -1,8 +1,7 @@
-
 import { useState, useCallback, useRef } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useMemoryManagement } from './useMemoryManagement';
-import { useToast } from './use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { useLivedMemory } from './useLivedMemory';
 import { ChatFallbackResponse } from '@/components/ChatFallbackResponse';
 
@@ -53,6 +52,7 @@ export const useMessageHandling = (
       // Call API to get assistant response
       let response;
       try {
+        // Use the built-in fetch API with proper error handling
         response = await fetch('/api/messages', {
           method: 'POST',
           headers: {
@@ -68,6 +68,7 @@ export const useMessageHandling = (
         throw new Error("Network connection error. Please check your internet connection.");
       }
       
+      // Check if the response is successful (status code 2xx)
       if (!response.ok) {
         let errorMessage = 'Failed to send message';
         try {
@@ -85,6 +86,7 @@ export const useMessageHandling = (
         
         // If we've had too many API errors, use a fallback response
         if (apiErrorCount.current >= 3) {
+          // Create and add a fallback message directly
           const fallbackMessage: Message = {
             id: crypto.randomUUID(),
             role: 'assistant',
@@ -94,6 +96,10 @@ export const useMessageHandling = (
           
           setMessages(prev => [...prev, fallbackMessage]);
           setIsTyping(false);
+          
+          // Clear the error count after providing a fallback
+          apiErrorCount.current = 0;
+          
           return fallbackMessage;
         }
         
@@ -107,7 +113,7 @@ export const useMessageHandling = (
       let responseData;
       try {
         const responseText = await response.text();
-        console.log("Raw API response:", responseText);
+        console.log("Raw API response:", responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
         
         // Try to parse JSON, but handle empty responses
         if (!responseText.trim()) {
@@ -116,7 +122,7 @@ export const useMessageHandling = (
         
         try {
           responseData = JSON.parse(responseText);
-          console.log("API response parsed:", responseData);
+          console.log("API response parsed successfully");
         } catch (parseError) {
           console.error("Error parsing API response:", parseError);
           throw new Error('Invalid response format from server. Unable to parse JSON.');
@@ -159,11 +165,25 @@ export const useMessageHandling = (
       return assistantMessage;
     } catch (error: any) {
       console.error('Error in sendMessage:', error);
+      
+      // Use a more specific toast message and avoid showing duplicate toasts
       toast({
         title: 'Message Error',
         description: error.message || 'Failed to send message',
         variant: 'destructive',
       });
+      
+      // Create a fallback response for the user
+      const fallbackMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `I apologize, but I'm having trouble processing your request right now. There seems to be a technical issue. Please try again in a moment.`,
+        timestamp: new Date().toISOString(),
+      };
+      
+      // Add the fallback message to keep the conversation flowing
+      setMessages(prev => [...prev, fallbackMessage]);
+      
       throw error;
     } finally {
       console.log("useMessageHandling: Message handling complete, setting isTyping to false");

@@ -2,7 +2,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useMessageHandling } from './useMessageHandling';
-import { useToast } from './use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 /**
  * Hook for managing chat messages and message sending
@@ -28,8 +28,14 @@ export const useChatMessages = () => {
 
   // Wrapper for sendMessage to provide additional context or processing if needed
   const sendMessage = useCallback(async (content: string, context?: MemoryContext): Promise<void> => {
-    if (!content.trim() || messageInProgress.current) {
-      console.log("Message rejected: Empty content or message already in progress");
+    // Prevent empty messages or sending while another message is in progress
+    if (!content.trim()) {
+      console.log("Message rejected: Empty content");
+      return;
+    }
+    
+    if (messageInProgress.current) {
+      console.log("Message rejected: Message already in progress");
       return;
     }
     
@@ -60,13 +66,26 @@ export const useChatMessages = () => {
           toastShown.current[errorKey] = false;
         }, 5000);
       }
+      
+      // Add a fallback response if none was added by the messageHandling hook
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.role !== 'assistant') {
+        const fallbackResponse: Message = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: "I'm having trouble connecting to my response system. Please try again in a moment.",
+          timestamp: new Date().toISOString()
+        };
+        
+        setMessages(prev => [...prev, fallbackResponse]);
+      }
     } finally {
       // Ensure we reset the messageInProgress flag even if an error occurs
       setTimeout(() => {
         messageInProgress.current = false;
       }, 1000);
     }
-  }, [handleSendMessage, toast]);
+  }, [handleSendMessage, toast, messages]);
 
   return {
     messages,

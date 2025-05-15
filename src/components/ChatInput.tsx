@@ -15,10 +15,12 @@ export const ChatInput: React.FC = () => {
   const { toast } = useToast();
   const recentToastsRef = useRef<{[key: string]: number}>({});
 
+  // Track component mount state for SSR compatibility
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  // Auto-resize textarea as user types
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'inherit';
@@ -50,7 +52,11 @@ export const ChatInput: React.FC = () => {
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || isTyping || isSubmitting) return;
+    
+    // Prevent empty messages, double submission, or submission while typing
+    if (!message.trim() || isTyping || isSubmitting) {
+      return;
+    }
 
     console.log("ChatInput: Submitting message:", message);
     const messageCopy = message.trim();
@@ -58,6 +64,7 @@ export const ChatInput: React.FC = () => {
     setIsSubmitting(true);
     
     try {
+      // Send the message and wait for response
       await sendMessage(messageCopy);
       console.log("ChatInput: Message sent successfully");
       // Reset error count on successful message
@@ -78,6 +85,7 @@ export const ChatInput: React.FC = () => {
     }
   };
   
+  // Skip rendering during SSR to prevent hydration issues
   if (!isMounted) {
     return null;
   }
@@ -97,7 +105,7 @@ export const ChatInput: React.FC = () => {
         <Button
           type="submit"
           className="absolute right-2 bottom-2 rounded-full"
-          disabled={isTyping || isSubmitting}
+          disabled={isTyping || isSubmitting || !message.trim()}
         >
           {isTyping || isSubmitting ? (
             <Loader2 className="h-4 w-4 animate-spin" />

@@ -24,11 +24,11 @@ export const ChatFallbackResponse: React.FC<ChatFallbackResponseProps> = ({
     const fallbackMessage: Message = {
       id: crypto.randomUUID(),
       role: 'assistant',
-      content: `I apologize, but I'm having trouble processing your request right now. There seems to be a technical issue with my response system (${errorMessage}). Our engineers have been notified and are working to resolve this. In the meantime, you can try:
+      content: `I apologize, but I'm having trouble connecting to my response system right now. There seems to be a technical issue (${errorMessage}). Our engineers have been notified and are working to resolve this. In the meantime, you can try:
       
-1. Rephrasing your question
+1. Refreshing the page
 2. Using simpler commands like "reflect" or "soulstate"
-3. Refreshing the page if the issue persists
+3. Trying again in a few moments
 
 I'm still here and learning from our conversation, even if I can't respond perfectly right now.`,
       timestamp: new Date().toISOString(),
