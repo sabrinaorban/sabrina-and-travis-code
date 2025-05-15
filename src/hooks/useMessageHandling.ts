@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useRef } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useMemoryManagement } from './useMemoryManagement';
@@ -44,7 +45,7 @@ export const useMessageHandling = (
         toast({
           title: 'Storage Warning',
           description: 'Your message was sent but may not persist after page refresh',
-          variant: 'warning',
+          variant: 'destructive', // Changed 'warning' to 'destructive' to match allowed variants
         });
       }
       

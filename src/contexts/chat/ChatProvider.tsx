@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { Message, MemoryContext, SelfTool } from '@/types';
 import { useMemoryManagement } from '@/hooks/useMemoryManagement';
@@ -212,6 +211,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     };
   };
 
+  // Modified wrapper to handle return types
+  const generateToolWrapper = useCallback(async (purpose?: string): Promise<void> => {
+    if (tools.generateTool) {
+      await tools.generateTool(purpose || "");
+    }
+  }, [tools]);
+
+  const checkEvolutionCycleWrapper = useCallback(async (): Promise<void> => {
+    if (checkEvolutionCycle) {
+      await checkEvolutionCycle();
+    }
+  }, [checkEvolutionCycle]);
+
   return (
     <ChatContext.Provider
       value={{
@@ -251,13 +263,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         generateInsight: intentionsAndReflection.generateInsight,
         
         // Tool management
-        generateTool: tools.generateTool,
+        generateTool: generateToolWrapper,
         useTool: useToolWrapper,
         reflectOnTool: reflectOnToolWrapper,
         reviseTool: reviseToolWrapper,
         
         // Evolution cycle
-        checkEvolutionCycle: checkEvolutionCycle,
+        checkEvolutionCycle: checkEvolutionCycleWrapper,
         currentEvolutionProposal: convertToSoulstateProposal(evolution.currentProposal),
         isEvolutionChecking: evolution.isEvolutionChecking,
       }}

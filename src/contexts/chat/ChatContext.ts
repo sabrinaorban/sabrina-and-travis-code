@@ -22,13 +22,14 @@ const defaultChatContext: ChatContextType = {
   uploadPastConversations: async () => {},
   generateInsight: async () => {},
   generateDream: async () => {},
-  generateTool: async () => null,
+  generateTool: async () => {},
   useTool: async () => {},
   reflectOnTool: async () => {},
   reviseTool: async () => {},
-  checkEvolutionCycle: async () => false,
+  checkEvolutionCycle: async () => {},
   currentEvolutionProposal: undefined,
   isEvolutionChecking: false,
+  isLoadingHistory: false,
 };
 
 export const ChatContext = createContext<ChatContextType>(defaultChatContext);

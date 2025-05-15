@@ -18,14 +18,18 @@ export const fetchMessages = async (userId: string): Promise<Message[]> => {
     }
     
     // Transform database records into Message objects with proper typing
-    const messages = (data || []).map(item => ({
-      id: item.id,
-      content: item.content,
-      // Ensure role is typed correctly as 'user' | 'assistant'
-      role: item.role === 'user' ? 'user' : 'assistant',
-      timestamp: item.timestamp,
-      emotion: item.emotion || null,
-    }));
+    const messages = (data || []).map(item => {
+      // Ensure role is properly typed as 'user' | 'assistant'
+      const role: 'user' | 'assistant' = item.role === 'user' ? 'user' : 'assistant';
+      
+      return {
+        id: item.id,
+        content: item.content,
+        role, // Use the properly typed role
+        timestamp: item.timestamp,
+        emotion: item.emotion || null,
+      };
+    });
     
     console.log(`Successfully loaded ${messages.length} messages from Supabase`);
     return messages;
