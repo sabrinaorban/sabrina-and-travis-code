@@ -58,8 +58,25 @@ export const useEvolutionCycle = (
       const now = Date.now();
       
       // If no record exists or the last cycle was more than cyclePeriod ago
-      if (!data || !data.value || !data.value.lastRun || 
-          now - new Date(data.value.lastRun).getTime() >= cyclePeriod) {
+      if (!data || !data.value) {
+        return true;
+      }
+      
+      // Handle the case where value could be different types
+      let lastRunTime: number | null = null;
+      
+      // Check if value is an object with lastRun property
+      if (typeof data.value === 'object' && data.value !== null && 'lastRun' in data.value) {
+        const lastRunStr = (data.value as { lastRun: string }).lastRun;
+        lastRunTime = new Date(lastRunStr).getTime();
+      } 
+      // If there's no lastRun, we should run the cycle
+      else {
+        return true;
+      }
+      
+      // Check if it's been long enough since the last run
+      if (!lastRunTime || now - lastRunTime >= cyclePeriod) {
         return true;
       }
       
