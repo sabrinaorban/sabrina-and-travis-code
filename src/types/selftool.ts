@@ -9,6 +9,9 @@ export interface SelfTool {
   author?: string;
   version?: number;
   iterations?: SelfToolIteration[];
+  owner: string;
+  intended_effect?: string;
+  linked_intention?: string;
 }
 
 export interface SelfToolIteration {

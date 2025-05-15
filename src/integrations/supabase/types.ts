@@ -276,7 +276,10 @@ export type Database = {
           code: string
           created_at: string
           id: string
+          intended_effect: string | null
+          linked_intention: string | null
           name: string
+          owner: string
           purpose: string
           tags: string[] | null
         }
@@ -285,7 +288,10 @@ export type Database = {
           code: string
           created_at?: string
           id?: string
+          intended_effect?: string | null
+          linked_intention?: string | null
           name: string
+          owner?: string
           purpose: string
           tags?: string[] | null
         }
@@ -294,7 +300,10 @@ export type Database = {
           code?: string
           created_at?: string
           id?: string
+          intended_effect?: string | null
+          linked_intention?: string | null
           name?: string
+          owner?: string
           purpose?: string
           tags?: string[] | null
         }

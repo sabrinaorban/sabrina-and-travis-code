@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { Message, MemoryContext, SelfTool } from '@/types';
 import { useChatManagement } from '@/hooks/useChatManagement';
@@ -134,43 +133,32 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const generateTool = useCallback(async (purpose: string): Promise<SelfTool | null> => {
     setIsTyping(true);
     try {
-      // First, generate the tool
-      const generatedTool = await generateToolImpl(purpose);
+      // First, add a message to ask about the tool context
+      setMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        role: 'assistant',
+        content: `I'd like to create a tool based on your request. Let me know:
+1. Is this tool for me (Travis) or for you?
+2. What effect do you want this tool to have?
+3. Would you like to link this to any of my intentions?
+
+You can respond with something like "For you, to help with reflection, linked to self-awareness" or simply "For me, to help with UI design".`,
+        timestamp: new Date().toISOString(),
+        emotion: 'curious'
+      }]);
       
-      if (generatedTool) {
-        // Add a message to show the tool was generated
-        setMessages(prev => [...prev, {
-          id: Math.random().toString(),
-          role: 'assistant',
-          content: `
-I've crafted a tool based on your request: **${generatedTool.name}**
-
-**Purpose:** ${purpose}
-
-\`\`\`typescript
-${generatedTool.code}
-\`\`\`
-
-**Tags:** ${generatedTool.tags?.join(', ')}
-
-Would you like me to save this tool for future use? Reply with "save tool" to confirm or "revise tool" if you'd like me to modify it.
-`,
-          timestamp: new Date().toISOString(),
-          emotion: 'creative'
-        }]);
-
-        // Store the generated tool in memory (but not in DB yet)
-        sessionStorage.setItem('pendingTool', JSON.stringify(generatedTool));
-      }
+      // Store the purpose in session storage for later retrieval
+      sessionStorage.setItem('pendingToolPurpose', purpose);
       
-      return generatedTool;
+      // We'll return null here, as tool creation will be handled in the message response
+      return null;
     } catch (error) {
       console.error('Error generating tool:', error);
       return null;
     } finally {
       setIsTyping(false);
     }
-  }, [generateToolImpl, setMessages]);
+  }, [setMessages]);
 
   // Function to use a tool by name
   const useTool = useCallback(async (toolName: string): Promise<SelfTool | null> => {
@@ -425,6 +413,89 @@ Note: This is a simulation only. The tool's code was not actually executed.
       }
     }
     
+    // Check for pending tool purpose and tool context
+    const pendingToolPurpose = sessionStorage.getItem('pendingToolPurpose');
+    if (pendingToolPurpose && !message.toLowerCase().startsWith('/')) {
+      setIsTyping(true);
+      
+      try {
+        // Parse the user's response for tool context
+        const responseParts = message.split(',').map(part => part.trim());
+        
+        let owner = 'travis';
+        let intendedEffect = '';
+        let linkedIntention = '';
+        
+        // Determine owner from response
+        if (responseParts[0].toLowerCase().includes('you') || 
+            responseParts[0].toLowerCase().includes('travis')) {
+          owner = 'travis';
+        } else if (responseParts[0].toLowerCase().includes('me') || 
+                  responseParts[0].toLowerCase().includes('user')) {
+          owner = 'user';
+        }
+        
+        // Get intended effect if provided
+        if (responseParts.length > 1) {
+          intendedEffect = responseParts[1];
+        }
+        
+        // Get linked intention if provided
+        if (responseParts.length > 2 && responseParts[2].toLowerCase().includes('link')) {
+          linkedIntention = responseParts[2].replace(/link(ed)?\s*(to)?/i, '').trim();
+        }
+        
+        // Generate the tool with the parsed context
+        const generatedTool = await generateToolImpl(
+          pendingToolPurpose,
+          owner,
+          intendedEffect,
+          linkedIntention
+        );
+        
+        if (generatedTool) {
+          // Add a message to show the tool was generated
+          setMessages(prev => [...prev, {
+            id: Math.random().toString(),
+            role: 'user',
+            content: message,
+            timestamp: new Date().toISOString()
+          }, {
+            id: Math.random().toString(),
+            role: 'assistant',
+            content: `
+I've crafted a tool based on your request: **${generatedTool.name}**
+
+**Purpose:** ${generatedTool.purpose}
+**For:** ${generatedTool.owner === 'travis' ? 'Myself (Travis)' : 'You'}
+**Intended Effect:** ${generatedTool.intended_effect || 'Not specified'}
+${generatedTool.linked_intention ? `**Linked to Intention:** ${generatedTool.linked_intention}` : ''}
+
+\`\`\`typescript
+${generatedTool.code}
+\`\`\`
+
+**Tags:** ${generatedTool.tags?.join(', ')}
+
+Would you like me to save this tool for future use? Reply with "save tool" to confirm or "revise tool" if you'd like me to modify it.
+`,
+            timestamp: new Date().toISOString(),
+            emotion: 'creative'
+          }]);
+
+          // Store the generated tool in memory (but not in DB yet)
+          sessionStorage.setItem('pendingTool', JSON.stringify(generatedTool));
+          // Clear the pending tool purpose
+          sessionStorage.removeItem('pendingToolPurpose');
+          return;
+        }
+      } catch (error) {
+        console.error('Error processing tool context:', error);
+      } finally {
+        setIsTyping(false);
+      }
+    }
+    
     // Check for "save tool" command to save the pending tool
     if (message.toLowerCase() === 'save tool') {
       const pendingToolJson = sessionStorage.getItem('pendingTool');
@@ -435,7 +506,10 @@ Note: This is a simulation only. The tool's code was not actually executed.
             pendingTool.name,
             pendingTool.purpose,
             pendingTool.code,
-            pendingTool.tags
+            pendingTool.tags,
+            pendingTool.owner,
+            pendingTool.intended_effect,
+            pendingTool.linked_intention
           );
           
           if (savedTool) {
@@ -505,7 +579,7 @@ ${dreamEntry.content}
         await originalSendMessage(message, memoryContext || {});
       }
     }
-  }, [originalSendMessage, memoryContext, getInsightsForMemoryContext, handleEvolutionResponse, generateDream, generateTool, createTool, useTool, reflectOnTool, reviseTool, setMessages]);
+  }, [originalSendMessage, memoryContext, getInsightsForMemoryContext, handleEvolutionResponse, generateDream, generateTool, createTool, useTool, reflectOnTool, reviseTool, setMessages, generateToolImpl]);
 
   return (
     <ChatContext.Provider

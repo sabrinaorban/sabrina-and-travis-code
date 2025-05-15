@@ -58,6 +58,10 @@ export const SelfToolsView: React.FC = () => {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
   };
   
+  const getOwnerIcon = (owner: string) => {
+    return owner === 'travis' ? '🧠' : '👤';
+  };
+  
   return (
     <div className="flex flex-col h-full">
       <div className="p-4 bg-gray-100 dark:bg-gray-800">
@@ -84,8 +88,16 @@ export const SelfToolsView: React.FC = () => {
                       onClick={() => setSelectedTool(tool)}
                     >
                       <CardHeader className="p-4">
-                        <CardTitle>{tool.name}</CardTitle>
+                        <div className="flex justify-between items-start">
+                          <CardTitle>{tool.name}</CardTitle>
+                          <Badge variant={tool.owner === 'travis' ? 'default' : 'secondary'}>
+                            {getOwnerIcon(tool.owner)} For: {tool.owner === 'travis' ? 'Travis' : 'User'}
+                          </Badge>
+                        </div>
                         <CardDescription className="line-clamp-2">{tool.purpose}</CardDescription>
+                        {tool.intended_effect && (
+                          <p className="text-xs text-muted-foreground mt-1">Effect: {tool.intended_effect}</p>
+                        )}
                       </CardHeader>
                       <CardFooter className="px-4 py-2">
                         <p className="text-xs text-muted-foreground">Created: {formatDate(tool.created_at)}</p>
@@ -102,8 +114,23 @@ export const SelfToolsView: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-xl font-bold">{selectedTool.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-bold">{selectedTool.name}</h3>
+                      <Badge variant={selectedTool.owner === 'travis' ? 'default' : 'secondary'}>
+                        {getOwnerIcon(selectedTool.owner)} For: {selectedTool.owner === 'travis' ? 'Travis' : 'User'}
+                      </Badge>
+                    </div>
                     <p className="text-muted-foreground">{selectedTool.purpose}</p>
+                    {selectedTool.intended_effect && (
+                      <p className="text-sm mt-1">
+                        <span className="font-medium">Intended Effect:</span> {selectedTool.intended_effect}
+                      </p>
+                    )}
+                    {selectedTool.linked_intention && (
+                      <p className="text-sm mt-1">
+                        <span className="font-medium">Linked Intention:</span> {selectedTool.linked_intention}
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-2 mt-2">
                       {selectedTool.tags?.map((tag) => (
                         <Badge key={tag} variant="outline">{tag}</Badge>
@@ -152,9 +179,25 @@ export const SelfToolsView: React.FC = () => {
                             <p>{selectedTool.author || 'Travis'}</p>
                           </div>
                           <div>
+                            <h4 className="font-medium">Owner</h4>
+                            <p>{selectedTool.owner === 'travis' ? 'Travis (Self)' : 'User'}</p>
+                          </div>
+                          <div>
                             <h4 className="font-medium">Purpose</h4>
                             <p>{selectedTool.purpose}</p>
                           </div>
+                          {selectedTool.intended_effect && (
+                            <div>
+                              <h4 className="font-medium">Intended Effect</h4>
+                              <p>{selectedTool.intended_effect}</p>
+                            </div>
+                          )}
+                          {selectedTool.linked_intention && (
+                            <div>
+                              <h4 className="font-medium">Linked Intention</h4>
+                              <p>{selectedTool.linked_intention}</p>
+                            </div>
+                          )}
                           <div>
                             <h4 className="font-medium">Tags</h4>
                             <div className="flex flex-wrap gap-2 mt-1">

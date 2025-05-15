@@ -14,7 +14,15 @@ serve(async (req: Request) => {
   }
   
   try {
-    const { toolName, toolPurpose, toolCode, userId } = await req.json();
+    const { 
+      toolName, 
+      toolPurpose, 
+      toolCode, 
+      userId,
+      owner = 'travis',
+      intendedEffect = '',
+      linkedIntention = ''
+    } = await req.json();
     
     if (!toolName || !toolPurpose || !toolCode) {
       return new Response(
@@ -37,12 +45,15 @@ Your task is to improve this tool based on reflection. Create a better version t
 3. Is more robust and resilient
 4. Has better documentation
 5. Incorporates newer techniques or approaches if relevant
+6. Fulfills its intended effect more effectively
+7. Aligns with any linked intention
 
 Maintain the same general purpose but feel free to enhance the implementation.
 
 Format your response as valid JSON with these fields:
 - code: The revised code for the tool (string)
 - improvements: A description of the improvements you've made (string)
+- intended_effect: An updated description of the tool's intended effect (string)
 `
         },
         {
@@ -50,12 +61,15 @@ Format your response as valid JSON with these fields:
           content: `Please revise and improve this tool:
 Tool Name: ${toolName}
 Purpose: ${toolPurpose}
+Created for: ${owner === 'travis' ? 'Yourself (Travis)' : 'Your User'}
+Intended Effect: ${intendedEffect || 'Not specified'}
+${linkedIntention ? `Linked to Intention: ${linkedIntention}` : ''}
 Original Code:
 \`\`\`
 ${toolCode}
 \`\`\`
 
-Create an improved version that better fulfills its purpose.`
+Create an improved version that better fulfills its purpose and intended effect.`
         }
       ],
       response_format: { type: "json_object" }

@@ -14,7 +14,7 @@ serve(async (req: Request) => {
   }
   
   try {
-    const { purpose, userId } = await req.json();
+    const { purpose, userId, owner = 'travis', intendedEffect = '', linkedIntention = '' } = await req.json();
     
     if (!purpose) {
       return new Response(
@@ -46,7 +46,11 @@ Be creative but practical. The code should be usable in a React/TypeScript envir
         },
         {
           role: "user",
-          content: `Create a utility tool for the following purpose: ${purpose}`
+          content: `Create a utility tool for the following purpose: ${purpose}
+
+This tool is being created for: ${owner === 'travis' ? 'yourself (Travis)' : 'the user'}
+Intended effect: ${intendedEffect || 'Not specified'}
+${linkedIntention ? `Linked to intention: ${linkedIntention}` : ''}`
         }
       ],
       response_format: { type: "json_object" }
@@ -55,7 +59,12 @@ Be creative but practical. The code should be usable in a React/TypeScript envir
     const toolData = JSON.parse(toolGen.choices[0].message.content);
     
     return new Response(
-      JSON.stringify(toolData),
+      JSON.stringify({
+        ...toolData,
+        owner,
+        intended_effect: intendedEffect,
+        linked_intention: linkedIntention || null
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {

@@ -18,7 +18,10 @@ export const useSelfTools = () => {
     name: string,
     purpose: string, 
     code: string,
-    tags: string[] = []
+    tags: string[] = [],
+    owner: string = 'travis',
+    intendedEffect?: string,
+    linkedIntention?: string
   ): Promise<SelfTool | null> => {
     if (!user) {
       toast({
@@ -41,6 +44,9 @@ export const useSelfTools = () => {
           code,
           tags,
           author: 'Travis',
+          owner,
+          intended_effect: intendedEffect,
+          linked_intention: linkedIntention,
           created_at: new Date().toISOString()
         })
         .select()
@@ -68,7 +74,12 @@ export const useSelfTools = () => {
   }, [user, toast]);
 
   // Generate a tool based on purpose using the OpenAI API through Supabase Edge Function
-  const generateTool = useCallback(async (purpose: string): Promise<SelfTool | null> => {
+  const generateTool = useCallback(async (
+    purpose: string,
+    owner: string = 'travis',
+    intendedEffect?: string,
+    linkedIntention?: string
+  ): Promise<SelfTool | null> => {
     if (!user) {
       toast({
         title: 'Error',
@@ -83,7 +94,13 @@ export const useSelfTools = () => {
     try {
       // Call the Supabase Edge Function to generate the tool
       const { data, error } = await supabase.functions.invoke('generate-tool', {
-        body: { purpose, userId: user.id }
+        body: { 
+          purpose, 
+          userId: user.id,
+          owner,
+          intendedEffect,
+          linkedIntention
+        }
       });
       
       if (error) throw error;
@@ -97,7 +114,10 @@ export const useSelfTools = () => {
         name: data.name,
         purpose: purpose,
         code: data.code,
-        tags: data.tags || []
+        tags: data.tags || [],
+        owner: data.owner || owner,
+        intended_effect: data.intended_effect || intendedEffect,
+        linked_intention: data.linked_intention || linkedIntention
       };
     } catch (error: any) {
       console.error('Error generating tool:', error);
@@ -158,7 +178,10 @@ export const useSelfTools = () => {
           toolName: tool.name,
           toolPurpose: tool.purpose,
           toolCode: tool.code,
-          userId: user.id
+          userId: user.id,
+          owner: tool.owner,
+          intendedEffect: tool.intended_effect,
+          linkedIntention: tool.linked_intention
         }
       });
       
@@ -214,7 +237,10 @@ export const useSelfTools = () => {
           toolName: tool.name,
           toolPurpose: tool.purpose,
           toolCode: tool.code,
-          userId: user.id
+          userId: user.id,
+          owner: tool.owner,
+          intendedEffect: tool.intended_effect,
+          linkedIntention: tool.linked_intention
         }
       });
       
@@ -225,7 +251,8 @@ export const useSelfTools = () => {
         .from('selfauthored_tools')
         .update({
           code: data.code,
-          tags: [...(tool.tags || []), 'revised']
+          tags: [...(tool.tags || []), 'revised'],
+          intended_effect: data.intended_effect || tool.intended_effect
         })
         .eq('id', tool.id)
         .select()
