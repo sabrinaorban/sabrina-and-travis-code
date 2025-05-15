@@ -73,7 +73,9 @@ export const useMessageHandling = (
         emotion: responseData.emotion || null,
       };
       
+      // Important: This line ensures the assistant's message appears in the chat
       setMessages(prev => [...prev, assistantMessage]);
+      console.log("Assistant response added to messages:", assistantMessage);
       
       // Store any personal facts mentioned in the assistant's response
       if (responseData.personalFacts && Array.isArray(responseData.personalFacts)) {

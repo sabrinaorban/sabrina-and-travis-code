@@ -47,7 +47,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const memoryManagement = useMemoryManagement(setMessages);
   
   // Initialize command processing
-  const { processCommand, checkEvolutionCycle } = useChatCommandProcessing(
+  const { processCommand, checkEvolutionCycle, isProcessing } = useChatCommandProcessing(
     setMessages,
     originalSendMessage
   );
@@ -74,7 +74,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   
   // Create a wrapper for sendMessage that first checks for commands
   const sendMessage = useCallback(async (content: string, context?: MemoryContext) => {
-    if (!content.trim() || isTyping) return;
+    if (!content.trim() || isTyping || isProcessing) return;
     
     // First check if this is a special command
     const isCommand = await processCommand(content, context);
@@ -91,17 +91,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         
         await originalSendMessage(content, enhancedContext);
       } catch (error) {
+        console.error("Error sending message with insights:", error);
         // If error getting insights, just use regular context
         await originalSendMessage(content, context || memoryContext || {});
       }
     }
   }, [
-    isTyping, 
+    isTyping,
+    isProcessing, 
     processCommand, 
     originalSendMessage, 
     memoryContext, 
     intentionsAndReflection
   ]);
+
+  // For debugging
+  useEffect(() => {
+    console.log("Current messages state:", messages);
+  }, [messages]);
 
   return (
     <ChatContext.Provider

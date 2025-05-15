@@ -12,6 +12,11 @@ export const ChatHistory: React.FC = () => {
     scrollToBottom();
   }, [messages, isTyping]);
 
+  // Log messages for debugging
+  useEffect(() => {
+    console.log("ChatHistory received messages:", messages);
+  }, [messages]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };

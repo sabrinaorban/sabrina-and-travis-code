@@ -24,7 +24,10 @@ export const useChatMessages = () => {
     if (!content.trim()) return;
     
     try {
-      await handleSendMessage(content, context || {});
+      console.log("useChatMessages: Sending message:", content);
+      const result = await handleSendMessage(content, context || {});
+      console.log("useChatMessages: Message sent, result:", result);
+      return result;
     } catch (error: any) {
       console.error('Error sending message:', error);
       toast({

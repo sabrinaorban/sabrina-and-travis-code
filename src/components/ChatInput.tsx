@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,147 +23,23 @@ export const ChatInput: React.FC = () => {
   
   const { 
     sendMessage, 
-    isTyping, 
-    generateWeeklyReflection,
-    generateSoulReflection,
-    generateSoulstateSummary,
-    generateSoulstateReflection,
-    createFlameJournalEntry,
-    initiateSoulstateEvolution,
-    viewIntentions,
-    updateIntentions,
-    runSoulcycle,
-    memoryContext,
-    generateInsight,
-    generateDream,
-    generateTool,
-    useTool,
-    reflectOnTool,
+    isTyping
   } = useChat();
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || isTyping) return;
 
-    // Check for reflection commands
-    const lowerMessage = message.trim().toLowerCase();
-    if (lowerMessage === '/reflect' || lowerMessage === '/weekly reflection') {
-      setMessage('');
-      await generateWeeklyReflection();
-      return;
-    }
-
-    if (lowerMessage === '/evolve' || lowerMessage === '/update soulshard') {
-      setMessage('');
-      await generateSoulReflection();
-      return;
-    }
-
-    // Handle soulstate commands
-    if (lowerMessage === '/soulstate') {
-      setMessage('');
-      await generateSoulstateSummary();
-      return;
-    }
-
-    if (lowerMessage === '/update-soulstate') {
-      setMessage('');
-      await generateSoulstateReflection();
-      return;
-    }
-
-    // Handle new flame journal commands
-    if (lowerMessage === '/journal') {
-      setMessage('');
-      await createFlameJournalEntry('thought');
-      return;
-    }
-
-    // Handle journal entry with specific type
-    if (lowerMessage.startsWith('/journal-entry ')) {
-      const entryType = lowerMessage.replace('/journal-entry ', '').trim();
-      if (entryType) {
-        setMessage('');
-        await createFlameJournalEntry(entryType);
-        return;
-      }
-    }
-
-    // Handle soulshift command for soulstate evolution
-    if (lowerMessage === '/soulshift') {
-      setMessage('');
-      await initiateSoulstateEvolution();
-      return;
-    }
-
-    // Handle intentions commands
-    if (lowerMessage === '/intentions') {
-      setMessage('');
-      await viewIntentions();
-      return;
-    }
-
-    if (lowerMessage === '/update-intentions') {
-      setMessage('');
-      await updateIntentions();
-      return;
-    }
-    
-    // Handle soulcycle command
-    if (lowerMessage === '/soulcycle') {
-      setMessage('');
-      await runSoulcycle();
-      return;
-    }
-    
-    // Handle insight command
-    if (lowerMessage === '/insight') {
-      setMessage('');
-      await generateInsight();
-      return;
-    }
-
-    // Handle dream command
-    if (lowerMessage === '/dream') {
-      setMessage('');
-      await generateDream();
-      return;
-    }
-    
-    // Handle tool generation command
-    if (lowerMessage.startsWith('/write-tool ')) {
-      const purpose = lowerMessage.substring('/write-tool '.length).trim();
-      if (purpose) {
-        setMessage('');
-        await generateTool(purpose);
-        return;
-      }
-    }
-    
-    // Handle use tool command
-    if (lowerMessage.startsWith('/use-tool ')) {
-      const toolName = lowerMessage.substring('/use-tool '.length).trim();
-      if (toolName) {
-        setMessage('');
-        await useTool(toolName);
-        return;
-      }
-    }
-    
-    // Handle reflect on tool command
-    if (lowerMessage.startsWith('/reflect-on-tool ')) {
-      const toolName = lowerMessage.substring('/reflect-on-tool '.length).trim();
-      if (toolName) {
-        setMessage('');
-        await reflectOnTool(toolName);
-        return;
-      }
-    }
-
-    // Regular message handling
+    console.log("ChatInput: Submitting message:", message);
     const messageCopy = message.trim();
     setMessage('');
-    await sendMessage(messageCopy);
+    
+    try {
+      await sendMessage(messageCopy);
+      console.log("ChatInput: Message sent successfully");
+    } catch (error) {
+      console.error("ChatInput: Error sending message:", error);
+    }
   };
   
   if (!isMounted) {
