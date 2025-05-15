@@ -25,6 +25,7 @@ export interface MemoryContext {
   relevantMemories?: Array<{ content: string; similarity: number }>;
   livedMemory?: Array<string>;
   emotionalContext?: string; // Added emotional context
+  insights?: Array<Insight>; // Add insights to memory context
   [key: string]: any;
 }
 
@@ -63,6 +64,18 @@ export interface MemoryEmbedding {
   created_at: string;
   tags?: string[];
   similarity?: number;
+}
+
+// Add the new Insight interface
+export interface Insight {
+  id?: string;
+  summary: string;
+  emotionalTheme?: string;
+  growthEdge?: string;
+  resonancePattern?: string;
+  lastDetected: string; // ISO timestamp
+  timesDetected?: number;
+  confidence?: number;
 }
 
 // Re-export other specific types

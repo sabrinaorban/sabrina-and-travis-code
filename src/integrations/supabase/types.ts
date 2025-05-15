@@ -9,6 +9,45 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      conversation_insights: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          emotional_theme: string | null
+          growth_edge: string | null
+          id: string
+          last_detected: string | null
+          resonance_pattern: string | null
+          summary: string
+          times_detected: number | null
+          user_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          emotional_theme?: string | null
+          growth_edge?: string | null
+          id?: string
+          last_detected?: string | null
+          resonance_pattern?: string | null
+          summary: string
+          times_detected?: number | null
+          user_id: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          emotional_theme?: string | null
+          growth_edge?: string | null
+          id?: string
+          last_detected?: string | null
+          resonance_pattern?: string | null
+          summary?: string
+          times_detected?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       files: {
         Row: {
           content: string | null

@@ -33,7 +33,8 @@ export const ChatInput: React.FC = () => {
     viewIntentions,
     updateIntentions,
     runSoulcycle,
-    memoryContext
+    memoryContext,
+    generateInsight, // Add this new function from the context
   } = useChat();
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -108,6 +109,13 @@ export const ChatInput: React.FC = () => {
     if (lowerMessage === '/soulcycle') {
       setMessage('');
       await runSoulcycle();
+      return;
+    }
+    
+    // Handle new insight command
+    if (lowerMessage === '/insight') {
+      setMessage('');
+      await generateInsight();
       return;
     }
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useChatManagement } from '@/hooks/useChatManagement';
@@ -11,6 +12,7 @@ import { useChatSoulstate } from './useChatSoulstate';
 import { useChatFlamejournal } from './useChatFlamejournal';
 import { useChatDocumentUpload } from './useChatDocumentUpload';
 import { useChatSoulcycle } from './useChatSoulcycle';
+import { useInsights } from '@/hooks/useInsights'; // Add the insights hook
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -64,10 +66,48 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     isProcessingSoulcycle
   } = useChatSoulcycle(setMessages);
   
+  // Initialize the insights system
+  const {
+    processMessageHistoryForInsights,
+    getInsightsForMemoryContext,
+    generateInsightMessage
+  } = useInsights();
+
+  // Process message history for insights after message changes
+  React.useEffect(() => {
+    if (messages.length > 0) {
+      processMessageHistoryForInsights(messages).catch(console.error);
+    }
+  }, [messages, processMessageHistoryForInsights]);
+  
+  // Create a function for the /insight command
+  const generateInsight = useCallback(async () => {
+    setIsTyping(true);
+    try {
+      await generateInsightMessage(setMessages);
+    } catch (error) {
+      console.error('Error generating insight:', error);
+    } finally {
+      setIsTyping(false);
+    }
+  }, [generateInsightMessage, setMessages]);
+  
   // Create sendMessage handler with current memory context
   const handleSendMessage = useCallback(async (message: string) => {
-    await sendMessage(message, memoryContext || {});
-  }, [sendMessage, memoryContext]);
+    // Try to get insights for memory context before sending message
+    try {
+      const insights = await getInsightsForMemoryContext();
+      const enhancedContext: MemoryContext = {
+        ...memoryContext || {},
+        insights
+      };
+      
+      await sendMessage(message, enhancedContext);
+    } catch (error) {
+      // If error getting insights, just use regular context
+      await sendMessage(message, memoryContext || {});
+    }
+  }, [sendMessage, memoryContext, getInsightsForMemoryContext]);
 
   return (
     <ChatContext.Provider
@@ -88,6 +128,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         uploadSoulShard: uploadSoulShard || uploadSoulShardDoc,
         uploadIdentityCodex: uploadIdentityCodex || uploadIdentityCodexDoc,
         uploadPastConversations: uploadPastConversations || uploadPastConversationsDoc,
+        generateInsight, // Add the new function to the context
       }}
     >
       {children}
