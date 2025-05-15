@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useMemoryManagement } from './useMemoryManagement';
 import { useToast } from './use-toast';
+import { useLivedMemory } from './useLivedMemory';
 
 /**
  * Hook for handling message sending and processing
@@ -14,7 +15,8 @@ export const useMessageHandling = (
 ) => {
   const [memoryContext, setMemoryContext] = useState<MemoryContext | null>(null);
   const { toast } = useToast();
-  const { getMemoryContext, storeMemory } = useMemoryManagement(setMessages);
+  const { refreshMemoryContext } = useMemoryManagement(setMessages);
+  const { buildLivedMemoryContext, storePersistentFact } = useLivedMemory();
 
   // Function to send a message
   const sendMessage = useCallback(async (content: string, context: MemoryContext = {}) => {
@@ -33,8 +35,14 @@ export const useMessageHandling = (
       setIsTyping(true);
       
       // Get or update memory context
-      const updatedContext = await getMemoryContext(content, context);
+      const updatedContext = await refreshMemoryContext() || {};
       setMemoryContext(updatedContext);
+      
+      // Enhance context with lived memory
+      const livedMemoryBlocks = await buildLivedMemoryContext(content);
+      if (livedMemoryBlocks.length > 0) {
+        updatedContext.livedMemory = livedMemoryBlocks;
+      }
       
       // Call API to get assistant response
       const response = await fetch('/api/messages', {
@@ -66,8 +74,12 @@ export const useMessageHandling = (
       
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Store the conversation in memory
-      await storeMemory(userMessage, assistantMessage, updatedContext);
+      // Store any personal facts mentioned in the assistant's response
+      if (responseData.personalFacts && Array.isArray(responseData.personalFacts)) {
+        for (const fact of responseData.personalFacts) {
+          await storePersistentFact(fact);
+        }
+      }
       
       return assistantMessage;
     } catch (error: any) {
@@ -81,7 +93,7 @@ export const useMessageHandling = (
     } finally {
       setIsTyping(false);
     }
-  }, [getMemoryContext, setMessages, setIsTyping, storeMemory, toast]);
+  }, [refreshMemoryContext, buildLivedMemoryContext, setMessages, setIsTyping, toast, storePersistentFact]);
 
   return {
     sendMessage,
