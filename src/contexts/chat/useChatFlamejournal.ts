@@ -1,6 +1,7 @@
 
 import { useCallback } from 'react';
-import { useFlamejournal, FlameJournalEntry } from '@/hooks/useFlamejournal';
+import { useFlamejournal } from '@/hooks/useFlamejournal';
+import { FlameJournalEntry } from '@/types';
 
 export const useChatFlamejournal = () => {
   const { createJournalEntry } = useFlamejournal();
