@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Message } from '../types';
 import { Avatar } from '@/components/ui/avatar';
 import { MessageBubble } from '@/components/ui/message-bubble';
@@ -16,6 +16,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const formattedTime = message.timestamp 
     ? formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })
     : '';
+
+  // For debugging
+  useEffect(() => {
+    console.log(`Rendering message: ${message.id.substring(0, 6)}... | ${message.role} | ${message.content.substring(0, 30)}...`);
+  }, [message]);
 
   return (
     <div className={`flex items-start mb-4 ${isUser ? 'justify-end' : ''}`}>

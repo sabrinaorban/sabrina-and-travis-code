@@ -63,6 +63,7 @@ export const useMessageHandling = (
       }
       
       const responseData = await response.json();
+      console.log("API response received:", responseData); // Debug log
       
       // Add assistant message to the chat
       const assistantMessage: Message = {

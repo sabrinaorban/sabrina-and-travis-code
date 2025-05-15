@@ -4,11 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { SendHorizonal, Loader2 } from 'lucide-react';
 import { useChat } from '@/contexts/chat';
+import { useToast } from '@/hooks/use-toast';
 
 export const ChatInput: React.FC = () => {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setIsMounted(true);
@@ -39,6 +41,11 @@ export const ChatInput: React.FC = () => {
       console.log("ChatInput: Message sent successfully");
     } catch (error) {
       console.error("ChatInput: Error sending message:", error);
+      toast({
+        title: "Message Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive"
+      });
     }
   };
   

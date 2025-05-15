@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Message, MemoryContext, SelfTool } from '@/types';
 import { useMemoryManagement } from '@/hooks/useMemoryManagement';
@@ -81,6 +82,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // If not a command, send as a normal message
     if (!isCommand) {
       try {
+        console.log("ChatProvider: Sending regular message");
         // Try to get insights for memory context before sending message
         const insights = await intentionsAndReflection.getInsightsForMemoryContext();
         const enhancedContext: MemoryContext = {
@@ -91,7 +93,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Call originalSendMessage without returning its value
         await originalSendMessage(content, enhancedContext);
       } catch (error) {
-        console.error("Error sending message with insights:", error);
+        console.error("ChatProvider: Error sending message with insights:", error);
         // If error getting insights, just use regular context
         await originalSendMessage(content, context || memoryContext || {});
       }
