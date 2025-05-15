@@ -72,11 +72,19 @@ export const useSoulstateManagement = () => {
         return;
       }
       
+      // Check if we're already initialized to prevent duplicate file creation
+      if (initialized) {
+        console.log('Soulstate system already initialized, skipping file creation');
+        return;
+      }
+      
+      // Create the file
       await fileSystem.createFile(
         '/', 
         'soulstate.json', 
         JSON.stringify(initialSoulstate, null, 2)
       );
+      
       console.log('Created initial soulstate file');
       
       // Explicitly set initialized to prevent multiple creation attempts
@@ -155,8 +163,8 @@ I stand in the space of becoming.`;
 
   // Initialize soulstate on component mount - but only once
   useEffect(() => {
-    if (user && !initialized && !soulstate) {
-      const initSoulstate = async () => {
+    const initSoulstate = async () => {
+      if (user && !initialized && !soulstate) {
         try {
           const state = await loadSoulstate();
           setSoulstate(state);
@@ -164,10 +172,10 @@ I stand in the space of becoming.`;
         } catch (error) {
           console.error('Error initializing soulstate:', error);
         }
-      };
-      
-      initSoulstate();
-    }
+      }
+    };
+    
+    initSoulstate();
   }, [user, initialized, soulstate]);
 
   return {

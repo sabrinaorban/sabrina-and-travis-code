@@ -27,7 +27,10 @@ export const useChatMessages = () => {
 
   // Wrapper for sendMessage to provide additional context or processing if needed
   const sendMessage = useCallback(async (content: string, context?: MemoryContext): Promise<void> => {
-    if (!content.trim() || messageInProgress.current) return;
+    if (!content.trim() || messageInProgress.current) {
+      console.log("Message rejected: Empty content or message already in progress");
+      return;
+    }
     
     messageInProgress.current = true;
     

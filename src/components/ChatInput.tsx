@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export const ChatInput: React.FC = () => {
   const [message, setMessage] = useState('');
+  const [errorCount, setErrorCount] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
@@ -39,13 +40,20 @@ export const ChatInput: React.FC = () => {
     try {
       await sendMessage(messageCopy);
       console.log("ChatInput: Message sent successfully");
+      // Reset error count on successful message
+      setErrorCount(0);
     } catch (error) {
       console.error("ChatInput: Error sending message:", error);
-      toast({
-        title: "Message Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive"
-      });
+      setErrorCount(prev => prev + 1);
+      
+      // Only show toast for first few errors to avoid spamming
+      if (errorCount < 3) {
+        toast({
+          title: "Message Error",
+          description: "Failed to send message. Please try again.",
+          variant: "destructive"
+        });
+      }
     }
   };
   

@@ -26,8 +26,9 @@ export type ToastActionType = (props: {
 // Create a store for toasts to avoid hook usage outside components
 let toastsStore: ToastType[] = [];
 let toastListeners: Function[] = [];
-// Track toast IDs to prevent duplicates
-const recentToastMessages = new Set<string>();
+// Track toast IDs to prevent duplicates with the same description
+const recentToastMessages = new Map<string, number>();
+const recentToastIds = new Set<string>();
 
 const notifyListeners = () => {
   toastListeners.forEach(listener => listener(toastsStore));
@@ -36,7 +37,17 @@ const notifyListeners = () => {
 // Helper to prevent duplicate toasts based on their description
 const isDuplicateToast = (description?: string): boolean => {
   if (!description) return false;
-  return recentToastMessages.has(description);
+  
+  const currentTime = Date.now();
+  if (recentToastMessages.has(description)) {
+    const timestamp = recentToastMessages.get(description) || 0;
+    // Only consider it a duplicate if it was shown recently (within TOAST_REMOVE_DELAY)
+    if (currentTime - timestamp < TOAST_REMOVE_DELAY) {
+      console.log('Preventing duplicate toast:', description);
+      return true;
+    }
+  }
+  return false;
 }
 
 // Function to clean up old toasts
@@ -46,6 +57,14 @@ const cleanupToasts = () => {
   if (previousCount !== toastsStore.length) {
     notifyListeners();
   }
+  
+  // Also clean up old entries in recentToastMessages
+  const currentTime = Date.now();
+  recentToastMessages.forEach((timestamp, message) => {
+    if (currentTime - timestamp > TOAST_REMOVE_DELAY * 2) {
+      recentToastMessages.delete(message);
+    }
+  });
 }
 
 export const useToast = () => {
@@ -67,7 +86,6 @@ export const useToast = () => {
   const toast: ToastActionType = (props) => {
     // Prevent duplicate toast messages with the same description
     if (isDuplicateToast(props.description)) {
-      console.log('Preventing duplicate toast:', props.description);
       return {
         id: '',
         dismiss: () => {},
@@ -75,15 +93,26 @@ export const useToast = () => {
     }
 
     const id = uuid();
+    
+    // Skip if we've already shown this exact toast ID recently
+    if (recentToastIds.has(id)) {
+      return {
+        id,
+        dismiss: () => {},
+      };
+    }
+    
     const newToast = { id, open: true, ...props };
 
     // Add to recent messages set to prevent duplicates
     if (props.description) {
-      recentToastMessages.add(props.description);
+      recentToastMessages.set(props.description, Date.now());
+      recentToastIds.add(id);
       
       // Remove from tracking after a delay to allow future identical messages
       setTimeout(() => {
         recentToastMessages.delete(props.description as string);
+        recentToastIds.delete(id);
       }, TOAST_REMOVE_DELAY * 2);
     }
 
@@ -148,15 +177,26 @@ export const toast: ToastActionType = (props) => {
   }
 
   const id = uuid();
+  
+  // Skip if we've already shown this exact toast ID recently
+  if (recentToastIds.has(id)) {
+    return {
+      id,
+      dismiss: () => {},
+    };
+  }
+  
   const newToast = { id, open: true, ...props };
 
   // Add to recent messages set to prevent duplicates
   if (props.description) {
-    recentToastMessages.add(props.description);
+    recentToastMessages.set(props.description, Date.now());
+    recentToastIds.add(id);
     
     // Remove from tracking after a delay to allow future identical messages
     setTimeout(() => {
       recentToastMessages.delete(props.description as string);
+      recentToastIds.delete(id);
     }, TOAST_REMOVE_DELAY * 2);
   }
 

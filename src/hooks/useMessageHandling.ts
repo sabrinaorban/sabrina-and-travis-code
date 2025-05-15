@@ -61,15 +61,30 @@ export const useMessageHandling = (
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API error response:", errorData);
-        throw new Error(errorData.message || 'Failed to send message');
+        let errorMessage = 'Failed to send message';
+        try {
+          const errorData = await response.json();
+          console.error("API error response:", errorData);
+          errorMessage = errorData.message || errorMessage;
+        } catch (jsonError) {
+          // Handle case where response isn't valid JSON
+          console.error("Failed to parse error response:", response.status, response.statusText);
+          errorMessage = `API error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
       
-      const responseData = await response.json();
-      console.log("API response received:", responseData); // Debug log
+      // Add safeguards around JSON parsing
+      let responseData;
+      try {
+        responseData = await response.json();
+        console.log("API response received:", responseData);
+      } catch (parseError) {
+        console.error("Error parsing API response:", parseError);
+        throw new Error('Invalid response format from server. Unable to parse JSON.');
+      }
       
-      if (!responseData.message) {
+      if (!responseData || !responseData.message) {
         console.error("API response missing message field:", responseData);
         throw new Error('Invalid response format from server');
       }
