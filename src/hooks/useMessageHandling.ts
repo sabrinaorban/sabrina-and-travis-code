@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useMemoryManagement } from './useMemoryManagement';
 import { useToast } from './use-toast';
