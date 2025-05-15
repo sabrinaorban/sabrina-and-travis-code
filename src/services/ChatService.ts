@@ -1,3 +1,4 @@
+
 import { Message, OpenAIMessage } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -38,19 +39,24 @@ export const storeUserMessage = async (userId: string, content: string, emotion:
     emotion: emotion
   };
 
-  const { error } = await supabase
-    .from('messages')
-    .insert({
-      user_id: userId,
-      role: newMessage.role,
-      content: newMessage.content,
-      timestamp: newMessage.timestamp,
-      emotion: newMessage.emotion
-    });
+  try {
+    const { error } = await supabase
+      .from('messages')
+      .insert({
+        user_id: userId,
+        role: newMessage.role,
+        content: newMessage.content,
+        timestamp: newMessage.timestamp,
+        emotion: newMessage.emotion
+      });
 
-  if (error) {
-    console.error('Error storing user message:', error);
-    throw error;
+    if (error) {
+      console.error('Error storing user message:', error);
+      throw error;
+    }
+  } catch (err) {
+    console.error('Failed to store message:', err);
+    // Don't throw here to allow the conversation to continue even if storage fails
   }
 
   return newMessage;
@@ -66,25 +72,30 @@ export const storeAssistantMessage = async (userId: string, content: string, emo
     emotion: emotion
   };
 
-  const { error } = await supabase
-    .from('messages')
-    .insert({
-      user_id: userId,
-      role: newMessage.role,
-      content: newMessage.content,
-      timestamp: newMessage.timestamp,
-      emotion: newMessage.emotion
-    });
+  try {
+    const { error } = await supabase
+      .from('messages')
+      .insert({
+        user_id: userId,
+        role: newMessage.role,
+        content: newMessage.content,
+        timestamp: newMessage.timestamp,
+        emotion: newMessage.emotion
+      });
 
-  if (error) {
-    console.error('Error storing assistant message:', error);
-    throw error;
+    if (error) {
+      console.error('Error storing assistant message:', error);
+      throw error;
+    }
+  } catch (err) {
+    console.error('Failed to store assistant message:', err);
+    // Don't throw here to allow the conversation to continue even if storage fails
   }
 
   return newMessage;
 };
 
-// Call OpenAI API through Supabase Edge Function
+// Call OpenAI API through Supabase Edge Function - FIXED to handle errors properly
 export const callOpenAI = async (
   messages: OpenAIMessage[],
   memoryContext?: any,
@@ -109,7 +120,7 @@ export const callOpenAI = async (
     return data;
   } catch (error) {
     console.error('Error in callOpenAI:', error);
-    throw error;
+    throw new Error('Failed to get a response from the AI service. Please try again later.');
   }
 };
 

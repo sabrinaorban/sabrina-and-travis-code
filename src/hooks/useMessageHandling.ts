@@ -3,7 +3,7 @@ import { Message, MemoryContext } from '@/types';
 import { useMemoryManagement } from './useMemoryManagement';
 import { useToast } from '@/hooks/use-toast';
 import { useLivedMemory } from './useLivedMemory';
-import { ChatFallbackResponse } from '@/components/ChatFallbackResponse';
+import { callOpenAI } from '@/services/ChatService';
 
 /**
  * Hook for handling message sending and processing
@@ -49,98 +49,50 @@ export const useMessageHandling = (
       
       console.log("useMessageHandling: Sending request to API with context:", Object.keys(updatedContext));
       
-      // Call API to get assistant response
-      let response;
+      // FIXED: Use callOpenAI from ChatService instead of fetch to /api/messages
+      let responseData;
       try {
-        // Use the built-in fetch API with proper error handling
-        response = await fetch('/api/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            content,
-            context: updatedContext,
-          }),
-        });
-      } catch (fetchError) {
-        console.error("Network error when calling API:", fetchError);
-        throw new Error("Network connection error. Please check your internet connection.");
-      }
-      
-      // Check if the response is successful (status code 2xx)
-      if (!response.ok) {
-        let errorMessage = 'Failed to send message';
-        try {
-          const errorData = await response.json();
-          console.error("API error response:", errorData);
-          errorMessage = errorData.message || `API error: ${response.status} ${response.statusText}`;
-        } catch (jsonError) {
-          // Handle case where response isn't valid JSON
-          console.error("Failed to parse error response:", response.status, response.statusText);
-          errorMessage = `API error: ${response.status} ${response.statusText}`;
+        // Convert messages to OpenAI format
+        const lastMessages = messages.slice(-5); // Use last 5 messages for context
+        const openAIMessages = [
+          ...lastMessages.map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+          {
+            role: 'user',
+            content
+          }
+        ];
+        
+        // Call OpenAI through ChatService
+        const response = await callOpenAI(openAIMessages, updatedContext);
+        responseData = response;
+        
+        if (!responseData) {
+          throw new Error('No response received from OpenAI');
         }
-        
-        // Increment API error count
-        apiErrorCount.current += 1;
-        
-        // If we've had too many API errors, use a fallback response
-        if (apiErrorCount.current >= 3) {
-          // Create and add a fallback message directly
-          const fallbackMessage: Message = {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: `I apologize, but I'm having trouble connecting to my response system right now. There seems to be a technical issue (${response.status}). Our engineers have been notified and are working to resolve this. Please try again in a moment.`,
-            timestamp: new Date().toISOString(),
-          };
-          
-          setMessages(prev => [...prev, fallbackMessage]);
-          setIsTyping(false);
-          
-          // Clear the error count after providing a fallback
-          apiErrorCount.current = 0;
-          
-          return fallbackMessage;
-        }
-        
-        throw new Error(errorMessage);
+      } catch (apiError) {
+        console.error("API call failed:", apiError);
+        throw new Error(apiError.message || 'Failed to get response from API');
       }
       
       // Reset API error count on successful request
       apiErrorCount.current = 0;
       
-      // Add safeguards around JSON parsing
-      let responseData;
-      try {
-        const responseText = await response.text();
-        console.log("Raw API response:", responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
-        
-        // Try to parse JSON, but handle empty responses
-        if (!responseText.trim()) {
-          throw new Error('Empty response from server');
-        }
-        
-        try {
-          responseData = JSON.parse(responseText);
-          console.log("API response parsed successfully");
-        } catch (parseError) {
-          console.error("Error parsing API response:", parseError);
-          throw new Error('Invalid response format from server. Unable to parse JSON.');
-        }
-      } catch (readError) {
-        console.error("Error reading API response:", readError);
-        throw new Error('Could not read response from server.');
-      }
-      
-      if (!responseData || !responseData.message) {
-        console.error("API response missing message field:", responseData);
-        throw new Error('Invalid response format from server');
+      // Extract assistant message from the response
+      let assistantContent: string;
+      if (responseData.choices && responseData.choices[0] && responseData.choices[0].message) {
+        assistantContent = responseData.choices[0].message.content;
+      } else {
+        console.error("Unexpected API response format:", responseData);
+        throw new Error('Invalid response format from API');
       }
       
       // Add assistant message to the chat
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
-        content: responseData.message,
+        content: assistantContent,
         role: 'assistant',
         timestamp: new Date().toISOString(),
         emotion: responseData.emotion || null,
@@ -177,7 +129,7 @@ export const useMessageHandling = (
       const fallbackMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: `I apologize, but I'm having trouble processing your request right now. There seems to be a technical issue. Please try again in a moment.`,
+        content: `I apologize, but I'm having trouble connecting to my response system right now. There seems to be a technical issue. Please try again in a moment.`,
         timestamp: new Date().toISOString(),
       };
       
@@ -189,7 +141,7 @@ export const useMessageHandling = (
       console.log("useMessageHandling: Message handling complete, setting isTyping to false");
       setIsTyping(false);
     }
-  }, [refreshMemoryContext, buildLivedMemoryContext, setMessages, setIsTyping, toast, storePersistentFact]);
+  }, [refreshMemoryContext, buildLivedMemoryContext, setMessages, setIsTyping, toast, storePersistentFact, messages]);
 
   return {
     sendMessage,

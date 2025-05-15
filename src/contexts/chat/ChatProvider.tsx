@@ -33,7 +33,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     isTyping,
     setIsTyping,
     sendMessage: originalSendMessage,
-    memoryContext
+    memoryContext,
+    isLoadingHistory
   } = useChatMessages();
   
   // Initialize all Travis's features
@@ -54,53 +55,59 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   
   // Process message history for insights after message changes
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && !isLoadingHistory) {
       intentionsAndReflection.processMessageHistoryForInsights(messages).catch(console.error);
     }
-  }, [messages, intentionsAndReflection]);
+  }, [messages, intentionsAndReflection, isLoadingHistory]);
   
   // Check for evolution cycle on initial load
   useEffect(() => {
-    // We'll check for evolution only once after initial load
+    // We'll check for evolution only once after initial load and once history is loaded
     // This will properly set up the mechanism to be triggered every 3 days
     const initialCheckTimeout = setTimeout(() => {
-      if (messages.length > 0) {
+      if (messages.length > 0 && !isLoadingHistory) {
         checkEvolutionCycle().catch(console.error);
       }
     }, 10000); // Wait 10 seconds after initial load
     
     return () => clearTimeout(initialCheckTimeout);
-  }, []);
+  }, [messages, isLoadingHistory, checkEvolutionCycle]);
   
   // Create a wrapper for sendMessage that first checks for commands
   const sendMessage = useCallback(async (content: string, context?: MemoryContext): Promise<void> => {
-    if (!content.trim() || isTyping || isProcessing) return;
+    if (!content.trim() || isTyping || isProcessing || isLoadingHistory) return;
     
     // First check if this is a special command
-    const isCommand = await processCommand(content, context);
-    
-    // If not a command, send as a normal message
-    if (!isCommand) {
-      try {
-        console.log("ChatProvider: Sending regular message");
-        // Try to get insights for memory context before sending message
-        const insights = await intentionsAndReflection.getInsightsForMemoryContext();
-        const enhancedContext: MemoryContext = {
-          ...(context || memoryContext || {}),
-          insights
-        };
-        
-        // Call originalSendMessage without returning its value
-        await originalSendMessage(content, enhancedContext);
-      } catch (error) {
-        console.error("ChatProvider: Error sending message with insights:", error);
-        // If error getting insights, just use regular context
-        await originalSendMessage(content, context || memoryContext || {});
+    try {
+      const isCommand = await processCommand(content, context);
+      
+      // If not a command, send as a normal message
+      if (!isCommand) {
+        try {
+          console.log("ChatProvider: Sending regular message");
+          // Try to get insights for memory context before sending message
+          const insights = await intentionsAndReflection.getInsightsForMemoryContext();
+          const enhancedContext: MemoryContext = {
+            ...(context || memoryContext || {}),
+            insights
+          };
+          
+          // Call originalSendMessage without returning its value
+          await originalSendMessage(content, enhancedContext);
+        } catch (error) {
+          console.error("ChatProvider: Error sending message with insights:", error);
+          // If error getting insights, just use regular context
+          await originalSendMessage(content, context || memoryContext || {});
+        }
       }
+    } catch (error) {
+      console.error("ChatProvider: Error in sendMessage:", error);
+      throw error; // Make sure errors propagate for proper handling
     }
   }, [
     isTyping,
-    isProcessing, 
+    isProcessing,
+    isLoadingHistory, 
     processCommand, 
     originalSendMessage, 
     memoryContext, 
@@ -119,6 +126,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         sendMessage,
         isTyping,
         memoryContext,
+        isLoadingHistory,
         
         // Reflection features
         generateWeeklyReflection: intentionsAndReflection.generateWeeklyReflection,

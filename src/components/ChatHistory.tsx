@@ -2,9 +2,10 @@
 import React, { useEffect, useRef } from 'react';
 import { ChatMessage } from './ChatMessage';
 import { useChat } from '@/contexts/chat';
+import { Loader2 } from 'lucide-react';
 
 export const ChatHistory: React.FC = () => {
-  const { messages, isTyping } = useChat();
+  const { messages, isTyping, isLoadingHistory } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom when messages change or when typing starts/stops
@@ -20,6 +21,17 @@ export const ChatHistory: React.FC = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  if (isLoadingHistory) {
+    return (
+      <div className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-travis-primary mx-auto mb-4" />
+          <p className="text-gray-500">Loading conversation history...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto p-4">
