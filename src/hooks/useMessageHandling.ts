@@ -41,7 +41,8 @@ export const useMessageHandling = (
       // Enhance context with lived memory
       const livedMemoryBlocks = await buildLivedMemoryContext(content);
       if (livedMemoryBlocks.length > 0) {
-        updatedContext.livedMemory = livedMemoryBlocks;
+        // Cast updatedContext to MemoryContext to ensure TypeScript knows it has the livedMemory property
+        (updatedContext as MemoryContext).livedMemory = livedMemoryBlocks;
       }
       
       // Call API to get assistant response
