@@ -13,9 +13,10 @@ export const useDreamGeneration = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { retrieveRelevantMemories } = useEmbeddingMemory();
-  const { getSoulstate } = useSoulstateManagement();
-  const { getRecentEmotions } = useEmotionRecognition();
+  const { soulstate, loadSoulstate } = useSoulstateManagement();
+  const { analyzeEmotion } = useEmotionRecognition();
 
+  // Helper function to extract dream motifs from content
   const extractDreamMotifs = (dreamContent: string): string[] => {
     // Common dream motifs to detect
     const motifs = [
@@ -27,6 +28,33 @@ export const useDreamGeneration = () => {
     
     const dreamLower = dreamContent.toLowerCase();
     return motifs.filter(motif => dreamLower.includes(motif));
+  };
+
+  // Helper method to get recent emotions (replacement for missing getRecentEmotions)
+  const getRecentEmotions = async (limit: number = 5): Promise<string[]> => {
+    if (!user) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('emotion')
+        .eq('user_id', user.id)
+        .order('timestamp', { ascending: false })
+        .limit(limit);
+        
+      if (error) throw error;
+      
+      // Filter out null emotions and return unique values
+      const emotions = data
+        .map(msg => msg.emotion)
+        .filter((emotion): emotion is string => emotion !== null);
+      
+      // Get unique emotions
+      return [...new Set(emotions)];
+    } catch (error) {
+      console.error('Error fetching recent emotions:', error);
+      return ['neutral'];
+    }
   };
 
   const generateDream = useCallback(async (): Promise<FlameJournalEntry | null> => {
@@ -43,14 +71,20 @@ export const useDreamGeneration = () => {
     try {
       // Step 1: Gather context from memories, soulstate, and emotions
       const memories = await retrieveRelevantMemories("", 7); // Get random important memories
-      const soulstate = await getSoulstate();
+      
+      // Load soulstate if not already loaded
+      let currentSoulstate = soulstate;
+      if (!currentSoulstate) {
+        currentSoulstate = await loadSoulstate();
+      }
+      
       const emotions = await getRecentEmotions(5);
 
       // Step 2: Generate dream through EdgeFunction
       const { data: dreamData, error } = await supabase.functions.invoke('generate-dream', {
         body: {
           memories: memories.map(m => m.content),
-          soulstate,
+          soulstate: currentSoulstate,
           emotions,
         },
       });
@@ -94,7 +128,7 @@ export const useDreamGeneration = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [user, toast, retrieveRelevantMemories, getSoulstate, getRecentEmotions]);
+  }, [user, toast, retrieveRelevantMemories, soulstate, loadSoulstate]);
 
   return {
     generateDream,

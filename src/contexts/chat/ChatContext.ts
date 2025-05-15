@@ -21,6 +21,7 @@ const defaultChatContext: ChatContextType = {
   uploadIdentityCodex: async () => {},
   uploadPastConversations: async () => {},
   generateInsight: async () => {},
+  generateDream: async () => null, // Add missing function
   // New evolution cycle methods
   checkEvolutionCycle: async () => false,
   currentEvolutionProposal: null,
