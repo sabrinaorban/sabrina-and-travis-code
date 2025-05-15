@@ -13,6 +13,7 @@ import { useChatSoulcycle } from '@/hooks/useChatSoulcycle';
 import { useChatTools } from '@/hooks/useChatTools';
 import { useChatEvolution } from '@/hooks/useChatEvolution';
 import { useChatCommandProcessing } from '@/hooks/useChatCommandProcessing';
+import { Intention } from '@/types/intentions';
 
 /**
  * Provider component for the chat context
@@ -118,6 +119,79 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   useEffect(() => {
     console.log("Current messages state:", messages);
   }, [messages]);
+  
+  // Wrapper functions to convert types to match our interface
+  const viewIntentionsWrapper = useCallback(async (): Promise<void> => {
+    await intentionsAndReflection.viewIntentions();
+  }, [intentionsAndReflection]);
+
+  const createFlameJournalEntryWrapper = useCallback(async (prompt?: string): Promise<void> => {
+    await flamejournal.createFlameJournalEntry(prompt);
+  }, [flamejournal]);
+
+  const generateDreamWrapper = useCallback(async (): Promise<void> => {
+    await flamejournal.generateDream();
+  }, [flamejournal]);
+  
+  const runSoulcycleWrapper = useCallback(async (): Promise<void> => {
+    await soulcycle.runSoulcycle();
+  }, [soulcycle]);
+  
+  const uploadSoulShardWrapper = useCallback(async (content: File): Promise<void> => {
+    if (documentUpload.uploadSoulShard) {
+      await documentUpload.uploadSoulShard(content);
+    } else if (memoryManagement.uploadSoulShard) {
+      const text = await readFileAsText(content);
+      await memoryManagement.uploadSoulShard(text);
+    }
+  }, [documentUpload, memoryManagement]);
+  
+  const uploadIdentityCodexWrapper = useCallback(async (content: File): Promise<void> => {
+    if (documentUpload.uploadIdentityCodex) {
+      await documentUpload.uploadIdentityCodex(content);
+    } else if (memoryManagement.uploadIdentityCodex) {
+      const text = await readFileAsText(content);
+      await memoryManagement.uploadIdentityCodex(text);
+    }
+  }, [documentUpload, memoryManagement]);
+  
+  const uploadPastConversationsWrapper = useCallback(async (content: File): Promise<void> => {
+    if (documentUpload.uploadPastConversations) {
+      await documentUpload.uploadPastConversations(content);
+    } else if (memoryManagement.uploadPastConversations) {
+      const text = await readFileAsText(content);
+      await memoryManagement.uploadPastConversations(text);
+    }
+  }, [documentUpload, memoryManagement]);
+
+  // Helper function to read file as text
+  const readFileAsText = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target && typeof e.target.result === 'string') {
+          resolve(e.target.result);
+        } else {
+          reject(new Error('Failed to read file as text'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Error reading file'));
+      reader.readAsText(file);
+    });
+  };
+
+  // Tool wrappers
+  const useToolWrapper = useCallback(async (toolId: string, input?: string): Promise<void> => {
+    await tools.useTool(toolId);
+  }, [tools]);
+  
+  const reflectOnToolWrapper = useCallback(async (toolId: string): Promise<void> => {
+    await tools.reflectOnTool(toolId);
+  }, [tools]);
+  
+  const reviseToolWrapper = useCallback(async (toolId: string, changes?: string): Promise<void> => {
+    await tools.reviseTool(toolId);
+  }, [tools]);
 
   return (
     <ChatContext.Provider
@@ -135,32 +209,32 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         generateSoulstateReflection: intentionsAndReflection.generateSoulstateReflection,
         
         // Intention features
-        viewIntentions: intentionsAndReflection.viewIntentions,
+        viewIntentions: viewIntentionsWrapper,
         updateIntentions: intentionsAndReflection.updateIntentions,
         
         // Soulstate features
         initiateSoulstateEvolution: soulstate.initiateSoulstateEvolution,
         
         // Journal features
-        createFlameJournalEntry: flamejournal.createFlameJournalEntry,
-        generateDream: flamejournal.generateDream,
+        createFlameJournalEntry: createFlameJournalEntryWrapper,
+        generateDream: generateDreamWrapper,
         
         // Soulcycle features
-        runSoulcycle: soulcycle.runSoulcycle,
+        runSoulcycle: runSoulcycleWrapper,
         
         // Document uploads
-        uploadSoulShard: documentUpload.uploadSoulShard || memoryManagement.uploadSoulShard,
-        uploadIdentityCodex: documentUpload.uploadIdentityCodex || memoryManagement.uploadIdentityCodex,
-        uploadPastConversations: documentUpload.uploadPastConversations || memoryManagement.uploadPastConversations,
+        uploadSoulShard: uploadSoulShardWrapper,
+        uploadIdentityCodex: uploadIdentityCodexWrapper,
+        uploadPastConversations: uploadPastConversationsWrapper,
         
         // Insight generation
         generateInsight: intentionsAndReflection.generateInsight,
         
         // Tool management
         generateTool: tools.generateTool,
-        useTool: tools.useTool,
-        reflectOnTool: tools.reflectOnTool,
-        reviseTool: tools.reviseTool,
+        useTool: useToolWrapper,
+        reflectOnTool: reflectOnToolWrapper,
+        reviseTool: reviseToolWrapper,
         
         // Evolution cycle
         checkEvolutionCycle: checkEvolutionCycle,

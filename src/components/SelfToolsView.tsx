@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { SelfTool } from '@/types';
 import { useSelfTools } from '@/hooks/useSelfTools';
@@ -36,7 +35,7 @@ export const SelfToolsView: React.FC = () => {
   
   const handleUseClick = () => {
     if (selectedTool) {
-      useTool(selectedTool.name);
+      useTool(selectedTool.name, "");
     }
   };
   
@@ -48,7 +47,7 @@ export const SelfToolsView: React.FC = () => {
   
   const handleReviseClick = () => {
     if (selectedTool) {
-      reviseTool(selectedTool.name);
+      reviseTool(selectedTool.name, "");
     }
   };
 

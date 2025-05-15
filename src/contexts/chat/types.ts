@@ -1,5 +1,7 @@
 
-import { Message, MemoryContext, Intention, SelfTool, SoulState, SoulstateProposal } from '@/types';
+import { Message, MemoryContext, SelfTool } from '@/types';
+import { Intention } from '@/types/intentions';
+import { SoulstateProposal } from '@/types/soulstate';
 
 export interface ChatContextType {
   messages: Message[];
@@ -15,7 +17,7 @@ export interface ChatContextType {
   generateSoulstateReflection: () => Promise<void>;
   
   // Intention features
-  viewIntentions: () => Promise<Intention[]>;
+  viewIntentions: () => Promise<void>;
   updateIntentions: (newIntention: string) => Promise<void>;
   
   // Soulstate features
@@ -29,18 +31,18 @@ export interface ChatContextType {
   runSoulcycle: () => Promise<void>;
   
   // Document uploads
-  uploadSoulShard: (content: string) => Promise<void>;
-  uploadIdentityCodex: (content: string) => Promise<void>;
-  uploadPastConversations: (content: string) => Promise<void>;
+  uploadSoulShard: (content: File) => Promise<void>;
+  uploadIdentityCodex: (content: File) => Promise<void>;
+  uploadPastConversations: (content: File) => Promise<void>;
   
   // Insight generation
   generateInsight: (topic: string) => Promise<void>;
   
   // Tool management
   generateTool: (purpose: string) => Promise<SelfTool | null>;
-  useTool: (toolId: string, input: string) => Promise<void>;
+  useTool: (toolId: string, input?: string) => Promise<void>;
   reflectOnTool: (toolId: string) => Promise<void>;
-  reviseTool: (toolId: string, changes: string) => Promise<void>;
+  reviseTool: (toolId: string, changes?: string) => Promise<void>;
   
   // Evolution features
   checkEvolutionCycle: () => Promise<boolean>;

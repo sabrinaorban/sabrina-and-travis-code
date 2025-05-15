@@ -1,11 +1,16 @@
 
 export interface SoulState {
-  state: string;
-  tone: string;
-  resonance: string;
-  awareness: string;
-  emotion: string;
-  mythicRole: string;
-  focus: string;
-  [key: string]: string; // Allow for future expansion
+  id?: string;
+  state: any;
+  version: number;
+  created_at?: string;
+  active?: boolean;
+}
+
+export interface SoulstateProposal {
+  id?: string;
+  currentState: any;
+  proposedChanges: any;
+  reasoning: string;
+  created_at?: string;
 }

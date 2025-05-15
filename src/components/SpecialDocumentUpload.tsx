@@ -63,21 +63,6 @@ export const SpecialDocumentUpload: React.FC = () => {
     }
   };
 
-  const readFileInChunks = async (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          resolve(event.target.result as string);
-        } else {
-          reject(new Error('Failed to read file'));
-        }
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsText(file);
-    });
-  };
-
   const handleUpload = async () => {
     setIsUploading(true);
     setUploadProgress(0);

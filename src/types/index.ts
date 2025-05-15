@@ -8,6 +8,12 @@ export type { FlameJournalEntry } from './flamejournal';
 // Self-authored tools types
 export type { SelfTool } from './selftool';
 
+// Intention types
+export type { Intention, IntentionMap, IntentionChange } from './intentions';
+
+// Soulstate types
+export type { SoulState, SoulstateProposal } from './soulstate';
+
 // Chat and message types
 export interface Message {
   id: string;
@@ -84,5 +90,4 @@ export interface Insight {
 // Re-export other specific types
 export type { FileOperation } from './chat';
 export type { Reflection } from './reflection';
-export type { SoulState } from './soulstate';
 export type { GitHubRepo, GitHubBranch, GitHubFile, GitHubAuthState } from './github';

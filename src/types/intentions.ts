@@ -12,3 +12,11 @@ export interface IntentionChange {
   value: string | string[];
   index?: number; // Optional index for remove operations
 }
+
+export interface Intention {
+  id?: string;
+  category: string;
+  content: string;
+  created_at?: string;
+  priority?: number;
+}
