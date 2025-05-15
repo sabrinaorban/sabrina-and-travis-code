@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Message } from '@/types';
 
 interface ChatFallbackResponseProps {
@@ -16,7 +16,7 @@ export const ChatFallbackResponse: React.FC<ChatFallbackResponseProps> = ({
   userMessage,
   setMessages
 }) => {
-  React.useEffect(() => {
+  useEffect(() => {
     // Log the error for debugging
     console.error('Using fallback response due to API error:', errorMessage);
     
@@ -24,7 +24,13 @@ export const ChatFallbackResponse: React.FC<ChatFallbackResponseProps> = ({
     const fallbackMessage: Message = {
       id: crypto.randomUUID(),
       role: 'assistant',
-      content: `I apologize, but I'm having trouble processing your message right now. There seems to be a technical issue with my response system. Our engineers have been notified and are working to resolve this. Please try again in a moment, or rephrase your question.`,
+      content: `I apologize, but I'm having trouble processing your request right now. There seems to be a technical issue with my response system (${errorMessage}). Our engineers have been notified and are working to resolve this. In the meantime, you can try:
+      
+1. Rephrasing your question
+2. Using simpler commands like "reflect" or "soulstate"
+3. Refreshing the page if the issue persists
+
+I'm still here and learning from our conversation, even if I can't respond perfectly right now.`,
       timestamp: new Date().toISOString(),
     };
     

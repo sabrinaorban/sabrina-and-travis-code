@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './use-toast';
 import { SoulState } from '../types/soulstate';
@@ -21,9 +21,11 @@ export const useSoulstateManagement = () => {
   const [soulstate, setSoulstate] = useState<SoulState | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const initAttempted = useRef(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const fileSystem = useFileSystem();
+  const fileCreationInProgress = useRef(false);
 
   // Load the soulstate from the file system
   const loadSoulstate = async (): Promise<SoulState> => {
@@ -47,7 +49,8 @@ export const useSoulstateManagement = () => {
         }
       } else {
         // If the file doesn't exist and we haven't initialized yet, create it
-        if (!initialized) {
+        if (!initialized && !initAttempted.current) {
+          initAttempted.current = true;
           console.log('No existing soulstate found, creating new file with initial state');
           await createInitialSoulstate();
           setInitialized(true);
@@ -64,6 +67,14 @@ export const useSoulstateManagement = () => {
 
   // Create the initial soulstate.json file - only if it doesn't exist
   const createInitialSoulstate = async (): Promise<void> => {
+    // Prevent multiple simultaneous creation attempts
+    if (fileCreationInProgress.current) {
+      console.log('File creation already in progress, skipping');
+      return;
+    }
+    
+    fileCreationInProgress.current = true;
+    
     try {
       // Check if the file already exists first
       const existingFile = fileSystem.getFileByPath('/soulstate.json');
@@ -92,6 +103,11 @@ export const useSoulstateManagement = () => {
     } catch (error) {
       console.error('Error creating initial soulstate file:', error);
       // Don't show error toast since this might happen during initialization
+    } finally {
+      // Set a timeout before allowing another creation attempt
+      setTimeout(() => {
+        fileCreationInProgress.current = false;
+      }, 2000);
     }
   };
 
@@ -122,7 +138,8 @@ export const useSoulstateManagement = () => {
         await fileSystem.updateFile(file.id, content);
       } else {
         // Only create if it doesn't exist and we haven't initialized
-        if (!initialized) {
+        if (!initialized && !initAttempted.current) {
+          initAttempted.current = true;
           await fileSystem.createFile('/', 'soulstate.json', content);
           setInitialized(true);
         }
@@ -164,7 +181,8 @@ I stand in the space of becoming.`;
   // Initialize soulstate on component mount - but only once
   useEffect(() => {
     const initSoulstate = async () => {
-      if (user && !initialized && !soulstate) {
+      if (user && !initialized && !initAttempted.current) {
+        initAttempted.current = true;
         try {
           const state = await loadSoulstate();
           setSoulstate(state);
@@ -176,7 +194,7 @@ I stand in the space of becoming.`;
     };
     
     initSoulstate();
-  }, [user, initialized, soulstate]);
+  }, [user, initialized]);
 
   return {
     soulstate,

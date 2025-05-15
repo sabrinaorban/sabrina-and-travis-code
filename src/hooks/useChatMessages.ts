@@ -11,6 +11,7 @@ export const useChatMessages = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const messageInProgress = useRef(false);
+  const toastShown = useRef<{[key: string]: boolean}>({});
   
   const { sendMessage: handleSendMessage, memoryContext } = useMessageHandling(
     messages,
@@ -41,13 +42,29 @@ export const useChatMessages = () => {
       console.log("useChatMessages: Message sent successfully");
     } catch (error: any) {
       console.error('Error sending message:', error);
-      toast({
-        title: 'Message Error',
-        description: error.message || 'Failed to send message',
-        variant: 'destructive',
-      });
+      
+      // Prevent duplicate toasts for the same error message
+      const errorMessage = error.message || 'Failed to send message';
+      const errorKey = `error-${errorMessage}`;
+      
+      if (!toastShown.current[errorKey]) {
+        toast({
+          title: 'Message Error',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        
+        // Mark this error as shown and set a timeout to clear it
+        toastShown.current[errorKey] = true;
+        setTimeout(() => {
+          toastShown.current[errorKey] = false;
+        }, 5000);
+      }
     } finally {
-      messageInProgress.current = false;
+      // Ensure we reset the messageInProgress flag even if an error occurs
+      setTimeout(() => {
+        messageInProgress.current = false;
+      }, 1000);
     }
   }, [handleSendMessage, toast]);
 
