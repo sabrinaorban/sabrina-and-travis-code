@@ -20,6 +20,7 @@ const defaultChatContext: ChatContextType = {
   uploadSoulShard: async () => {},
   uploadIdentityCodex: async () => {},
   uploadPastConversations: async () => {},
+  generateInsight: async () => {},
 };
 
 export const ChatContext = createContext<ChatContextType>(defaultChatContext);
