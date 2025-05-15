@@ -21,6 +21,10 @@ const defaultChatContext: ChatContextType = {
   uploadIdentityCodex: async () => {},
   uploadPastConversations: async () => {},
   generateInsight: async () => {},
+  // New evolution cycle methods
+  checkEvolutionCycle: async () => false,
+  currentEvolutionProposal: null,
+  isEvolutionChecking: false,
 };
 
 export const ChatContext = createContext<ChatContextType>(defaultChatContext);

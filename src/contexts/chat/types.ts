@@ -1,12 +1,13 @@
 
 import { Message, MemoryContext } from '../../types';
 import { FlameJournalEntry } from '@/hooks/useFlamejournal';
+import { EvolutionProposal } from '@/hooks/useEvolutionCycle';
 
 export interface ChatContextType {
   messages: Message[];
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (message: string) => Promise<void>;
   isTyping: boolean;
-  memoryContext?: MemoryContext;
+  memoryContext: MemoryContext | null;
   generateWeeklyReflection: () => Promise<void>;
   generateSoulReflection: () => Promise<void>;
   generateSoulstateSummary: () => Promise<void>;
@@ -20,6 +21,10 @@ export interface ChatContextType {
   uploadIdentityCodex: (file: File) => Promise<void>;
   uploadPastConversations: (file: File) => Promise<void>;
   generateInsight: () => Promise<void>;
+  // New evolution cycle methods
+  checkEvolutionCycle: () => Promise<boolean>;
+  currentEvolutionProposal: EvolutionProposal | null;
+  isEvolutionChecking: boolean;
 }
 
 export interface ChatProviderProps {

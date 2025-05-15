@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useChatManagement } from '@/hooks/useChatManagement';
 import { useMessageHandling } from '@/hooks/useMessageHandling';
@@ -12,7 +12,8 @@ import { useChatSoulstate } from './useChatSoulstate';
 import { useChatFlamejournal } from './useChatFlamejournal';
 import { useChatDocumentUpload } from './useChatDocumentUpload';
 import { useChatSoulcycle } from './useChatSoulcycle';
-import { useInsights } from '@/hooks/useInsights'; // Add the insights hook
+import { useInsights } from '@/hooks/useInsights';
+import { useChatEvolution } from './useChatEvolution'; // New import for evolution cycle
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,7 +33,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const chatManagement = useChatManagement(messages, setMessages, setIsTyping);
   
   // Initialize message handling with proper context
-  const { sendMessage } = useMessageHandling(messages, setMessages, setIsTyping);
+  const { sendMessage: originalSendMessage } = useMessageHandling(messages, setMessages, setIsTyping);
   
   // Initialize all Travis features
   const { 
@@ -72,6 +73,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     getInsightsForMemoryContext,
     generateInsightMessage
   } = useInsights();
+  
+  // Initialize evolution cycle
+  const {
+    isEvolutionChecking,
+    isDueForEvolution,
+    currentProposal,
+    handleEvolutionResponse,
+    checkForEvolutionCycle
+  } = useChatEvolution(setMessages);
 
   // Process message history for insights after message changes
   React.useEffect(() => {
@@ -79,6 +89,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       processMessageHistoryForInsights(messages).catch(console.error);
     }
   }, [messages, processMessageHistoryForInsights]);
+  
+  // Check for evolution cycle when component mounts and messages change
+  useEffect(() => {
+    // We don't want to check on every message, just occasionally
+    const shouldCheck = messages.length > 0 && Math.random() < 0.05; // 5% chance per message
+    
+    if (shouldCheck) {
+      checkForEvolutionCycle().catch(console.error);
+    }
+  }, [messages, checkForEvolutionCycle]);
   
   // Create a function for the /insight command
   const generateInsight = useCallback(async () => {
@@ -92,28 +112,34 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }, [generateInsightMessage, setMessages]);
   
-  // Create sendMessage handler with current memory context
-  const handleSendMessage = useCallback(async (message: string) => {
-    // Try to get insights for memory context before sending message
-    try {
-      const insights = await getInsightsForMemoryContext();
-      const enhancedContext: MemoryContext = {
-        ...memoryContext || {},
-        insights
-      };
-      
-      await sendMessage(message, enhancedContext);
-    } catch (error) {
-      // If error getting insights, just use regular context
-      await sendMessage(message, memoryContext || {});
+  // Wrap the original sendMessage to intercept evolution responses
+  const sendMessage = useCallback(async (message: string) => {
+    // First check if this is a response to an evolution proposal
+    const isEvolutionResponse = await handleEvolutionResponse(message);
+    
+    // If it's an evolution response, don't process it as a regular message
+    if (!isEvolutionResponse) {
+      // Try to get insights for memory context before sending message
+      try {
+        const insights = await getInsightsForMemoryContext();
+        const enhancedContext: MemoryContext = {
+          ...memoryContext || {},
+          insights
+        };
+        
+        await originalSendMessage(message, enhancedContext);
+      } catch (error) {
+        // If error getting insights, just use regular context
+        await originalSendMessage(message, memoryContext || {});
+      }
     }
-  }, [sendMessage, memoryContext, getInsightsForMemoryContext]);
+  }, [originalSendMessage, memoryContext, getInsightsForMemoryContext, handleEvolutionResponse]);
 
   return (
     <ChatContext.Provider
       value={{
         messages,
-        sendMessage: handleSendMessage,
+        sendMessage,
         isTyping,
         memoryContext,
         generateWeeklyReflection,
@@ -128,7 +154,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         uploadSoulShard: uploadSoulShard || uploadSoulShardDoc,
         uploadIdentityCodex: uploadIdentityCodex || uploadIdentityCodexDoc,
         uploadPastConversations: uploadPastConversations || uploadPastConversationsDoc,
-        generateInsight, // Add the new function to the context
+        generateInsight,
+        // New evolution cycle functions
+        checkEvolutionCycle: checkForEvolutionCycle,
+        currentEvolutionProposal: currentProposal,
+        isEvolutionChecking,
       }}
     >
       {children}

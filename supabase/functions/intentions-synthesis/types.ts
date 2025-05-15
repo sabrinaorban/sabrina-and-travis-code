@@ -5,3 +5,9 @@ export interface IntentionMap {
   growthEdges: string[];
   lastUpdated: string;
 }
+
+export interface IntentionEvolutionResult {
+  currentIntentions: IntentionMap;
+  proposedUpdates: Partial<IntentionMap>;
+  narrative: string;
+}
