@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { Message, MemoryContext, SelfTool } from '@/types';
 import { useMemoryManagement } from '@/hooks/useMemoryManagement';
@@ -73,7 +72,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }, []);
   
   // Create a wrapper for sendMessage that first checks for commands
-  const sendMessage = useCallback(async (content: string, context?: MemoryContext) => {
+  const sendMessage = useCallback(async (content: string, context?: MemoryContext): Promise<void> => {
     if (!content.trim() || isTyping || isProcessing) return;
     
     // First check if this is a special command
@@ -89,6 +88,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           insights
         };
         
+        // Call originalSendMessage without returning its value
         await originalSendMessage(content, enhancedContext);
       } catch (error) {
         console.error("Error sending message with insights:", error);

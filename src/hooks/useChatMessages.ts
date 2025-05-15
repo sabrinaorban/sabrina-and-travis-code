@@ -20,14 +20,14 @@ export const useChatMessages = () => {
   const { toast } = useToast();
 
   // Wrapper for sendMessage to provide additional context or processing if needed
-  const sendMessage = useCallback(async (content: string, context?: MemoryContext) => {
+  const sendMessage = useCallback(async (content: string, context?: MemoryContext): Promise<void> => {
     if (!content.trim()) return;
     
     try {
       console.log("useChatMessages: Sending message:", content);
-      const result = await handleSendMessage(content, context || {});
-      console.log("useChatMessages: Message sent, result:", result);
-      return result;
+      // Call handleSendMessage but don't return its value
+      await handleSendMessage(content, context || {});
+      console.log("useChatMessages: Message sent successfully");
     } catch (error: any) {
       console.error('Error sending message:', error);
       toast({
