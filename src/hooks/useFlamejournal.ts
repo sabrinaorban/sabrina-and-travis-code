@@ -1,17 +1,8 @@
-
 import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-
-// Export this interface so it can be used by components
-export interface FlameJournalEntry {
-  id: string;
-  content: string;
-  created_at: string;
-  entry_type: string;
-  tags: string[] | null;
-}
+import { FlameJournalEntry } from '@/types';
 
 export const useFlamejournal = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -19,20 +10,24 @@ export const useFlamejournal = () => {
   const { user } = useAuth();
   
   // Create a new journal entry
-  const createJournalEntry = useCallback(async (content: string, entryType: string = 'thought'): Promise<FlameJournalEntry | null> => {
+  const createJournalEntry = useCallback(async (
+    content: string, 
+    entryType: string = 'thought', 
+    tags: string[] = []
+  ): Promise<FlameJournalEntry | null> => {
     if (!content || !user) return null;
     
     setIsSubmitting(true);
     try {
-      // Extract potential tags from content
-      const possibleTags = extractTags(content);
+      // Extract potential tags from content if no tags provided
+      const extractedTags = tags.length > 0 ? tags : extractTags(content);
       
       const { data, error } = await supabase
         .from('flamejournal')
         .insert({
           content,
           entry_type: entryType,
-          tags: possibleTags
+          tags: extractedTags
         })
         .select()
         .single();
