@@ -1,9 +1,9 @@
 
-import { useState, useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import { GithubTokenService } from '@/services/github/githubTokenService';
 import { GitHubAuthState } from '@/types/github';
 import { useToast } from '@/hooks/use-toast';
-import { useGithubAuth } from '@/hooks/useGithubAuth';
+import { useGithubAuth as useOriginalGithubAuth } from '@/hooks/useGithubAuth';
 
 export interface GitHubAuthResult {
   authState: GitHubAuthState;
@@ -31,7 +31,7 @@ export const useGitHubAuth = (
   
   // When used without parameters, call the original hook
   if (!user && !authState && !logoutFn) {
-    return useGithubAuth();
+    return useOriginalGithubAuth();
   }
 
   // Handle saving token when authentication changes
@@ -120,8 +120,10 @@ export const useGitHubAuth = (
       
       try {
         authenticationInProgress.current = true;
-        if (useGithubAuth().authenticate) {
-          await useGithubAuth().authenticate(token);
+        // Use a separate function to handle authentication
+        const originalAuth = useOriginalGithubAuth();
+        if (originalAuth.authenticate) {
+          await originalAuth.authenticate(token);
         } else {
           console.warn('authenticate not implemented in this context');
         }

@@ -1,5 +1,5 @@
 
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GithubTokenService } from '@/services/github/githubTokenService';
 
 /**
@@ -27,11 +27,11 @@ export const useGitHubInit = (
       
       try {
         console.log('useGitHubInit - Loading saved token for user:', user.id);
-        const { token } = await GithubTokenService.loadToken(user.id);
+        const tokenData = await GithubTokenService.loadToken(user.id);
         
-        if (token) {
+        if (tokenData && tokenData.token) {
           console.log('useGitHubInit - Found saved GitHub token, restoring session');
-          await authenticate(token);
+          await authenticate(tokenData.token);
         }
         
         setAuthInitialized(true);
@@ -47,6 +47,3 @@ export const useGitHubInit = (
   
   return { isInitializing };
 };
-
-// Add missing import
-import { useState } from 'react';

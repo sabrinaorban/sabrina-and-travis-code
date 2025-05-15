@@ -31,6 +31,7 @@ export const useMessageHandling = (
         timestamp: new Date().toISOString(),
       };
       
+      console.log("useMessageHandling: Adding user message to chat:", userMessage.id);
       setMessages(prev => [...prev, userMessage]);
       setIsTyping(true);
       
@@ -44,6 +45,8 @@ export const useMessageHandling = (
         // Cast updatedContext to MemoryContext to ensure TypeScript knows it has the livedMemory property
         (updatedContext as MemoryContext).livedMemory = livedMemoryBlocks;
       }
+      
+      console.log("useMessageHandling: Sending request to API with context:", Object.keys(updatedContext));
       
       // Call API to get assistant response
       const response = await fetch('/api/messages', {
@@ -59,11 +62,17 @@ export const useMessageHandling = (
       
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("API error response:", errorData);
         throw new Error(errorData.message || 'Failed to send message');
       }
       
       const responseData = await response.json();
       console.log("API response received:", responseData); // Debug log
+      
+      if (!responseData.message) {
+        console.error("API response missing message field:", responseData);
+        throw new Error('Invalid response format from server');
+      }
       
       // Add assistant message to the chat
       const assistantMessage: Message = {
@@ -74,9 +83,14 @@ export const useMessageHandling = (
         emotion: responseData.emotion || null,
       };
       
-      // Important: This line ensures the assistant's message appears in the chat
-      setMessages(prev => [...prev, assistantMessage]);
-      console.log("Assistant response added to messages:", assistantMessage);
+      console.log("useMessageHandling: Adding assistant response to messages:", assistantMessage.id);
+      
+      // CRITICAL: Ensure we're properly updating the state with the new message
+      setMessages(prev => {
+        const newMessages = [...prev, assistantMessage];
+        console.log("New messages state:", newMessages.map(m => `${m.id.substring(0,6)}:${m.role}`));
+        return newMessages;
+      });
       
       // Store any personal facts mentioned in the assistant's response
       if (responseData.personalFacts && Array.isArray(responseData.personalFacts)) {
@@ -95,6 +109,7 @@ export const useMessageHandling = (
       });
       throw error;
     } finally {
+      console.log("useMessageHandling: Message handling complete, setting isTyping to false");
       setIsTyping(false);
     }
   }, [refreshMemoryContext, buildLivedMemoryContext, setMessages, setIsTyping, toast, storePersistentFact]);

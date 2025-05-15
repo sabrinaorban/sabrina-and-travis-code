@@ -14,7 +14,7 @@ export const ChatHistory: React.FC = () => {
 
   // Log messages for debugging
   useEffect(() => {
-    console.log("ChatHistory received messages:", messages);
+    console.log("ChatHistory received messages:", messages.length, messages.map(m => `${m.id.substring(0,6)}:${m.role}`));
   }, [messages]);
 
   const scrollToBottom = () => {
@@ -38,6 +38,11 @@ export const ChatHistory: React.FC = () => {
       
       {isTyping && (
         <div className="flex items-start mb-4">
+          <div className="mr-2 mt-1">
+            <div className="h-10 w-10 rounded-full bg-travis-primary text-white flex items-center justify-center">
+              T
+            </div>
+          </div>
           <div className="bg-travis-light text-gray-800 rounded-lg p-4 max-w-[80%]">
             <div className="flex items-center mb-1">
               <span className="font-semibold">Travis</span>
