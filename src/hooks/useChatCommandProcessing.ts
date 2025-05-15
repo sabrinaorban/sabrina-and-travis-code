@@ -21,7 +21,6 @@ export const useChatCommandProcessing = (
   const {
     generateWeeklyReflection,
     generateSoulReflection,
-    generateSoulstateSummary,
     generateSoulstateReflection,
     viewIntentions,
     updateIntentions,
@@ -30,6 +29,7 @@ export const useChatCommandProcessing = (
   
   const {
     initiateSoulstateEvolution,
+    generateSoulstateSummary,
   } = useChatSoulstate(setMessages);
   
   const {
