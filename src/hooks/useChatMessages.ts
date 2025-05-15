@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useMessageHandling } from './useMessageHandling';
 import { useToast } from './use-toast';
@@ -47,9 +47,6 @@ export const useChatMessages = () => {
       messageInProgress.current = false;
     }
   }, [handleSendMessage, toast]);
-
-  // Add missing imports
-  const useRef = require('react').useRef;
 
   return {
     messages,
