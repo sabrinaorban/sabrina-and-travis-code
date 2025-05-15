@@ -1,9 +1,12 @@
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Message } from '@/types';
 import { useEvolutionCycle, EvolutionProposal } from '@/hooks/useEvolutionCycle';
 
 export const useChatEvolution = (setMessages: React.Dispatch<React.SetStateAction<Message[]>>) => {
+  // Track messages we've already processed to prevent duplicates
+  const [processedMessageIds] = useState<Set<string>>(new Set());
+  
   // Initialize the evolution cycle hook
   const {
     isChecking,
@@ -51,8 +54,25 @@ export const useChatEvolution = (setMessages: React.Dispatch<React.SetStateActio
     return false;
   }, [currentProposal, applyEvolutionProposal, declineEvolutionProposal, setMessages]);
   
-  // Force check for evolution cycle
+  // Force check for evolution cycle - but with protection against repeated triggers
   const checkForEvolutionCycle = useCallback(async (): Promise<boolean> => {
+    // We use this lastCheckTime to prevent checking too frequently
+    const lastCheckKey = 'last_evolution_check';
+    const lastCheckStr = localStorage.getItem(lastCheckKey);
+    const now = Date.now();
+    
+    // If we've checked in the last 5 minutes, don't check again
+    if (lastCheckStr) {
+      const lastCheck = parseInt(lastCheckStr, 10);
+      if (now - lastCheck < 5 * 60 * 1000) {
+        console.log("Evolution cycle checked too recently, skipping check");
+        return false;
+      }
+    }
+    
+    // Update the last check time
+    localStorage.setItem(lastCheckKey, now.toString());
+    
     if (await checkEvolutionCycleDue()) {
       await presentEvolutionProposal();
       return true;

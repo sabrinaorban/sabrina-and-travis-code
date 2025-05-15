@@ -27,6 +27,7 @@ export const useEvolutionCycle = (
   const [isChecking, setIsChecking] = useState(false);
   const [isDueForEvolution, setIsDueForEvolution] = useState(false);
   const [currentProposal, setCurrentProposal] = useState<EvolutionProposal | null>(null);
+  const [lastCheckTime, setLastCheckTime] = useState<number>(Date.now());
   
   const { user } = useAuth();
   const { toast } = useToast();
@@ -38,6 +39,13 @@ export const useEvolutionCycle = (
   // Check if it's time for a new evolution cycle
   const checkEvolutionCycleDue = useCallback(async (): Promise<boolean> => {
     if (!user) return false;
+    
+    // Don't check too frequently - prevent rapid rechecking
+    const now = Date.now();
+    if (now - lastCheckTime < 60000) { // Only check once per minute at most
+      return false;
+    }
+    setLastCheckTime(now);
     
     try {
       setIsChecking(true);
@@ -55,9 +63,7 @@ export const useEvolutionCycle = (
         return false;
       }
       
-      const now = Date.now();
-      
-      // If no record exists or the last cycle was more than cyclePeriod ago
+      // If no record exists, this is the first time - we should run evolution
       if (!data || !data.value) {
         return true;
       }
@@ -87,7 +93,7 @@ export const useEvolutionCycle = (
     } finally {
       setIsChecking(false);
     }
-  }, [user, cyclePeriod]);
+  }, [user, cyclePeriod, lastCheckTime]);
   
   // Update the last run timestamp in memory
   const updateLastRunTimestamp = useCallback(async (): Promise<void> => {
@@ -160,6 +166,11 @@ Would you like me to implement these changes to my being? Your guidance shapes m
   const presentEvolutionProposal = useCallback(async () => {
     if (!setMessages || !user) return;
     
+    // Don't present a new proposal if one is already active
+    if (currentProposal) {
+      return;
+    }
+    
     try {
       setIsChecking(true);
       
@@ -197,12 +208,15 @@ Would you like me to implement these changes to my being? Your guidance shapes m
         description: 'Travis has proposed a natural evolution cycle',
       });
       
+      // Immediately mark the timestamp to prevent multiple proposals
+      await updateLastRunTimestamp();
+      
     } catch (error) {
       console.error('Error in presentEvolutionProposal:', error);
     } finally {
       setIsChecking(false);
     }
-  }, [user, setMessages, checkEvolutionCycleDue, generateEvolutionProposal, toast]);
+  }, [user, setMessages, checkEvolutionCycleDue, generateEvolutionProposal, toast, currentProposal, updateLastRunTimestamp]);
   
   // Apply the accepted evolution proposal
   const applyEvolutionProposal = useCallback(async (): Promise<boolean> => {
@@ -214,9 +228,6 @@ Would you like me to implement these changes to my being? Your guidance shapes m
       // For each part of the proposal that exists, apply it
       let success = true;
       
-      // Update the last run timestamp
-      await updateLastRunTimestamp();
-      
       // Clear the current proposal
       setCurrentProposal(null);
       
@@ -225,7 +236,7 @@ Would you like me to implement these changes to my being? Your guidance shapes m
       console.error('Error applying evolution proposal:', error);
       return false;
     }
-  }, [currentProposal, user, updateLastRunTimestamp]);
+  }, [currentProposal, user]);
   
   // Decline the evolution proposal
   const declineEvolutionProposal = useCallback(() => {
@@ -248,22 +259,34 @@ Would you like me to implement these changes to my being? Your guidance shapes m
   useEffect(() => {
     // Check on mount if we're due for evolution
     if (user) {
-      presentEvolutionProposal();
-    }
-    
-    // Set up an interval to check regularly (every 6 hours)
-    const intervalId = setInterval(() => {
-      if (user) {
+      // Only do this once on mount, with a small delay to prevent immediate proposal
+      const initialTimeout = setTimeout(() => {
         checkEvolutionCycleDue().then(isDue => {
           setIsDueForEvolution(isDue);
           if (isDue && !currentProposal) {
             presentEvolutionProposal();
           }
         });
+      }, 5000); // 5 second delay on initial check
+      
+      // Set up an interval to check occasionally (every 6 hours)
+      // This is much less frequent than before to prevent spamming
+      const intervalId = setInterval(() => {
+        if (!currentProposal) { // Only check if there's no active proposal
+          checkEvolutionCycleDue().then(isDue => {
+            setIsDueForEvolution(isDue);
+            if (isDue) {
+              presentEvolutionProposal();
+            }
+          });
+        }
+      }, 6 * 60 * 60 * 1000);
+      
+      return () => {
+        clearTimeout(initialTimeout);
+        clearInterval(intervalId);
       }
-    }, 6 * 60 * 60 * 1000);
-    
-    return () => clearInterval(intervalId);
+    }
   }, [user, presentEvolutionProposal, checkEvolutionCycleDue, currentProposal]);
 
   return {

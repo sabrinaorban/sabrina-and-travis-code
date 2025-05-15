@@ -18,6 +18,7 @@ import { useChatEvolution } from './useChatEvolution'; // New import for evoluti
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [evolutionProcessed, setEvolutionProcessed] = useState<Set<string>>(new Set());
   
   // Initialize memory management
   const {
@@ -90,15 +91,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }, [messages, processMessageHistoryForInsights]);
   
-  // Check for evolution cycle when component mounts and messages change
+  // Check for evolution cycle less aggressively
   useEffect(() => {
-    // We don't want to check on every message, just occasionally
-    const shouldCheck = messages.length > 0 && Math.random() < 0.05; // 5% chance per message
+    // We'll check for evolution only once after initial load
+    // This will properly set up the mechanism to be triggered every 3 days
+    const initialCheckTimeout = setTimeout(() => {
+      if (messages.length > 0) {
+        checkForEvolutionCycle().catch(console.error);
+      }
+    }, 10000); // Wait 10 seconds after initial load
     
-    if (shouldCheck) {
-      checkForEvolutionCycle().catch(console.error);
-    }
-  }, [messages, checkForEvolutionCycle]);
+    return () => clearTimeout(initialCheckTimeout);
+  }, []); // Empty dependency array ensures this only runs once on mount
   
   // Create a function for the /insight command
   const generateInsight = useCallback(async () => {
