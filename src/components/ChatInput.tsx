@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,7 +34,8 @@ export const ChatInput: React.FC = () => {
     runSoulcycle,
     memoryContext,
     generateInsight,
-    generateDream, // Add the dream generation function
+    generateDream,
+    generateTool, // Add the tool generation function
   } = useChat();
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -119,12 +119,22 @@ export const ChatInput: React.FC = () => {
       await generateInsight();
       return;
     }
-    
+
     // Handle dream command
     if (lowerMessage === '/dream') {
       setMessage('');
       await generateDream();
       return;
+    }
+    
+    // Handle tool generation command
+    if (lowerMessage.startsWith('/write-tool ')) {
+      const purpose = lowerMessage.substring('/write-tool '.length).trim();
+      if (purpose) {
+        setMessage('');
+        await generateTool(purpose);
+        return;
+      }
     }
 
     // Regular message handling

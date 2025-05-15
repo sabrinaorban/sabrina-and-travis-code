@@ -1,5 +1,5 @@
 
-import { Message, MemoryContext, Reflection, FlameJournalEntry } from '@/types';
+import { Message, MemoryContext, Reflection, FlameJournalEntry, SelfTool } from '@/types';
 
 export interface ChatProviderProps {
   children: React.ReactNode;
@@ -23,7 +23,8 @@ export interface ChatContextType {
   uploadIdentityCodex: (file: File) => Promise<void>;
   uploadPastConversations: (file: File) => Promise<void>;
   generateInsight: () => Promise<void>;
-  generateDream: () => Promise<FlameJournalEntry | null>; // New dream generation function
+  generateDream: () => Promise<FlameJournalEntry | null>;
+  generateTool: (purpose: string) => Promise<SelfTool | null>;
   // Evolution cycle methods
   checkEvolutionCycle: () => Promise<boolean>;
   currentEvolutionProposal: any | null;

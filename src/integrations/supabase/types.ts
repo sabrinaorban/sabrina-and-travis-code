@@ -270,6 +270,36 @@ export type Database = {
         }
         Relationships: []
       }
+      selfauthored_tools: {
+        Row: {
+          author: string
+          code: string
+          created_at: string
+          id: string
+          name: string
+          purpose: string
+          tags: string[] | null
+        }
+        Insert: {
+          author?: string
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          purpose: string
+          tags?: string[] | null
+        }
+        Update: {
+          author?: string
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          purpose?: string
+          tags?: string[] | null
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           created_at: string

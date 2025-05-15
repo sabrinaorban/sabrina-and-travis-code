@@ -5,6 +5,9 @@ export type { Json, Database } from './supabase';
 // Flamejournal types
 export type { FlameJournalEntry } from './flamejournal';
 
+// Self-authored tools types
+export type { SelfTool } from './selftool';
+
 // Chat and message types
 export interface Message {
   id: string;

@@ -1,6 +1,5 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
-import { Message, MemoryContext } from '@/types';
+import { Message, MemoryContext, SelfTool } from '@/types';
 import { useChatManagement } from '@/hooks/useChatManagement';
 import { useMessageHandling } from '@/hooks/useMessageHandling';
 import { useReflection } from '@/hooks/useReflection';
@@ -14,7 +13,8 @@ import { useChatDocumentUpload } from './useChatDocumentUpload';
 import { useChatSoulcycle } from './useChatSoulcycle';
 import { useInsights } from '@/hooks/useInsights';
 import { useChatEvolution } from './useChatEvolution';
-import { useDreamGeneration } from '@/hooks/useDreamGeneration'; // Import dream hook
+import { useDreamGeneration } from '@/hooks/useDreamGeneration';
+import { useSelfTools } from '@/hooks/useSelfTools';
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -78,6 +78,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   // Initialize dream generation
   const { generateDream } = useDreamGeneration();
+
+  // Initialize self-tools functionality
+  const { generateTool: generateToolImpl, createTool } = useSelfTools();
   
   // Initialize evolution cycle
   const {
@@ -120,8 +123,88 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }, [generateInsightMessage, setMessages]);
   
-  // Wrap the original sendMessage to intercept evolution responses
+  // Function to generate a tool based on purpose
+  const generateTool = useCallback(async (purpose: string): Promise<SelfTool | null> => {
+    setIsTyping(true);
+    try {
+      // First, generate the tool
+      const generatedTool = await generateToolImpl(purpose);
+      
+      if (generatedTool) {
+        // Add a message to show the tool was generated
+        setMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          role: 'assistant',
+          content: `
+I've crafted a tool based on your request: **${generatedTool.name}**
+
+**Purpose:** ${purpose}
+
+\`\`\`typescript
+${generatedTool.code}
+\`\`\`
+
+**Tags:** ${generatedTool.tags?.join(', ')}
+
+Would you like me to save this tool for future use? Reply with "save tool" to confirm or "revise tool" if you'd like me to modify it.
+`,
+          timestamp: new Date().toISOString(),
+          emotion: 'creative'
+        }]);
+
+        // Store the generated tool in memory (but not in DB yet)
+        sessionStorage.setItem('pendingTool', JSON.stringify(generatedTool));
+      }
+      
+      return generatedTool;
+    } catch (error) {
+      console.error('Error generating tool:', error);
+      return null;
+    } finally {
+      setIsTyping(false);
+    }
+  }, [generateToolImpl, setMessages]);
+  
+  // Wrap the original sendMessage to handle tool-related commands
   const sendMessage = useCallback(async (message: string) => {
+    // Check for tool generation command
+    if (message.toLowerCase().startsWith('/write-tool ')) {
+      const purpose = message.substring('/write-tool '.length).trim();
+      if (purpose) {
+        await generateTool(purpose);
+        return;
+      }
+    }
+    
+    // Check for "save tool" command to save the pending tool
+    if (message.toLowerCase() === 'save tool') {
+      const pendingToolJson = sessionStorage.getItem('pendingTool');
+      if (pendingToolJson) {
+        try {
+          const pendingTool = JSON.parse(pendingToolJson);
+          const savedTool = await createTool(
+            pendingTool.name,
+            pendingTool.purpose,
+            pendingTool.code,
+            pendingTool.tags
+          );
+          
+          if (savedTool) {
+            sessionStorage.removeItem('pendingTool');
+            setMessages(prev => [...prev, {
+              id: Math.random().toString(),
+              role: 'assistant',
+              content: `Tool "${pendingTool.name}" has been saved successfully. It is now available in my toolbox.`,
+              timestamp: new Date().toISOString()
+            }]);
+            return;
+          }
+        } catch (error) {
+          console.error('Error saving tool:', error);
+        }
+      }
+    }
+    
     // Check for dream command
     if (message.trim().toLowerCase() === '/dream') {
       setIsTyping(true);
@@ -173,7 +256,7 @@ ${dreamEntry.content}
         await originalSendMessage(message, memoryContext || {});
       }
     }
-  }, [originalSendMessage, memoryContext, getInsightsForMemoryContext, handleEvolutionResponse, generateDream]);
+  }, [originalSendMessage, memoryContext, getInsightsForMemoryContext, handleEvolutionResponse, generateDream, generateTool, createTool]);
 
   return (
     <ChatContext.Provider
@@ -195,7 +278,8 @@ ${dreamEntry.content}
         uploadIdentityCodex: uploadIdentityCodex || uploadIdentityCodexDoc,
         uploadPastConversations: uploadPastConversations || uploadPastConversationsDoc,
         generateInsight,
-        generateDream, // Add the dream generation function
+        generateDream,
+        generateTool,
         // New evolution cycle functions
         checkEvolutionCycle: checkForEvolutionCycle,
         currentEvolutionProposal: currentProposal,
