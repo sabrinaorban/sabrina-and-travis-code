@@ -87,8 +87,8 @@ export const buildFileTree = (flatFiles: FileEntry[]): FileEntry[] => {
   return rootNodes;
 };
 
-// Re-export the functions from the original FileSystemUtils.ts
-export { findNode } from './FileTreeUtils';
-export { ensureFolderExists } from './FolderOperations';
-export { createNextJsProject } from './ProjectTemplates';
-export { handleFileOperation } from './FileOperationHandler';
+// Re-export the functions from the correct paths
+export { findNode } from '../services/utils/FileTreeUtils';
+export { ensureFolderExists } from '../services/utils/FolderOperations';
+export { createNextJsProject } from '../services/utils/ProjectTemplates';
+export { handleFileOperation } from '../services/utils/FileOperationHandler';
