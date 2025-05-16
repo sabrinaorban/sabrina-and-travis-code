@@ -16,7 +16,6 @@ export const fileExists = (filePath: string, files: FileEntry[]): boolean => {
   
   // Traverse the file tree to find the file
   const pathParts = cleanPath.split('/').filter(Boolean);
-  let currentNode: FileEntry | undefined = undefined;
   
   // Start with root entries
   const rootEntries = files;

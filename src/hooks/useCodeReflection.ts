@@ -26,6 +26,11 @@ export const useCodeReflection = () => {
       const normalizedPath = normalizePath(filePath);
       
       console.log("Looking for file with normalized path:", normalizedPath);
+      
+      // Debug log to show available files
+      console.log("Available files in fileSystem:", 
+        fileSystem.fileSystem.files.map(f => f.path).join(', '));
+      
       const fileEntry = fileSystem.getFileByPath(normalizedPath);
       
       if (!fileEntry) {

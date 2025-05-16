@@ -1,70 +1,53 @@
 
+// Import the correct findNodeById function
+import { findNodeById } from '../utils/fileSystemUtils';
 import { FileEntry } from '../types';
 import { supabase } from '../lib/supabase';
-import { findNodeById } from '../utils/fileSystemUtils'; // Updated import path
+import { useToast } from './use-toast';
 
-export const useFileDelete = (user: any, refreshFiles: () => Promise<void>, toast: any) => {
-  // Delete a file or folder
-  const deleteFile = async (id: string, files: FileEntry[]) => {
-    if (!user) {
-      toast({
-        title: 'Error',
-        description: 'You must be logged in to delete files',
-        variant: 'destructive',
-      });
-      return Promise.reject(new Error('Not logged in'));
-    }
-    
-    const { node } = findNodeById(id, files);
-    
-    if (!node) {
-      toast({
-        title: 'Error',
-        description: 'Cannot delete. File or folder not found.',
-        variant: 'destructive',
-      });
-      return Promise.reject(new Error('File not found'));
-    }
-    
+export const useFileDelete = (user: any, refreshFiles: () => Promise<void>, toast: ReturnType<typeof useToast>['toast']) => {
+  // Delete a file by ID
+  const deleteFile = async (id: string, files: FileEntry[]): Promise<void> => {
     try {
-      // Delete file from Supabase
+      // Find the file in the file system
+      const { node: file } = findNodeById(id, files);
+      
+      if (!file) {
+        throw new Error('File not found');
+      }
+      
+      // Delete from database
       const { error } = await supabase
         .from('files')
         .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('id', id);
         
       if (error) {
         throw error;
       }
       
-      // If it's a folder, delete all children recursively
-      if (node.type === 'folder') {
-        const { error: childrenError } = await supabase
-          .from('files')
-          .delete()
-          .like('path', `${node.path}/%`)
-          .eq('user_id', user.id);
-          
-        if (childrenError) {
-          throw childrenError;
-        }
-      }
-      
-      // Refresh files after deletion
+      // Refresh files list
       await refreshFiles();
       
-      return Promise.resolve();
+      // Show success message
+      toast({
+        title: 'Success',
+        description: `${file.name} deleted successfully`,
+      });
     } catch (error: any) {
       console.error('Error deleting file:', error);
+      
       toast({
         title: 'Error',
-        description: error.message || 'Failed to delete file',
+        description: `Failed to delete file: ${error.message}`,
         variant: 'destructive',
       });
-      return Promise.reject(error);
+      
+      throw error;
     }
   };
 
-  return { deleteFile };
+  return {
+    deleteFile
+  };
 };

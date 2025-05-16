@@ -61,7 +61,7 @@ backend = "postgres"
 # Define functions with proper configuration
 [functions]
 [functions.conversation-insights]
-verify_jwt = true
+verify_jwt = false
 
 [functions.code-reflection-analysis]
-verify_jwt = true
+verify_jwt = false

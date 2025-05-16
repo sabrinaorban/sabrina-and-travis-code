@@ -1,56 +1,53 @@
 
+// Import the correct findNodeById function
+import { findNodeById } from '../utils/fileSystemUtils';
 import { FileEntry } from '../types';
 import { supabase } from '../lib/supabase';
-import { findNodeById } from '../utils/fileSystemUtils'; // Updated import path
+import { useToast } from '@/hooks/use-toast';
 
-export const useFileUpdate = (user: any, toast: any) => {
-  // Update a file's content
-  const updateFile = async (id: string, content: string, files?: FileEntry[]) => {
-    if (!user) {
-      toast({
-        title: 'Error',
-        description: 'You must be logged in to update files',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
+export const useFileUpdate = (user: any, toast: ReturnType<typeof useToast>['toast']) => {
+  // Update file content by ID
+  const updateFile = async (id: string, content: string, files: FileEntry[]): Promise<void> => {
     try {
-      const timestamp = new Date().toISOString();
+      // Find the file in the file system
+      const { node: file } = findNodeById(id, files);
       
-      // Update file in Supabase
+      if (!file) {
+        throw new Error('File not found');
+      }
+      
+      // Update in database with last_modified and is_modified flags
       const { error } = await supabase
         .from('files')
         .update({
           content,
-          last_modified: timestamp,
-          is_modified: true // Mark file as modified for Git tracking
+          last_modified: new Date().toISOString(),
+          is_modified: true
         })
-        .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('id', id);
         
-      if (error) throw error;
-      
-      // Update file in local state if files array is provided
-      if (files) {
-        const { node } = findNodeById(id, files);
-        if (node) {
-          node.content = content;
-          node.lastModified = timestamp;
-          node.isModified = true; // Mark as modified in UI state
-        }
+      if (error) {
+        throw error;
       }
       
-      console.log(`File updated successfully with ID: ${id}`);
+      toast({
+        title: 'Success',
+        description: `${file.name} updated successfully`,
+      });
     } catch (error: any) {
       console.error('Error updating file:', error);
+      
       toast({
         title: 'Error',
-        description: error.message || 'Failed to update file',
+        description: `Failed to update file: ${error.message}`,
         variant: 'destructive',
       });
+      
+      throw error;
     }
   };
 
-  return { updateFile };
+  return {
+    updateFile
+  };
 };

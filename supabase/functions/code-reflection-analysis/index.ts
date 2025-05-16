@@ -14,6 +14,7 @@ serve(async (req) => {
   }
   
   try {
+    console.log("Received code-reflection request");
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -27,9 +28,14 @@ serve(async (req) => {
       throw new Error('Required environment variables are not set');
     }
     
+    // Create a Supabase client with the service role key
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
     // Parse request body
     const requestData = await req.json();
     const { code, filePath } = requestData;
+    
+    console.log(`Processing file path: ${filePath}`);
     
     // Validate incoming data
     if (!code || typeof code !== 'string' || code.trim() === '') {
@@ -47,6 +53,7 @@ serve(async (req) => {
     }
     
     console.log(`Processing code reflection for file: ${filePath}`);
+    console.log(`Code length: ${code.length} characters`);
     
     // Use OpenAI to analyze the code
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {

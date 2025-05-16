@@ -9,7 +9,7 @@ import { Message } from '@/types';
 import { useCodeReflection } from './useCodeReflection';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
-import { findSimilarFiles } from '@/utils/fileSystemUtils';
+import { findSimilarFiles, getFileTreeDebugInfo } from '@/utils/fileSystemUtils';
 
 /**
  * Hook for processing chat commands
@@ -154,17 +154,10 @@ export const useChatCommandProcessing = (
           // Normalize the file path
           const normalizedPath = normalizePath(filePath);
           
-          // Check if file exists before attempting to reflect
-          if (!fileSystem || !fileSystem.getFileByPath) {
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: `I'm having trouble accessing the file system. Please try again later.`,
-              timestamp: new Date().toISOString(),
-              emotion: 'confused'
-            }]);
-            return true;
-          }
+          // Debug logging to help troubleshoot file access issues
+          console.log("Command detected: /self-reflect-code with path:", normalizedPath);
+          console.log("FileSystem files count:", fileSystem.fileSystem.files.length);
+          console.log("Root files:", fileSystem.fileSystem.files.map(f => f.name).join(', '));
           
           // Start reflection process with better error handling
           setMessages(prev => [...prev, {
