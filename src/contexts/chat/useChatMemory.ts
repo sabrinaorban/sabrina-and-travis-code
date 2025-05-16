@@ -7,7 +7,9 @@ import { Message } from '@/types';
  * Hook for memory operations within chat context
  */
 export const useChatMemory = () => {
-  const { memoryContext, refreshMemoryContext } = useMemoryManagement();
+  // The useMemoryManagement hook expects a setMessages function
+  // We need to pass null or undefined since this hook doesn't have access to setMessages
+  const { memoryContext, refreshMemoryContext } = useMemoryManagement(undefined);
 
   /**
    * Store a user message and assistant response in memory
@@ -18,8 +20,8 @@ export const useChatMemory = () => {
       // This would connect to a dedicated memory storage service
       console.log('Storing memory:', { userMessage, assistantResponse });
       
-      // Call refreshMemoryContext with an empty object as required by the function signature
-      refreshMemoryContext({});
+      // Call refreshMemoryContext without arguments as expected by the function
+      refreshMemoryContext();
       
       // Mock implementation until proper storage is implemented
       return true;
