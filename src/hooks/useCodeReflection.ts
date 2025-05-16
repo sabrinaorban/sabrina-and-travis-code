@@ -1,3 +1,4 @@
+
 import { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useFileSystem } from '@/contexts/FileSystemContext';
@@ -20,8 +21,7 @@ export const useCodeReflection = () => {
     try {
       console.log("Starting code reflection for:", filePath);
       
-      // Get the file content
-      const fileSystem = useFileSystem.getState();
+      // Get the file content - use the hook directly
       const normalizedPath = normalizePath(filePath);
       
       console.log("Looking for file with normalized path:", normalizedPath);
@@ -108,7 +108,7 @@ export const useCodeReflection = () => {
         error: `Reflection process error: ${error.message}`
       };
     }
-  }, []);
+  }, [fileSystem]);
 
   const applyChanges = useCallback(async (draftId: string): Promise<boolean> => {
     try {
@@ -129,8 +129,7 @@ export const useCodeReflection = () => {
         return false;
       }
 
-      // Get the file content
-      const fileSystem = useFileSystem.getState();
+      // Get the file - use the hook directly 
       const fileEntry = fileSystem.getFileByPath(draft.file_path);
 
       if (!fileEntry) {
@@ -150,7 +149,7 @@ export const useCodeReflection = () => {
       }
 
       // Refresh the file system to reflect the changes
-      fileSystem.refreshFiles();
+      await fileSystem.refreshFiles();
 
       // Clear the current draft
       setCurrentDraft(null);
@@ -160,7 +159,7 @@ export const useCodeReflection = () => {
       console.error("Error applying code changes:", error);
       return false;
     }
-  }, []);
+  }, [fileSystem]);
 
   const discardDraft = useCallback(async (draftId: string): Promise<boolean> => {
     try {

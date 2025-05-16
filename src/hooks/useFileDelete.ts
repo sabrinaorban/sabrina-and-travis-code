@@ -1,7 +1,7 @@
 
 import { FileEntry } from '../types';
 import { supabase } from '../lib/supabase';
-import { findNodeById } from '../utils/fileSystemUtils';
+import { findNodeById } from '../utils/fileSystemUtils'; // Updated import path
 
 export const useFileDelete = (user: any, refreshFiles: () => Promise<void>, toast: any) => {
   // Delete a file or folder

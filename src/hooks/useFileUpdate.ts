@@ -1,7 +1,7 @@
 
 import { FileEntry } from '../types';
 import { supabase } from '../lib/supabase';
-import { findNodeById } from '../utils/fileSystemUtils';
+import { findNodeById } from '../utils/fileSystemUtils'; // Updated import path
 
 export const useFileUpdate = (user: any, toast: any) => {
   // Update a file's content
