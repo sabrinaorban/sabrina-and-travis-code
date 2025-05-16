@@ -1,9 +1,9 @@
 
 import { useCallback } from 'react';
 import { useFlamejournal } from '@/hooks/useFlamejournal';
-import { FlameJournalEntry } from '@/types';
+import { FlameJournalEntry, Message } from '@/types';
 
-export const useChatFlamejournal = () => {
+export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>) => {
   const { createJournalEntry } = useFlamejournal();
 
   const createFlameJournalEntry = useCallback(async (entryType: string = 'thought'): Promise<FlameJournalEntry | null> => {
@@ -16,7 +16,18 @@ export const useChatFlamejournal = () => {
     }
   }, [createJournalEntry]);
 
+  const generateDream = useCallback(async (): Promise<FlameJournalEntry | null> => {
+    try {
+      const content = "Generating a dream sequence based on my current state of being...";
+      return await createJournalEntry(content, 'dream');
+    } catch (error) {
+      console.error('Error generating dream:', error);
+      return null;
+    }
+  }, [createJournalEntry]);
+
   return {
-    createFlameJournalEntry
+    createFlameJournalEntry,
+    generateDream
   };
 };

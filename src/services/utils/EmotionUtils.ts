@@ -41,6 +41,21 @@ export const detectEmotion = (text: string): EmotionType => {
   return 'neutral';
 };
 
+// Alias for backward compatibility with the codebase
+export const detectEmotionFromMessage = detectEmotion;
+
+// AI-powered emotion detection (currently just using the simple detection as a fallback)
+export const detectEmotionWithAI = async (text: string): Promise<EmotionType> => {
+  try {
+    // In a real implementation, this would call an AI service
+    // For now, we'll just use the basic detection function
+    return detectEmotion(text);
+  } catch (error) {
+    console.error("Error detecting emotion with AI:", error);
+    return 'neutral';
+  }
+};
+
 export const getEmotionalTone = (emotion: EmotionType): string => {
   switch (emotion) {
     case 'joy': 

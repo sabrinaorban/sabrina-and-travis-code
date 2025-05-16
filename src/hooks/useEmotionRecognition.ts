@@ -1,7 +1,7 @@
 
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { detectEmotionFromMessage, detectEmotionWithAI, EmotionType } from '@/services/utils/EmotionUtils';
+import { detectEmotion, detectEmotionWithAI, EmotionType } from '@/services/utils/EmotionUtils';
 
 export interface EmotionRecognitionResult {
   emotion: EmotionType;
@@ -23,7 +23,7 @@ export const useEmotionRecognition = (options: EmotionRecognitionOptions = {}) =
       // Use AI-powered detection if enabled, otherwise use simple pattern matching
       const emotion = useAI 
         ? await detectEmotionWithAI(text)
-        : detectEmotionFromMessage(text);
+        : detectEmotion(text);
       
       // For now, we use a fixed confidence value
       // In a more sophisticated implementation, the AI could return a confidence score

@@ -131,16 +131,28 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     await intentionsAndReflection.viewIntentions();
   }, [intentionsAndReflection]);
 
+  // Create a wrapper for createFlameJournalEntry that discards the return value
   const createFlameJournalEntryWrapper = useCallback(async (prompt?: string): Promise<void> => {
-    await flamejournal.createFlameJournalEntry(prompt);
+    if (flamejournal.createFlameJournalEntry) {
+      await flamejournal.createFlameJournalEntry(prompt || 'thought');
+      // Return void explicitly
+    }
   }, [flamejournal]);
 
+  // Create a wrapper for generateDream that discards the return value
   const generateDreamWrapper = useCallback(async (): Promise<void> => {
-    await flamejournal.generateDream();
+    if (flamejournal.generateDream) {
+      await flamejournal.generateDream();
+      // Return void explicitly
+    }
   }, [flamejournal]);
   
+  // Create a wrapper for runSoulcycle that discards the return value
   const runSoulcycleWrapper = useCallback(async (): Promise<void> => {
-    await soulcycle.runSoulcycle();
+    if (soulcycle.runSoulcycle) {
+      await soulcycle.runSoulcycle();
+      // Return void explicitly
+    }
   }, [soulcycle]);
   
   // Helper function to read file as text
@@ -183,51 +195,55 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }, [documentUpload, memoryManagement]);
 
-  // Tool wrappers
+  // Tool wrappers that discard return values
   const useToolWrapper = useCallback(async (toolId: string, input?: string): Promise<void> => {
-    await tools.useTool(toolId);
+    if (tools.useTool) {
+      await tools.useTool(toolId);
+      // Return void explicitly
+    }
   }, [tools]);
   
   const reflectOnToolWrapper = useCallback(async (toolId: string): Promise<void> => {
-    await tools.reflectOnTool(toolId);
+    if (tools.reflectOnTool) {
+      await tools.reflectOnTool(toolId);
+      // Return void explicitly
+    }
   }, [tools]);
   
   const reviseToolWrapper = useCallback(async (toolId: string, changes?: string): Promise<void> => {
-    await tools.reviseTool(toolId);
+    if (tools.reviseTool) {
+      await tools.reviseTool(toolId);
+      // Return void explicitly
+    }
   }, [tools]);
-
-  // Convert EvolutionProposal to SoulstateProposal if needed
-  const convertToSoulstateProposal = (evolutionProposal: any): SoulstateProposal | undefined => {
-    if (!evolutionProposal) return undefined;
-    
-    // Extract the soulstate evolution part from the evolution proposal
-    const soulstateEvolution = evolutionProposal.soulstateEvolution;
-    
-    // If there's no soulstate evolution data, return undefined
-    if (!soulstateEvolution) return undefined;
-    
-    // Create a SoulstateProposal object with the required fields
-    return {
-      id: evolutionProposal.id || crypto.randomUUID(),
-      currentState: soulstateEvolution.currentState || {},
-      proposedChanges: soulstateEvolution.proposedState || {},
-      reasoning: evolutionProposal.message || "Evolution based on recent interactions",
-      created_at: evolutionProposal.timestamp || new Date().toISOString()
-    };
-  };
 
   // Modified wrapper to handle return types
   const generateToolWrapper = useCallback(async (purpose?: string): Promise<void> => {
     if (tools.generateTool) {
       await tools.generateTool(purpose || "");
+      // Return void explicitly
     }
   }, [tools]);
 
   const checkEvolutionCycleWrapper = useCallback(async (): Promise<void> => {
     if (checkEvolutionCycle) {
       await checkEvolutionCycle();
+      // Return void explicitly
     }
   }, [checkEvolutionCycle]);
+
+  // Create a safe evolution proposal converter that uses optional chaining and default values
+  const createSafeEvolutionProposal = () => {
+    if (!evolution.currentProposal) return undefined;
+
+    return {
+      id: evolution.currentProposal?.id || crypto.randomUUID(),
+      currentState: evolution.currentProposal?.soulstateEvolution?.currentState || {},
+      proposedChanges: evolution.currentProposal?.soulstateEvolution?.proposedState || {},
+      reasoning: evolution.currentProposal?.message || "Evolution based on recent interactions",
+      created_at: evolution.currentProposal?.timestamp || new Date().toISOString()
+    };
+  };
 
   return (
     <ChatContext.Provider
@@ -253,37 +269,29 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         initiateSoulstateEvolution: soulstate.initiateSoulstateEvolution,
         
         // Journal features
-        createFlameJournalEntry: flamejournal.createFlameJournalEntry,
-        generateDream: flamejournal.generateDream,
+        createFlameJournalEntry: createFlameJournalEntryWrapper,
+        generateDream: generateDreamWrapper,
         
         // Soulcycle features
-        runSoulcycle: soulcycle.runSoulcycle,
+        runSoulcycle: runSoulcycleWrapper,
         
         // Document uploads
-        uploadSoulShard: documentUpload.uploadSoulShard || memoryManagement.uploadSoulShard,
-        uploadIdentityCodex: documentUpload.uploadIdentityCodex || memoryManagement.uploadIdentityCodex,
-        uploadPastConversations: documentUpload.uploadPastConversations || memoryManagement.uploadPastConversations,
+        uploadSoulShard: uploadSoulShardWrapper,
+        uploadIdentityCodex: uploadIdentityCodexWrapper,
+        uploadPastConversations: uploadPastConversationsWrapper,
         
         // Insight generation
         generateInsight: intentionsAndReflection.generateInsight,
         
         // Tool management
-        generateTool: tools.generateTool,
-        useTool: tools.useTool,
-        reflectOnTool: tools.reflectOnTool,
-        reviseTool: tools.reviseTool,
+        generateTool: generateToolWrapper,
+        useTool: useToolWrapper,
+        reflectOnTool: reflectOnToolWrapper,
+        reviseTool: reviseToolWrapper,
         
         // Evolution cycle
-        checkEvolutionCycle: checkEvolutionCycle,
-        currentEvolutionProposal: evolution.currentProposal 
-          ? {
-              id: evolution.currentProposal.id || crypto.randomUUID(),
-              currentState: evolution.currentProposal.soulstateEvolution?.currentState || {},
-              proposedChanges: evolution.currentProposal.soulstateEvolution?.proposedState || {},
-              reasoning: evolution.currentProposal.message || "Evolution based on recent interactions",
-              created_at: evolution.currentProposal.timestamp || new Date().toISOString()
-            }
-          : undefined,
+        checkEvolutionCycle: checkEvolutionCycleWrapper,
+        currentEvolutionProposal: createSafeEvolutionProposal(),
         isEvolutionChecking: evolution.isEvolutionChecking,
       }}
     >
