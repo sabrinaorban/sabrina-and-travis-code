@@ -1,5 +1,5 @@
 
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseKey } from '@/lib/supabase';
 import { CodeReflectionDraft, CodeReflectionResult } from '@/types/code-reflection';
 import { FileEntry } from '@/types';
 
@@ -109,8 +109,8 @@ export const CodeReflectionService = {
       const { data, error } = await supabase.functions.invoke('code-reflection-analysis', {
         body: { code, filePath },
         headers: {
-          // Use the key from the supabase client
-          apikey: supabase.supabaseKey,
+          // Use the separately exported key
+          apikey: supabaseKey,
           Authorization: `Bearer ${accessToken}`
         }
       });

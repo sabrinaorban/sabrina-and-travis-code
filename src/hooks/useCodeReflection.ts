@@ -1,6 +1,6 @@
 
 import { useCallback, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseKey } from '@/lib/supabase';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
 import { CodeReflectionDraft, CodeReflectionResult } from '@/types';
@@ -84,8 +84,8 @@ export const useCodeReflection = () => {
         },
         // Fix: Include the apikey and Authorization header properly
         headers: {
-          // Use the key from the supabase client
-          apikey: supabase.supabaseKey,
+          // Use the separately exported key
+          apikey: supabaseKey,
           Authorization: `Bearer ${accessToken}`
         }
       });

@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types/supabase';
 
@@ -15,9 +14,8 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-// Add the supabase key as a property on the supabase client
-// This makes it available for edge function calls
-supabase.supabaseKey = supabaseAnonKey;
+// Export the supabase key separately for edge function calls
+export const supabaseKey = supabaseAnonKey;
 
 // Debug listener for auth state changes
 supabase.auth.onAuthStateChange((event, session) => {
