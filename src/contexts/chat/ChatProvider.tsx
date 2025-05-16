@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Message, MemoryContext, SelfTool } from '@/types';
 import { useMemoryManagement } from '@/hooks/useMemoryManagement';
@@ -91,7 +92,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           const insights = await intentionsAndReflection.getInsightsForMemoryContext();
           const enhancedContext: MemoryContext = {
             ...(context || memoryContext || {}),
-            insights
+            insights: insights ? insights.map(insight => insight.content) : [] // Extract just the content string from each Insight
           };
           
           // Call originalSendMessage without returning its value
