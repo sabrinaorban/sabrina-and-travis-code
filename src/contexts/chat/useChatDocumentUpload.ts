@@ -1,6 +1,7 @@
 
 import { useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { Message } from '@/types';
 
 export const useChatDocumentUpload = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>) => {
   const { toast } = useToast();
