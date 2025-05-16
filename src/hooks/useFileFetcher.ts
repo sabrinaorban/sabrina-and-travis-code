@@ -1,8 +1,7 @@
-
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { FileEntry } from '../types';
-import { buildFileTree } from '../utils/fileSystemUtils'; // Updated import path
+import { buildFileTree } from '../utils/fileSystemUtils';
 
 // List of problematic filenames that should be filtered out
 const PROBLEMATIC_FILES = ['index.file'];
