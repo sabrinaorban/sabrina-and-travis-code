@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -19,7 +18,8 @@ export function useCodeReflection() {
     return fetchedDrafts;
   }, []);
 
-  const analyzePath = useCallback(async (path: string): Promise<CodeReflectionResult> => {
+  // Rename to reflectOnCode to match usage in useChatCommandProcessing
+  const reflectOnCode = useCallback(async (path: string): Promise<CodeReflectionResult> => {
     setIsReflecting(true);
     try {
       // Get the file content
@@ -90,7 +90,8 @@ export function useCodeReflection() {
     }
   }, [fileSystem, toast, loadDrafts]);
 
-  const applyChanges = useCallback(async (draftId: string): Promise<boolean> => {
+  // Rename applyChanges to applyCodeDraft to match usage in useChatCommandProcessing
+  const applyCodeDraft = useCallback(async (draftId: string): Promise<boolean> => {
     try {
       // Get the draft
       const draft = await CodeReflectionService.getDraftById(draftId);
@@ -126,6 +127,7 @@ export function useCodeReflection() {
     }
   }, [fileSystem, loadDrafts, toast]);
 
+  // Keep existing name for backward compatibility
   const discardDraft = useCallback(async (draftId: string): Promise<boolean> => {
     try {
       await CodeReflectionService.deleteDraft(draftId);
@@ -149,14 +151,21 @@ export function useCodeReflection() {
     }
   }, [loadDrafts, toast]);
 
+  // Add alias for discardCodeDraft to match usage in useChatCommandProcessing
+  const discardCodeDraft = discardDraft;
+
   return {
     isReflecting,
     currentDraft,
     drafts,
     loadDrafts,
-    analyzePath,
-    applyChanges,
-    discardDraft
+    analyzePath: reflectOnCode, // Keep old method name for backward compatibility
+    applyChanges: applyCodeDraft, // Keep old method name for backward compatibility
+    discardDraft,
+    // Add these methods to match the names used in useChatCommandProcessing
+    reflectOnCode,
+    applyCodeDraft,
+    discardCodeDraft
   };
 }
 

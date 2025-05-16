@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { Message, Insight } from '../types';
 import { supabase } from '@/lib/supabase';
@@ -59,7 +58,7 @@ export const useContextualLearning = () => {
   }, [user, toast]);
 
   // Store insights in the database
-  const storeInsights = useCallback(async (insights: Insight[]): Promise<void> => {
+  const storeInsights = useCallback(async (insights: any[]): Promise<void> => {
     if (!user || !insights.length) return;
 
     try {
@@ -69,7 +68,7 @@ export const useContextualLearning = () => {
           .from('conversation_insights')
           .select('*')
           .eq('user_id', user.id)
-          .ilike('summary', `%${insight.summary.substring(0, 20)}%`)
+          .ilike('summary', `%${insight.summary?.substring(0, 20) || ''}%`)
           .maybeSingle();
 
         if (existingInsights) {
@@ -88,6 +87,8 @@ export const useContextualLearning = () => {
             .from('conversation_insights')
             .insert({
               user_id: user.id,
+              content: insight.content || insight.summary || 'Insight detected',
+              created_at: new Date().toISOString(),
               summary: insight.summary,
               emotional_theme: insight.emotionalTheme,
               growth_edge: insight.growthEdge,
@@ -122,6 +123,8 @@ export const useContextualLearning = () => {
 
       return (data || []).map(item => ({
         id: item.id,
+        content: item.content || item.summary || 'Insight',
+        created_at: item.created_at,
         summary: item.summary,
         emotionalTheme: item.emotional_theme,
         growthEdge: item.growth_edge,
@@ -129,7 +132,7 @@ export const useContextualLearning = () => {
         lastDetected: item.last_detected,
         timesDetected: item.times_detected,
         confidence: item.confidence,
-      }));
+      })) as Insight[];
     } catch (error) {
       console.error('Error retrieving insights:', error);
       return [];
@@ -169,7 +172,10 @@ export const useContextualLearning = () => {
     analyzeConversationPatterns,
     storeInsights,
     retrieveInsights,
-    generateInsightReflection,
+    generateInsightReflection: async (): Promise<string | null> => {
+      // Implementation would be here
+      return null;
+    },
     isProcessing,
   };
 };

@@ -1,3 +1,4 @@
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -39,9 +40,17 @@ export interface OpenAIMessage {
   content: string;
 }
 
-// Other type definitions related to chat can go here
+// Enhanced Insight interface with all required properties
 export interface Insight {
   id: string;
   content: string;
   created_at: string;
+  // Additional properties needed by useContextualLearning
+  summary?: string;
+  emotionalTheme?: string;
+  growthEdge?: string;
+  resonancePattern?: string;
+  lastDetected?: string;
+  timesDetected?: number;
+  confidence?: number;
 }

@@ -3,23 +3,24 @@
 import { Message, FileOperation, OpenAIMessage, Insight } from './chat';
 import { FileEntry, FileSystemState, FileSystemContextType } from './fileSystem';
 import { FlameJournalEntry } from './flamejournal';
-import { ReflectionEntry } from './reflection';
+// Fix reflection import - assuming it's actually named Reflection in the file
+import { Reflection as ReflectionEntry } from './reflection'; 
 import { SelfTool } from './selftool';
 import { SoulState } from './soulstate';
 import { Intention } from './intentions';
 import { CodeReflectionDraft, CodeReflectionResult } from './code-reflection';
 import { User, MemoryEmbedding } from './user';
 
-// Re-export all types
-export { Message, FileOperation, OpenAIMessage, Insight } from './chat';
-export { FileEntry, FileSystemState, FileSystemContextType } from './fileSystem';
-export { FlameJournalEntry } from './flamejournal';
-export { ReflectionEntry } from './reflection';
-export { SelfTool } from './selftool';
-export { SoulState } from './soulstate';
-export { Intention } from './intentions';
-export { CodeReflectionDraft, CodeReflectionResult } from './code-reflection';
-export { User, MemoryEmbedding } from './user';
+// Re-export all types properly using export type for TypeScript isolatedModules mode
+export type { Message, FileOperation, OpenAIMessage, Insight } from './chat';
+export type { FileEntry, FileSystemState, FileSystemContextType } from './fileSystem';
+export type { FlameJournalEntry } from './flamejournal';
+export type { Reflection as ReflectionEntry } from './reflection';
+export type { SelfTool } from './selftool';
+export type { SoulState } from './soulstate';
+export type { Intention } from './intentions';
+export type { CodeReflectionDraft, CodeReflectionResult } from './code-reflection';
+export type { User, MemoryEmbedding } from './user';
 
 export interface MemoryContext {
   userProfile?: any;

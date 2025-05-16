@@ -14,4 +14,7 @@ export interface MemoryEmbedding {
   created_at: string;
   type: string;
   metadata?: Record<string, any>;
+  // Add these fields to match the structure coming from the database
+  message_type?: string;
+  tags?: string[] | null;
 }
