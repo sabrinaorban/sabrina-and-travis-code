@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { CodeReflectionDraft, CodeReflectionResult, FileEntry } from '@/types';
 import { CodeReflectionService } from '@/services/CodeReflectionService';
 import { useFileSystem } from '@/contexts/FileSystemContext';
+import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
 
 export function useCodeReflection() {
   const [isReflecting, setIsReflecting] = useState(false);
@@ -26,16 +27,29 @@ export function useCodeReflection() {
       console.log(`Starting code reflection for path: ${path}`);
       
       // Normalize the path (remove leading slash if present)
-      const normalizedPath = path.startsWith('/') ? path.substring(1) : path;
+      const normalizedPath = normalizePath(path);
       console.log(`Normalized path: ${normalizedPath}`);
+      
+      // Check if file exists before proceeding
+      if (!fileSystem || !fileSystem.getFileByPath) {
+        console.error('File system not available');
+        throw new Error('File system not available');
+      }
+      
+      // Check if file exists
+      const fileExists = fileSystem.getFileByPath(normalizedPath) !== null;
+      if (!fileExists) {
+        console.error(`File not found at path: ${normalizedPath}`);
+        throw new Error(`File not found at path: ${normalizedPath}`);
+      }
       
       // Get the file content
       const fileContent = fileSystem.getFileContentByPath(normalizedPath);
       console.log(`File content found: ${Boolean(fileContent)}`);
       
       if (!fileContent) {
-        console.error(`File not found at path: ${normalizedPath}`);
-        throw new Error(`File not found at path: ${normalizedPath}`);
+        console.error(`File content not available for: ${normalizedPath}`);
+        throw new Error(`File content not available for: ${normalizedPath}`);
       }
 
       // Call the serverless function to analyze the code

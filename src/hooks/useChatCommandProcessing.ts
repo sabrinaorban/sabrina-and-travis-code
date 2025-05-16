@@ -1,3 +1,4 @@
+
 import { useCallback, useState } from 'react';
 import { useChatFlamejournal } from '../contexts/chat/useChatFlamejournal';
 import { useChatIntentionsAndReflection } from './useChatIntentionsAndReflection';
@@ -8,6 +9,7 @@ import { useChatEvolution } from './useChatEvolution';
 import { Message } from '@/types';
 import { useCodeReflection } from './useCodeReflection';
 import { useFileSystem } from '@/contexts/FileSystemContext';
+import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
 
 /**
  * Hook for processing chat commands
@@ -56,13 +58,9 @@ export const useChatCommandProcessing = (
     checkForEvolutionCycle,
   } = useChatEvolution(setMessages);
 
-  // Initialize code reflection hook with aliases for compatibility
+  // Initialize code reflection hook
   const codeReflection = useCodeReflection();
-  // Create aliases for the correct method names
-  const reflectOnCode = codeReflection.analyzePath;
-  const applyCodeDraft = codeReflection.applyChanges; 
-  const discardCodeDraft = codeReflection.discardDraft;
-  const { currentDraft } = codeReflection;
+  const { reflectOnCode, applyChanges: applyCodeDraft, discardDraft: discardCodeDraft, currentDraft } = codeReflection;
 
   // Process commands and route them to the appropriate handler
   const processCommand = useCallback(async (content: string, memoryContext?: any): Promise<boolean> => {
@@ -151,12 +149,21 @@ export const useChatCommandProcessing = (
             return true;
           }
           
-          // Normalize the file path (remove leading slash if present)
-          if (filePath.startsWith('/')) {
-            filePath = filePath.substring(1);
-          }
+          // Normalize the file path
+          filePath = normalizePath(filePath);
           
           // Check if file exists before attempting to reflect
+          if (!fileSystem || !fileSystem.getFileByPath) {
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `I'm having trouble accessing the file system. Please try again later.`,
+              timestamp: new Date().toISOString(),
+              emotion: 'confused'
+            }]);
+            return true;
+          }
+          
           const fileExists = fileSystem.getFileByPath(filePath) !== null;
           
           if (!fileExists) {

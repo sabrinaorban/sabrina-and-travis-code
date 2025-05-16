@@ -21,6 +21,10 @@ export const findNodeById = (
   id: string,
   nodes: FileEntry[]
 ): { parent: FileEntry | null; node: FileEntry | null; index: number } => {
+  if (!nodes || !Array.isArray(nodes)) {
+    return { parent: null, node: null, index: -1 };
+  }
+  
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
     
@@ -28,7 +32,7 @@ export const findNodeById = (
       return { parent: null, node, index: i };
     }
     
-    if (node.type === 'folder' && node.children) {
+    if (node.type === 'folder' && node.children && Array.isArray(node.children)) {
       const result = findNodeById(id, node.children);
       if (result.node) {
         return { ...result, parent: node };
@@ -43,6 +47,10 @@ export const findNodeById = (
 export const buildFileTree = (flatFiles: FileEntry[]): FileEntry[] => {
   const rootNodes: FileEntry[] = [];
   const nodeMap = new Map<string, FileEntry>();
+  
+  if (!flatFiles || !Array.isArray(flatFiles)) {
+    return [];
+  }
   
   // First pass: create nodes without children
   flatFiles.forEach(file => {

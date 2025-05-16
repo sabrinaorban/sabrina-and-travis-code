@@ -6,6 +6,15 @@ const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") as string;
 
 async function analyzeCodeWithOpenAI(filePath: string, fileContent: string) {
   try {
+    if (!fileContent) {
+      return {
+        success: false,
+        error: "No file content provided"
+      };
+    }
+    
+    console.log(`Analyzing code for file: ${filePath} (content length: ${fileContent.length} chars)`);
+    
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -49,6 +58,14 @@ async function analyzeCodeWithOpenAI(filePath: string, fileContent: string) {
       }),
     });
 
+    if (!response.ok) {
+      console.error(`OpenAI API error: ${response.status}`);
+      return {
+        success: false,
+        error: `OpenAI API error: ${response.status}`
+      };
+    }
+
     const data = await response.json();
     
     try {
@@ -87,12 +104,20 @@ serve(async (req) => {
       throw new Error("Missing OpenAI API key");
     }
     
-    const { file_path, content } = await req.json();
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (e) {
+      throw new Error("Invalid request body: " + e.message);
+    }
+    
+    const { file_path, content } = requestData;
     
     if (!file_path || !content) {
       throw new Error("Missing required parameters: file_path or content");
     }
     
+    console.log(`Received analysis request for file: ${file_path} (content length: ${content.length})`);
     const analysis = await analyzeCodeWithOpenAI(file_path, content);
     
     return new Response(JSON.stringify(analysis), {
