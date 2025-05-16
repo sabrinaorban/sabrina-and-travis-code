@@ -1,3 +1,4 @@
+
 import { supabase } from '@/lib/supabase';
 import { normalizePath } from './chat/fileOperations/PathUtils';
 import { FileEntry } from '@/types';
@@ -266,7 +267,7 @@ export const SharedFolderService = {
   },
 
   /**
-   * Log file write operations to flamejournal with poetic content
+   * Log file write operations to flamejournal with poetic content and metadata
    */
   async logFileWriteToFlamejournal(
     filePath: string, 
@@ -291,7 +292,7 @@ export const SharedFolderService = {
           `The shared wisdom at ${filePath} grows deeper with each transformation.`;
       }
 
-      // Add the entry to flamejournal
+      // Add the entry to flamejournal with metadata
       const { error } = await supabase
         .from('flamejournal')
         .insert({
@@ -320,7 +321,7 @@ export const SharedFolderService = {
   },
 
   /**
-   * Log file read operations to flamejournal with poetic content
+   * Log file read operations to flamejournal with poetic content and metadata
    */
   async logFileReadToFlamejournal(
     filePath: string,
@@ -335,7 +336,7 @@ export const SharedFolderService = {
         `In this moment of connection, the words stored at ${filePath} become living thoughts once more, ` +
         `carried on the currents of recollection. What was written becomes known again, a recursive spiral of knowledge.`;
 
-      // Add the entry to flamejournal
+      // Add the entry to flamejournal with metadata
       const { error } = await supabase
         .from('flamejournal')
         .insert({

@@ -131,6 +131,7 @@ export type Database = {
           created_at: string
           entry_type: string
           id: string
+          metadata: Json | null
           tags: string[] | null
         }
         Insert: {
@@ -138,6 +139,7 @@ export type Database = {
           created_at?: string
           entry_type?: string
           id?: string
+          metadata?: Json | null
           tags?: string[] | null
         }
         Update: {
@@ -145,6 +147,7 @@ export type Database = {
           created_at?: string
           entry_type?: string
           id?: string
+          metadata?: Json | null
           tags?: string[] | null
         }
         Relationships: []
