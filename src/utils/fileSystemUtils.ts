@@ -1,24 +1,22 @@
 
 import { FileEntry } from '@/types';
 
-// Find the location with the isVirtual property and remove it
-// Assuming it's in a function that creates a FileEntry
-
-// For this fix, I'm going to add a partial implementation focusing just on the problem area.
-// You should replace this entire function with the actual code, removing isVirtual
+// Create a file entry with normalized path
 export function createFileEntry(path: string, type: 'file' | 'folder', content?: string): FileEntry {
+  // Normalize the path for consistency
+  const normalizedPath = path.startsWith('/') ? path.substring(1) : path;
+  
   return {
     id: crypto.randomUUID(),
-    name: path.split('/').pop() || '',
-    path,
+    name: normalizedPath.split('/').pop() || '',
+    path: normalizedPath,
     type,
     content,
-    // isVirtual property removed
     children: type === 'folder' ? [] : undefined,
   };
 }
 
-// Add the missing findNodeById function
+// Find node by ID with improved path handling
 export const findNodeById = (
   id: string,
   nodes: FileEntry[]
@@ -41,32 +39,37 @@ export const findNodeById = (
   return { parent: null, node: null, index: -1 };
 };
 
-// Add the missing buildFileTree function
+// Build file tree with improved path handling
 export const buildFileTree = (flatFiles: FileEntry[]): FileEntry[] => {
   const rootNodes: FileEntry[] = [];
   const nodeMap = new Map<string, FileEntry>();
   
   // First pass: create nodes without children
   flatFiles.forEach(file => {
+    // Normalize paths to be consistent
+    const normalizedPath = file.path.startsWith('/') ? file.path.substring(1) : file.path;
+    
     const nodeWithoutChildren = { 
       ...file,
+      path: normalizedPath,
       children: file.type === 'folder' ? [] : undefined
     };
-    nodeMap.set(file.path, nodeWithoutChildren);
+    nodeMap.set(normalizedPath, nodeWithoutChildren);
   });
   
   // Second pass: build the tree structure
   flatFiles.forEach(file => {
-    const node = nodeMap.get(file.path);
+    const normalizedPath = file.path.startsWith('/') ? file.path.substring(1) : file.path;
+    const node = nodeMap.get(normalizedPath);
     if (!node) return;
     
-    if (file.path === '/') {
+    if (normalizedPath === '' || normalizedPath === '/') {
       rootNodes.push(node);
       return;
     }
     
     // Find the parent path
-    const pathParts = file.path.split('/').filter(Boolean);
+    const pathParts = normalizedPath.split('/').filter(Boolean);
     if (pathParts.length === 0) {
       rootNodes.push(node);
       return;
@@ -74,7 +77,7 @@ export const buildFileTree = (flatFiles: FileEntry[]): FileEntry[] => {
     
     // Remove the last part (file/folder name)
     pathParts.pop();
-    const parentPath = '/' + pathParts.join('/');
+    const parentPath = pathParts.length > 0 ? pathParts.join('/') : '';
     
     const parentNode = nodeMap.get(parentPath);
     if (parentNode && parentNode.type === 'folder' && parentNode.children) {

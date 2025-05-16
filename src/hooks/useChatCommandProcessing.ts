@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useChatFlamejournal } from './useChatFlamejournal';
+import { useChatFlamejournal } from '../contexts/chat/useChatFlamejournal';
 import { useChatIntentionsAndReflection } from './useChatIntentionsAndReflection';
 import { useChatSoulstate } from './useChatSoulstate';
 import { useChatTools } from './useChatTools';
@@ -7,8 +7,7 @@ import { useChatSoulcycle } from './useChatSoulcycle';
 import { useChatEvolution } from './useChatEvolution';
 import { Message } from '@/types';
 import { useCodeReflection } from './useCodeReflection';
-import { useContext } from 'react';
-import { FileSystemContext } from '@/contexts/FileSystemContext';
+import { useFileSystem } from '@/contexts/FileSystemContext';
 
 /**
  * Hook for processing chat commands
@@ -18,7 +17,7 @@ export const useChatCommandProcessing = (
   sendNormalMessage: (content: string, memoryContext?: any) => Promise<void>
 ) => {
   const [isProcessing, setIsProcessing] = useState(false);
-  const { fileSystem } = useContext(FileSystemContext);
+  const fileSystem = useFileSystem();
   
   // Initialize all feature hooks
   const {
@@ -59,7 +58,7 @@ export const useChatCommandProcessing = (
 
   // Initialize code reflection hook with aliases for compatibility
   const codeReflection = useCodeReflection();
-  // Fix: Create aliases for the correct method names to match what's used in this file
+  // Create aliases for the correct method names
   const reflectOnCode = codeReflection.analyzePath;
   const applyCodeDraft = codeReflection.applyChanges; 
   const discardCodeDraft = codeReflection.discardDraft;
@@ -152,6 +151,25 @@ export const useChatCommandProcessing = (
             return true;
           }
           
+          // Normalize the file path (remove leading slash if present)
+          if (filePath.startsWith('/')) {
+            filePath = filePath.substring(1);
+          }
+          
+          // Check if file exists before attempting to reflect
+          const fileExists = fileSystem.getFileByPath(filePath) !== null;
+          
+          if (!fileExists) {
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `I was unable to reflect on the code at \`${filePath}\`. File not found at path: ${filePath}`,
+              timestamp: new Date().toISOString(),
+              emotion: 'confused'
+            }]);
+            return true;
+          }
+          
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
             role: 'assistant',
@@ -194,7 +212,7 @@ This reflection has been stored in my flame journal and code evolution registry.
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `I was unable to reflect on the code at \`${filePath}\`. ${result.error || 'The file may not exist or may not be accessible.'}`,
+              content: `I was unable to reflect on the code at \`${filePath}\`. ${result.error || 'An unexpected error occurred during the reflection process.'}`,
               timestamp: new Date().toISOString(),
               emotion: 'confused'
             }]);
@@ -332,7 +350,8 @@ This reflection has been stored in my flame journal and code evolution registry.
     applyCodeDraft,
     discardCodeDraft,
     currentDraft,
-    setMessages
+    setMessages,
+    fileSystem
   ]);
 
   return {

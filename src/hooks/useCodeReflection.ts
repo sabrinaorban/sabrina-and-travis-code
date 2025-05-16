@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -18,15 +19,23 @@ export function useCodeReflection() {
     return fetchedDrafts;
   }, []);
 
-  // Rename to reflectOnCode to match usage in useChatCommandProcessing
-  const reflectOnCode = useCallback(async (path: string): Promise<CodeReflectionResult> => {
+  // Analyze a file path to generate code reflection
+  const analyzePath = useCallback(async (path: string): Promise<CodeReflectionResult> => {
     setIsReflecting(true);
     try {
+      console.log(`Starting code reflection for path: ${path}`);
+      
+      // Normalize the path (remove leading slash if present)
+      const normalizedPath = path.startsWith('/') ? path.substring(1) : path;
+      console.log(`Normalized path: ${normalizedPath}`);
+      
       // Get the file content
-      const fileContent = fileSystem.getFileContentByPath(path);
+      const fileContent = fileSystem.getFileContentByPath(normalizedPath);
+      console.log(`File content found: ${Boolean(fileContent)}`);
       
       if (!fileContent) {
-        throw new Error(`File not found at path: ${path}`);
+        console.error(`File not found at path: ${normalizedPath}`);
+        throw new Error(`File not found at path: ${normalizedPath}`);
       }
 
       // Call the serverless function to analyze the code
@@ -36,15 +45,17 @@ export function useCodeReflection() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ file_path: path, content: fileContent }),
+        body: JSON.stringify({ file_path: normalizedPath, content: fileContent }),
       });
 
       if (!response.ok) {
         const errorData = await response.text();
+        console.error(`API error: ${response.status} ${errorData}`);
         throw new Error(`API error: ${response.status} ${errorData}`);
       }
 
       const result = await response.json();
+      console.log(`API result received, success: ${result.success}`);
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to analyze code');
@@ -52,13 +63,14 @@ export function useCodeReflection() {
 
       // Create a draft with the analysis results
       const draftData = {
-        file_path: path,
+        file_path: normalizedPath,
         original_code: fileContent,
         proposed_code: result.proposed_code,
         reason: result.reason
       };
 
       const storedDraft = await CodeReflectionService.storeDraft(draftData);
+      console.log(`Draft stored, success: ${storedDraft.success}`);
 
       if (storedDraft.success && storedDraft.draft) {
         setCurrentDraft(storedDraft.draft);
@@ -90,8 +102,8 @@ export function useCodeReflection() {
     }
   }, [fileSystem, toast, loadDrafts]);
 
-  // Rename applyChanges to applyCodeDraft to match usage in useChatCommandProcessing
-  const applyCodeDraft = useCallback(async (draftId: string): Promise<boolean> => {
+  // Apply changes from a draft to the file system
+  const applyChanges = useCallback(async (draftId: string): Promise<boolean> => {
     try {
       // Get the draft
       const draft = await CodeReflectionService.getDraftById(draftId);
@@ -99,6 +111,8 @@ export function useCodeReflection() {
       if (!draft) {
         throw new Error('Draft not found');
       }
+      
+      console.log(`Applying changes to file: ${draft.file_path}`);
       
       // Apply the changes to the file
       await fileSystem.updateFileByPath(draft.file_path, draft.proposed_code);
@@ -127,7 +141,7 @@ export function useCodeReflection() {
     }
   }, [fileSystem, loadDrafts, toast]);
 
-  // Keep existing name for backward compatibility
+  // Discard a draft without applying changes
   const discardDraft = useCallback(async (draftId: string): Promise<boolean> => {
     try {
       await CodeReflectionService.deleteDraft(draftId);
@@ -153,18 +167,19 @@ export function useCodeReflection() {
 
   // Add alias for discardCodeDraft to match usage in useChatCommandProcessing
   const discardCodeDraft = discardDraft;
+  
+  // Add reflectOnCode as an alias for analyzePath to maintain compatibility
+  const reflectOnCode = analyzePath;
 
   return {
     isReflecting,
     currentDraft,
     drafts,
     loadDrafts,
-    analyzePath: reflectOnCode, // Keep old method name for backward compatibility
-    applyChanges: applyCodeDraft, // Keep old method name for backward compatibility
-    discardDraft,
-    // Add these methods to match the names used in useChatCommandProcessing
+    analyzePath,
     reflectOnCode,
-    applyCodeDraft,
+    applyChanges,
+    discardDraft,
     discardCodeDraft
   };
 }
