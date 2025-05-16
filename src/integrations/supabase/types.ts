@@ -83,8 +83,10 @@ export type Database = {
           is_modified: boolean | null
           last_modified: string
           name: string
+          parent_path: string | null
           path: string
           type: string
+          updated_at: string | null
           user_id: string
         }
         Insert: {
@@ -94,8 +96,10 @@ export type Database = {
           is_modified?: boolean | null
           last_modified?: string
           name: string
+          parent_path?: string | null
           path: string
           type: string
+          updated_at?: string | null
           user_id: string
         }
         Update: {
@@ -105,8 +109,10 @@ export type Database = {
           is_modified?: boolean | null
           last_modified?: string
           name?: string
+          parent_path?: string | null
           path?: string
           type?: string
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [

@@ -1,4 +1,3 @@
-
 // Normalize and clean a file path
 export const normalizePath = (path: string): string => {
   // Remove leading slash for consistency with FileSystem component expectations
