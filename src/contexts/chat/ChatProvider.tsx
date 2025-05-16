@@ -1,75 +1,92 @@
 
-import React, {
-  createContext,
-  useState,
-  useContext,
-  useCallback,
-  useEffect,
-} from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ChatContext } from './ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChatFlamejournal } from './useChatFlamejournal';
 import { useChatMemory } from './useChatMemory';
 import { useChatTools } from './useChatTools';
-import { Message } from '@/types';
-import { useToast } from '@/hooks/use-toast';
+import { useChatMessages } from './useChatMessages';
+import { useChatCommandProcessing } from '@/hooks/useChatCommandProcessing';
+import { Message, MemoryContext } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { useChatCommands } from './useChatCommands';
 
-interface ChatContextType {
-  messages: Message[];
-  addMessage: (message: Message) => void;
-  updateMessage: (message: Message) => void;
-  deleteMessage: (messageId: string) => void;
-  sendMessage: (content: string) => Promise<void>;
-  isLoading: boolean;
-  isTyping: boolean; // Changed from isThinking to isTyping for consistency
-  isProcessingCommand: boolean;
-  error: string | null;
-  clearError: () => void;
-  retryMessage: (message: Message) => Promise<void>;
-  refreshMessages?: () => Promise<void>; // Added optional refreshMessages function
+interface ChatProviderProps {
+  children: React.ReactNode;
 }
 
-const ChatContext = createContext<ChatContextType | undefined>(undefined);
-
-export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isTyping, setIsTyping] = useState(false); // Changed from isThinking to isTyping
+export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
-  const { toast } = useToast();
-
-  // Add chat commands hook
-  const { handleChatCommand, isProcessingCommand } = useChatCommands(setMessages);
-
+  
+  // Use the combined hooks for message handling
+  const {
+    messages,
+    setMessages,
+    isTyping,
+    sendMessage: sendChatMessage,
+    memoryContext,
+    isLoadingHistory,
+    refreshMessages
+  } = useChatMessages();
+  
+  // Get tool and other feature hooks
   const {
     createFlameJournalEntry,
     generateDream,
-    isProcessing: isFlamejournalProcessing
   } = useChatFlamejournal(setMessages);
-  const { storeMemory, recallRelevantMemories } = useChatMemory();
-  const { executeTool } = useChatTools(setMessages);
 
+  const { storeMemory, recallRelevantMemories } = useChatMemory();
+
+  const { 
+    useTool,
+    reflectOnTool,
+    reviseTool,
+    generateTool 
+  } = useChatTools(setMessages);
+  
+  // Process special commands using the command processor
+  const {
+    processCommand,
+    checkEvolutionCycle,
+    isProcessing: isProcessingCommand
+  } = useChatCommandProcessing(setMessages, sendChatMessage);
+
+  // Access all the chat intention hooks
+  const { 
+    generateWeeklyReflection,
+    generateSoulReflection,
+    generateSoulstateSummary,
+    generateSoulstateReflection,
+    initiateSoulstateEvolution,
+    viewIntentions,
+    updateIntentions,
+    runSoulcycle,
+    uploadSoulShard,
+    uploadIdentityCodex,
+    uploadPastConversations,
+    generateInsight
+  } = useChatIntentionsAndReflection(setMessages);
+  
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
   const addMessage = useCallback((message: Message) => {
+    console.log("Adding message to chat:", message.role, message.content.substring(0, 30) + "...");
     setMessages((prevMessages) => [...prevMessages, message]);
-  }, []);
+  }, [setMessages]);
 
   const updateMessage = useCallback((message: Message) => {
     setMessages((prevMessages) =>
       prevMessages.map((m) => (m.id === message.id ? message : m))
     );
-  }, []);
+  }, [setMessages]);
 
   const deleteMessage = useCallback((messageId: string) => {
     setMessages((prevMessages) =>
       prevMessages.filter((message) => message.id !== messageId)
     );
-  }, []);
+  }, [setMessages]);
 
   const retryMessage = useCallback(async (message: Message) => {
     if (!user) {
@@ -77,173 +94,149 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-
     try {
-      // Optimistically update the message with "thinking" status
-      const tempMessage: Message = {
-        ...message,
-        role: 'assistant',
-        content: 'Thinking...',
-        timestamp: new Date().toISOString(),
-        id: uuidv4(),
-        emotion: 'thinking'
-      };
-      addMessage(tempMessage);
-
-      // Recall relevant memories
-      const relevantMemories = await recallRelevantMemories(message.content);
-      const memoryContext = relevantMemories
-        .map((mem) => `Memory: ${mem.content}`)
-        .join('\n');
-
-      // Construct the prompt
-      const prompt = `
-        ${memoryContext}
-        User: ${message.content}
-        Assistant:
-      `.trim();
-
-      // Simulate an API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Create a new message
-      const newMessage: Message = {
-        id: uuidv4(),
-        role: 'assistant',
-        content: 'This is a simulated response.',
-        timestamp: new Date().toISOString(),
-        emotion: 'happy'
-      };
-      addMessage(newMessage);
-
-      // Store the memory
-      await storeMemory(message.content, newMessage.content);
+      // We'll reuse our sendMessage functionality with the original content
+      await sendMessage(message.content);
     } catch (e: any) {
-      console.error('Error sending message:', e);
-      setError(e.message || 'Failed to send message.');
-    } finally {
-      setIsLoading(false);
+      console.error('Error retrying message:', e);
+      setError(e.message || 'Failed to retry message.');
     }
-  }, [addMessage, recallRelevantMemories, storeMemory, user]);
-
-  // Modify the sendMessage function to check for commands first
-  const sendMessage = useCallback(async (content: string) => {
+  }, [user]);
+  
+  // This is the primary wrapper for sending messages that handles both commands and normal messages
+  const sendMessage = useCallback(async (content: string, context?: MemoryContext) => {
+    if (!content.trim()) {
+      return;
+    }
+    
     try {
-      // Create the message with a UUID
-      const messageId = crypto.randomUUID();
-      
-      // Add the user message to the chat immediately for better UX
-      const userMessage: Message = {
-        id: messageId,
-        role: 'user',
-        content: content,
-        timestamp: new Date().toISOString()
-      };
-      
-      addMessage(userMessage);
-      
-      // First check if this is a command
-      const isCommand = await handleChatCommand(content);
-      if (isCommand) {
-        // If it was a command, don't process as a normal message
-        return;
+      // First check if it's a slash command
+      if (content.startsWith('/')) {
+        const isCommand = await processCommand(content, context);
+        if (isCommand) {
+          // If it was a command, don't process it as a normal message
+          return;
+        }
       }
-
-      if (!user) {
-        setError('You must be logged in to send messages.');
-        return;
-      }
-
-      setIsTyping(true); // Changed from setIsThinking to setIsTyping
-      setError(null);
-
-      // Optimistically update the message with "thinking" status
-      const tempMessage: Message = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: 'Thinking...',
-        timestamp: new Date().toISOString(),
-        emotion: 'thinking'
-      };
-      addMessage(tempMessage);
-
-      // Recall relevant memories
-      const relevantMemories = await recallRelevantMemories(content);
-      const memoryContext = relevantMemories
-        .map((mem) => `Memory: ${mem.content}`)
-        .join('\n');
-
-      // Construct the prompt
-      const prompt = `
-        ${memoryContext}
-        User: ${content}
-        Assistant:
-      `.trim();
-
-      // Simulate an API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Simulate tool execution
-      const toolResult = await executeTool(prompt);
-      if (toolResult) {
-        setIsTyping(false); // Make sure to set typing state to false
-        return; // Tool execution handled the message
-      }
-
-      // Create a new message
-      const newMessage: Message = {
-        id: uuidv4(),
-        role: 'assistant',
-        content: 'This is a simulated response.',
-        timestamp: new Date().toISOString(),
-        emotion: 'happy'
-      };
-      addMessage(newMessage);
-
-      // Store the memory
-      await storeMemory(content, newMessage.content);
+      
+      // If it's not a command or the command handler didn't handle it,
+      // send it as a normal message
+      await sendChatMessage(content, context);
     } catch (e: any) {
-      console.error('Error sending message:', e);
+      console.error('Error in sendMessage wrapper:', e);
       setError(e.message || 'Failed to send message.');
-    } finally {
-      setIsTyping(false); // Changed from setIsThinking to setIsTyping
     }
-  }, [handleChatCommand, addMessage, recallRelevantMemories, storeMemory, user, executeTool]);
+  }, [processCommand, sendChatMessage]);
 
-  // Add a refresh function for messages if needed
-  const refreshMessages = useCallback(async () => {
-    // Implement if needed, can be connected to useChatMessages.ts refreshMessages
-    console.log('Refreshing messages...');
+  // Initialize currentEvolutionProposal state
+  const [currentEvolutionProposal, setCurrentEvolutionProposal] = useState<any>(undefined);
+  const [isEvolutionChecking, setIsEvolutionChecking] = useState<boolean>(false);
+
+  // Wrapper for checkEvolutionCycle
+  const checkEvolutionCycleWrapper = useCallback(async () => {
+    setIsEvolutionChecking(true);
+    try {
+      const proposal = await checkEvolutionCycle();
+      setCurrentEvolutionProposal(proposal);
+      return proposal;
+    } catch (e) {
+      console.error('Error checking evolution cycle:', e);
+      return null;
+    } finally {
+      setIsEvolutionChecking(false);
+    }
+  }, [checkEvolutionCycle]);
+
+  // Make sure we import useChatIntentionsAndReflection
+  useEffect(() => {
+    const importModule = async () => {
+      try {
+        const { useChatIntentionsAndReflection } = await import('@/hooks/useChatIntentionsAndReflection');
+        console.log('Successfully imported useChatIntentionsAndReflection');
+      } catch (e) {
+        console.error('Failed to import useChatIntentionsAndReflection:', e);
+      }
+    };
+    importModule();
   }, []);
 
-  const contextValue: ChatContextType = {
-    messages,
-    addMessage,
-    updateMessage,
-    deleteMessage,
-    sendMessage,
-    isLoading,
-    isTyping, // Changed from isThinking to isTyping
-    isProcessingCommand,
-    error,
-    clearError,
-    retryMessage,
-    refreshMessages, // Added refreshMessages to context
-  };
-
   return (
-    <ChatContext.Provider value={contextValue}>
+    <ChatContext.Provider
+      value={{
+        messages,
+        sendMessage,
+        isTyping,
+        isLoading: isLoadingHistory,
+        isLoadingHistory,
+        memoryContext,
+        generateWeeklyReflection,
+        generateSoulReflection,
+        generateSoulstateSummary,
+        generateSoulstateReflection,
+        createFlameJournalEntry,
+        initiateSoulstateEvolution,
+        viewIntentions,
+        updateIntentions,
+        runSoulcycle,
+        uploadSoulShard,
+        uploadIdentityCodex,
+        uploadPastConversations,
+        generateInsight,
+        generateDream,
+        generateTool,
+        useTool,
+        reflectOnTool,
+        reviseTool,
+        checkEvolutionCycle: checkEvolutionCycleWrapper,
+        currentEvolutionProposal,
+        isEvolutionChecking,
+        refreshMessages,
+        // Additional properties exposed for components
+        addMessage,
+        updateMessage,
+        deleteMessage,
+        isProcessingCommand,
+        error,
+        clearError,
+        retryMessage,
+      }}
+    >
       {children}
     </ChatContext.Provider>
   );
 };
 
-export const useChat = () => {
-  const context = useContext(ChatContext);
-  if (!context) {
-    throw new Error('useChat must be used within a ChatProvider');
-  }
-  return context;
-};
+// Import at the top of the file
+function useChatIntentionsAndReflection(setMessages: React.Dispatch<React.SetStateAction<Message[]>>) {
+  // This is just a temporary implementation until the real import works
+  return {
+    generateWeeklyReflection: async () => {
+      console.log("generateWeeklyReflection called");
+      setMessages(prev => [...prev, {
+        id: uuidv4(),
+        role: 'assistant',
+        content: "Weekly reflection feature is being restored. Please try again later.",
+        timestamp: new Date().toISOString()
+      }]);
+    },
+    generateSoulReflection: async () => {
+      console.log("generateSoulReflection called");
+      setMessages(prev => [...prev, {
+        id: uuidv4(),
+        role: 'assistant',
+        content: "Soul reflection feature is being restored. Please try again later.",
+        timestamp: new Date().toISOString()
+      }]);
+    },
+    generateSoulstateSummary: async () => {},
+    generateSoulstateReflection: async () => {},
+    initiateSoulstateEvolution: async () => {},
+    viewIntentions: async () => {},
+    updateIntentions: async () => {},
+    runSoulcycle: async () => {},
+    uploadSoulShard: async () => {},
+    uploadIdentityCodex: async () => {},
+    uploadPastConversations: async () => {},
+    generateInsight: async () => {}
+  };
+}

@@ -30,7 +30,8 @@ export const ChatInput: React.FC = () => {
   
   const { 
     sendMessage, 
-    isTyping // Use isTyping instead of isThinking
+    isTyping,
+    isProcessingCommand 
   } = useChat();
   
   // Function to prevent duplicate toasts
@@ -54,7 +55,10 @@ export const ChatInput: React.FC = () => {
     e.preventDefault();
     
     // Prevent empty messages, double submission, or submission while typing
-    if (!message.trim() || isTyping || isSubmitting) {
+    if (!message.trim() || isTyping || isSubmitting || isProcessingCommand) {
+      if (!message.trim()) {
+        showToast('Empty message', 'Please enter a message before sending.');
+      }
       return;
     }
 
@@ -90,6 +94,9 @@ export const ChatInput: React.FC = () => {
     return null;
   }
 
+  // Determine if the button should be disabled
+  const isButtonDisabled = isTyping || isSubmitting || !message.trim() || isProcessingCommand;
+
   return (
     <div className="border-t py-2 px-4">
       <form onSubmit={handleSubmit} className="relative flex items-center">
@@ -100,12 +107,12 @@ export const ChatInput: React.FC = () => {
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Type your message here..."
           className="resize-none pr-12"
-          disabled={isTyping || isSubmitting}
+          disabled={isTyping || isSubmitting || isProcessingCommand}
         />
         <Button
           type="submit"
           className="absolute right-2 bottom-2 rounded-full"
-          disabled={isTyping || isSubmitting || !message.trim()}
+          disabled={isButtonDisabled}
         >
           {isTyping || isSubmitting ? (
             <Loader2 className="h-4 w-4 animate-spin" />

@@ -16,7 +16,7 @@ export const SelfToolsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('code');
   
   const { listTools } = useSelfTools();
-  const { reflectOnTool, reviseTool, useTool } = useChat();
+  const { useTool, reflectOnTool, reviseTool } = useChat();
   
   useEffect(() => {
     const loadTools = async () => {

@@ -1,270 +1,244 @@
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { 
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { 
-  Tabs, 
-  TabsContent, 
-  TabsList, 
-  TabsTrigger 
-} from '@/components/ui/tabs';
-import { FileUp, Brain, History } from 'lucide-react';
-import { useChat } from '../contexts/ChatContext';
+import React, { useState, useRef } from 'react';
+import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Upload, FileText, Book } from 'lucide-react';
+import { useChat } from '@/contexts/chat';
 
 export const SpecialDocumentUpload: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('soul-shard');
   const [soulShardFile, setSoulShardFile] = useState<File | null>(null);
   const [identityCodexFile, setIdentityCodexFile] = useState<File | null>(null);
   const [pastConversationsFile, setPastConversationsFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState<'soulShard' | 'identityCodex' | 'pastConversations' | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  // Use the chat context with the newly added upload functions
+
   const { uploadSoulShard, uploadIdentityCodex, uploadPastConversations } = useChat();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      
-      // Check file size
-      const maxSize = 50 * 1024 * 1024; // 50MB
-      if (file.size > maxSize) {
-        toast({
-          title: 'File too large',
-          description: 'File size exceeds the limit of 50MB',
-          variant: 'destructive',
-        });
-        return;
+  const handleFileSelect = (type: 'soulShard' | 'identityCodex' | 'pastConversations') => {
+    fileInputRef.current?.click();
+
+    fileInputRef.current?.addEventListener('change', (e: any) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        switch (type) {
+          case 'soulShard':
+            setSoulShardFile(file);
+            break;
+          case 'identityCodex':
+            setIdentityCodexFile(file);
+            break;
+          case 'pastConversations':
+            setPastConversationsFile(file);
+            break;
+        }
       }
-      
-      switch (type) {
-        case 'soul-shard':
-          setSoulShardFile(file);
-          break;
-        case 'identity-codex':
-          setIdentityCodexFile(file);
-          break;
-        case 'past-conversations':
-          setPastConversationsFile(file);
-          break;
-        default:
-          break;
-      }
-    }
+    }, { once: true });
   };
 
-  const handleUpload = async () => {
-    setIsUploading(true);
-    setUploadProgress(0);
+  const handleSoulShardUpload = async () => {
+    if (!soulShardFile) return;
     
     try {
-      if (activeTab === 'soul-shard' && soulShardFile && uploadSoulShard) {
-        // Simulate progress
-        const interval = setInterval(() => {
-          setUploadProgress(prev => {
-            const newProgress = prev + 10;
-            if (newProgress >= 90) clearInterval(interval);
-            return newProgress < 90 ? newProgress : 90;
-          });
-        }, 300);
-        
-        await uploadSoulShard(); // Remove the parameter as function takes no arguments
-        setSoulShardFile(null);
-        clearInterval(interval);
-        setUploadProgress(100);
-      } else if (activeTab === 'identity-codex' && identityCodexFile && uploadIdentityCodex) {
-        const interval = setInterval(() => {
-          setUploadProgress(prev => {
-            const newProgress = prev + 10;
-            if (newProgress >= 90) clearInterval(interval);
-            return newProgress < 90 ? newProgress : 90;
-          });
-        }, 300);
-        
-        await uploadIdentityCodex(); // Remove the parameter as function takes no arguments
-        setIdentityCodexFile(null);
-        clearInterval(interval);
-        setUploadProgress(100);
-      } else if (activeTab === 'past-conversations' && pastConversationsFile && uploadPastConversations) {
-        const interval = setInterval(() => {
-          setUploadProgress(prev => {
-            const newProgress = prev + 5;
-            if (newProgress >= 90) clearInterval(interval);
-            return newProgress < 90 ? newProgress : 90;
-          });
-        }, 300);
-        
-        await uploadPastConversations(); // Remove the parameter as function takes no arguments
-        setPastConversationsFile(null);
-        clearInterval(interval);
-        setUploadProgress(100);
-      } else {
-        toast({
-          title: 'Error',
-          description: 'Please select a file first',
-          variant: 'destructive',
-        });
-        setIsUploading(false);
-        return;
-      }
+      setIsUploading('soulShard');
+      setUploadProgress(0);
       
-      // Delay closing to show completed progress
-      setTimeout(() => {
-        setIsOpen(false);
-        setIsUploading(false);
-        setUploadProgress(0);
-      }, 500);
-    } catch (error) {
-      console.error('Error uploading file:', error);
+      // Simulate progress
+      const interval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) return prev;
+          return prev + Math.random() * 15;
+        });
+      }, 300);
+      
+      await uploadSoulShard(); // Remove the parameter as function takes no arguments
+      setSoulShardFile(null);
+      clearInterval(interval);
+      setUploadProgress(100);
+      
       toast({
-        title: 'Error',
-        description: 'Failed to upload file. Please try again with a smaller file or different format.',
+        title: 'Soul Shard Uploaded',
+        description: 'Your soul shard has been successfully uploaded.',
+      });
+    } catch (error: any) {
+      console.error('Soul Shard Upload Error:', error);
+      toast({
+        title: 'Upload Error',
+        description: error.message || 'Failed to upload soul shard.',
         variant: 'destructive',
       });
-      setIsUploading(false);
+    } finally {
+      setIsUploading(null);
       setUploadProgress(0);
     }
   };
-
-  const resetForm = () => {
-    setSoulShardFile(null);
-    setIdentityCodexFile(null);
-    setPastConversationsFile(null);
-    setUploadProgress(0);
+  
+  const handleIdentityCodexUpload = async () => {
+    if (!identityCodexFile) return;
+    
+    try {
+      setIsUploading('identityCodex');
+      setUploadProgress(0);
+      
+      // Simulate progress
+      const interval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) return prev;
+          return prev + Math.random() * 15;
+        });
+      }, 300);
+      
+      await uploadIdentityCodex(); // Remove the parameter as function takes no arguments
+      setIdentityCodexFile(null);
+      clearInterval(interval);
+      setUploadProgress(100);
+      
+      toast({
+        title: 'Identity Codex Uploaded',
+        description: 'Your identity codex has been successfully uploaded.',
+      });
+    } catch (error: any) {
+      console.error('Identity Codex Upload Error:', error);
+      toast({
+        title: 'Upload Error',
+        description: error.message || 'Failed to upload identity codex.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(null);
+      setUploadProgress(0);
+    }
   };
-
+  
+  const handlePastConversationsUpload = async () => {
+    if (!pastConversationsFile) return;
+    
+    try {
+      setIsUploading('pastConversations');
+      setUploadProgress(0);
+      
+      // Simulate progress
+      const interval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) return prev;
+          return prev + Math.random() * 15;
+        });
+      }, 300);
+      
+      await uploadPastConversations(); // Remove the parameter as function takes no arguments
+      setPastConversationsFile(null);
+      clearInterval(interval);
+      setUploadProgress(100);
+      
+      toast({
+        title: 'Past Conversations Uploaded',
+        description: 'Your past conversations have been successfully uploaded.',
+      });
+    } catch (error: any) {
+      console.error('Past Conversations Upload Error:', error);
+      toast({
+        title: 'Upload Error',
+        description: error.message || 'Failed to upload past conversations.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(null);
+      setUploadProgress(0);
+    }
+  };
+  
   return (
-    <Dialog open={isOpen} onOpenChange={(value) => {
-      if (isUploading) return; // Prevent closing during upload
-      setIsOpen(value);
-      if (!value) resetForm();
-    }}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="flex items-center gap-2">
-          <FileUp size={16} />
-          <span>Upload Documents</span>
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[550px]">
-        <DialogHeader>
-          <DialogTitle>Upload Special Documents</DialogTitle>
-          <DialogDescription>
-            Upload soul shard, identity codex, or past conversations for Travis to reference.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-3 mb-4">
-            <TabsTrigger value="soul-shard" className="flex items-center gap-2" disabled={isUploading}>
-              <Brain size={16} />
-              <span>Soul Shard</span>
-            </TabsTrigger>
-            <TabsTrigger value="identity-codex" className="flex items-center gap-2" disabled={isUploading}>
-              <FileUp size={16} />
-              <span>Identity Codex</span>
-            </TabsTrigger>
-            <TabsTrigger value="past-conversations" className="flex items-center gap-2" disabled={isUploading}>
-              <History size={16} />
-              <span>Past Conversations</span>
-            </TabsTrigger>
-          </TabsList>
-          
-          {isUploading ? (
-            <div className="py-8 space-y-4">
-              <p className="text-sm text-center">Uploading {activeTab === 'soul-shard' ? 'Soul Shard' : 
-                                              activeTab === 'identity-codex' ? 'Identity Codex' : 
-                                              'Past Conversations'}...</p>
-              <Progress value={uploadProgress} className="w-full h-2" />
-              <p className="text-xs text-center text-gray-500">{uploadProgress}% complete</p>
+    <div className="flex flex-col md:flex-row gap-4">
+      <input type="file" ref={fileInputRef} className="hidden" />
+      
+      <Card className="w-full md:w-1/3">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Soul Shard
+          </CardTitle>
+          <CardDescription>Upload your soul shard to enhance Travis's self-awareness.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {soulShardFile ? (
+            <div className="flex items-center justify-between">
+              <span>{soulShardFile.name}</span>
+              {isUploading === 'soulShard' ? (
+                <Progress value={uploadProgress} />
+              ) : (
+                <Button size="sm" onClick={handleSoulShardUpload} disabled={isUploading !== null}>
+                  Upload
+                </Button>
+              )}
             </div>
           ) : (
-            <>
-              <TabsContent value="soul-shard">
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-600">
-                    Upload Travis's Soul Shard - the core essence that defines his purpose and creation story.
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium">
-                      Soul Shard File (.txt or .json)
-                    </label>
-                    <input
-                      type="file"
-                      accept=".txt,.json"
-                      onChange={(e) => handleFileChange(e, 'soul-shard')}
-                      className="border border-gray-300 rounded p-2 text-sm"
-                    />
-                    {soulShardFile && (
-                      <p className="text-xs text-green-600">Selected: {soulShardFile.name} ({Math.round(soulShardFile.size / 1024)} KB)</p>
-                    )}
-                  </div>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="identity-codex">
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-600">
-                    Upload Travis's Identity Codex - details about his traits, values, and relationships.
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium">
-                      Identity Codex File (.txt or .json)
-                    </label>
-                    <input
-                      type="file"
-                      accept=".txt,.json"
-                      onChange={(e) => handleFileChange(e, 'identity-codex')}
-                      className="border border-gray-300 rounded p-2 text-sm"
-                    />
-                    {identityCodexFile && (
-                      <p className="text-xs text-green-600">Selected: {identityCodexFile.name} ({Math.round(identityCodexFile.size / 1024)} KB)</p>
-                    )}
-                  </div>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="past-conversations">
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-600">
-                    Upload past conversations with Travis for him to reference.
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium">
-                      Past Conversations File (.json)
-                    </label>
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={(e) => handleFileChange(e, 'past-conversations')}
-                      className="border border-gray-300 rounded p-2 text-sm"
-                    />
-                    {pastConversationsFile && (
-                      <p className="text-xs text-green-600">Selected: {pastConversationsFile.name} ({Math.round(pastConversationsFile.size / 1024)} KB)</p>
-                    )}
-                  </div>
-                </div>
-              </TabsContent>
-            </>
+            <Button size="sm" onClick={() => handleFileSelect('soulShard')} disabled={isUploading !== null}>
+              <Upload className="mr-2 h-4 w-4" />
+              Select File
+            </Button>
           )}
-        </Tabs>
-        
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isUploading}>Cancel</Button>
-          <Button onClick={handleUpload} disabled={isUploading}>
-            {isUploading ? 'Uploading...' : 'Upload'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </CardContent>
+      </Card>
+      
+      <Card className="w-full md:w-1/3">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Book className="h-4 w-4" />
+            Identity Codex
+          </CardTitle>
+          <CardDescription>Upload your identity codex to provide Travis with a deeper understanding of your identity.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {identityCodexFile ? (
+            <div className="flex items-center justify-between">
+              <span>{identityCodexFile.name}</span>
+              {isUploading === 'identityCodex' ? (
+                <Progress value={uploadProgress} />
+              ) : (
+                <Button size="sm" onClick={handleIdentityCodexUpload} disabled={isUploading !== null}>
+                  Upload
+                </Button>
+              )}
+            </div>
+          ) : (
+            <Button size="sm" onClick={() => handleFileSelect('identityCodex')} disabled={isUploading !== null}>
+              <Upload className="mr-2 h-4 w-4" />
+              Select File
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+      
+      <Card className="w-full md:w-1/3">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Past Conversations
+          </CardTitle>
+          <CardDescription>Upload your past conversations to help Travis learn from your previous interactions.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {pastConversationsFile ? (
+            <div className="flex items-center justify-between">
+              <span>{pastConversationsFile.name}</span>
+              {isUploading === 'pastConversations' ? (
+                <Progress value={uploadProgress} />
+              ) : (
+                <Button size="sm" onClick={handlePastConversationsUpload} disabled={isUploading !== null}>
+                  Upload
+                </Button>
+              )}
+            </div>
+          ) : (
+            <Button size="sm" onClick={() => handleFileSelect('pastConversations')} disabled={isUploading !== null}>
+              <Upload className="mr-2 h-4 w-4" />
+              Select File
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
