@@ -30,7 +30,7 @@ export const ChatInput: React.FC = () => {
   
   const { 
     sendMessage, 
-    isTyping
+    isTyping // Use isTyping instead of isThinking
   } = useChat();
   
   // Function to prevent duplicate toasts

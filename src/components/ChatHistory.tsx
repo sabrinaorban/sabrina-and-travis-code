@@ -6,7 +6,7 @@ import { Loader2, RefreshCw } from 'lucide-react';
 import { Button } from './ui/button';
 
 export const ChatHistory: React.FC = () => {
-  const { messages, isTyping, isLoadingHistory, refreshMessages } = useChat();
+  const { messages, isTyping, isLoading, refreshMessages } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isStuck, setIsStuck] = React.useState(false);
@@ -24,7 +24,7 @@ export const ChatHistory: React.FC = () => {
   // Handle potential stuck loading state
   useEffect(() => {
     // If we're loading, set a timeout to detect if we're stuck
-    if (isLoadingHistory) {
+    if (isLoading) {
       loadingTimeoutRef.current = setTimeout(() => {
         setIsStuck(true);
       }, 10000); // 10 seconds timeout
@@ -43,7 +43,7 @@ export const ChatHistory: React.FC = () => {
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [isLoadingHistory]);
+  }, [isLoading]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -57,7 +57,7 @@ export const ChatHistory: React.FC = () => {
     }
   };
 
-  if (isLoadingHistory) {
+  if (isLoading) {
     return (
       <div className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
         <div className="text-center">

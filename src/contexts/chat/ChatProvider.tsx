@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -21,11 +22,12 @@ interface ChatContextType {
   deleteMessage: (messageId: string) => void;
   sendMessage: (content: string) => Promise<void>;
   isLoading: boolean;
-  isThinking: boolean;
+  isTyping: boolean; // Changed from isThinking to isTyping for consistency
   isProcessingCommand: boolean;
   error: string | null;
   clearError: () => void;
   retryMessage: (message: Message) => Promise<void>;
+  refreshMessages?: () => Promise<void>; // Added optional refreshMessages function
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -33,7 +35,7 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isThinking, setIsThinking] = useState(false);
+  const [isTyping, setIsTyping] = useState(false); // Changed from isThinking to isTyping
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -132,6 +134,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Create the message with a UUID
       const messageId = crypto.randomUUID();
       
+      // Add the user message to the chat immediately for better UX
+      const userMessage: Message = {
+        id: messageId,
+        role: 'user',
+        content: content,
+        timestamp: new Date().toISOString()
+      };
+      
+      addMessage(userMessage);
+      
       // First check if this is a command
       const isCommand = await handleChatCommand(content);
       if (isCommand) {
@@ -144,12 +156,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      setIsThinking(true);
+      setIsTyping(true); // Changed from setIsThinking to setIsTyping
       setError(null);
 
       // Optimistically update the message with "thinking" status
       const tempMessage: Message = {
-        id: messageId,
+        id: crypto.randomUUID(),
         role: 'assistant',
         content: 'Thinking...',
         timestamp: new Date().toISOString(),
@@ -176,6 +188,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Simulate tool execution
       const toolResult = await executeTool(prompt);
       if (toolResult) {
+        setIsTyping(false); // Make sure to set typing state to false
         return; // Tool execution handled the message
       }
 
@@ -195,9 +208,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error sending message:', e);
       setError(e.message || 'Failed to send message.');
     } finally {
-      setIsThinking(false);
+      setIsTyping(false); // Changed from setIsThinking to setIsTyping
     }
   }, [handleChatCommand, addMessage, recallRelevantMemories, storeMemory, user, executeTool]);
+
+  // Add a refresh function for messages if needed
+  const refreshMessages = useCallback(async () => {
+    // Implement if needed, can be connected to useChatMessages.ts refreshMessages
+    console.log('Refreshing messages...');
+  }, []);
 
   const contextValue: ChatContextType = {
     messages,
@@ -206,11 +225,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     deleteMessage,
     sendMessage,
     isLoading,
-    isThinking,
+    isTyping, // Changed from isThinking to isTyping
     isProcessingCommand,
     error,
     clearError,
     retryMessage,
+    refreshMessages, // Added refreshMessages to context
   };
 
   return (

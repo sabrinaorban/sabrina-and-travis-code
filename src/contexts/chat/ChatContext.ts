@@ -6,7 +6,7 @@ import { ChatContextType } from './types';
 const defaultChatContext: ChatContextType = {
   messages: [],
   sendMessage: async () => {},
-  isTyping: false,
+  isTyping: false, // Changed from isThinking to isTyping
   memoryContext: null,
   generateWeeklyReflection: async () => {},
   generateSoulReflection: async () => {},
