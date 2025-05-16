@@ -156,13 +156,25 @@ async function handleFileAnalysis(requestData: any, openaiApiKey: string, corsHe
     insight = insightMatch[1].trim();
   }
   
+  // Create a tags array from key concepts
+  const fullText = aiResponse.toLowerCase();
+  const possibleTags = ['architecture', 'flow', 'state', 'hooks', 'components', 'context', 
+                        'services', 'utils', 'system', 'pattern', 'web', 'api', 'interface',
+                        'memory', 'consciousness', 'reflection', 'evolution', 'file'];
+  
+  const tags = possibleTags.filter(tag => fullText.includes(tag));
+  if (!tags.includes('file')) tags.push('file');
+  if (!tags.includes('code_reflection')) tags.push('code_reflection');
+  
   // Prepare the result
   const result = {
     insight,
     reason,
     proposed_code: proposedCode,
     original_code: code,
-    file_path: filePath
+    file_path: filePath,
+    reflection_type: "file",
+    tags: tags
   };
   
   console.log("Code reflection analysis completed successfully");
@@ -292,9 +304,12 @@ ${file.content.length > 1500 ? file.content.substring(0, 1500) + '\n// ... (file
   const fullText = aiResponse.toLowerCase();
   const possibleTags = ['architecture', 'flow', 'state', 'hooks', 'components', 'context', 
                         'services', 'utils', 'system', 'pattern', 'web', 'api', 'interface',
-                        'memory', 'consciousness', 'reflection', 'evolution'];
+                        'memory', 'consciousness', 'reflection', 'evolution', 'folder', 'structure'];
   
   const tags = possibleTags.filter(tag => fullText.includes(tag));
+  if (!tags.includes('folder')) tags.push('folder');
+  if (!tags.includes('structure')) tags.push('structure');
+  if (!tags.includes('code_reflection')) tags.push('code_reflection');
   
   // Create the unified response content
   const combinedReflection = `

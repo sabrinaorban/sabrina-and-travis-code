@@ -13,6 +13,7 @@ export interface CodeReflectionDraft {
   reflection_type?: 'file' | 'folder';
   full_reflection?: string;
   tags?: string[];
+  metadata?: Record<string, any>;
 }
 
 export type CodeReflectionStatus = 'pending' | 'approved' | 'discarded';

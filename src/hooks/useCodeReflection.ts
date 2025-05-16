@@ -1,4 +1,3 @@
-
 import { useCallback, useState } from 'react';
 import { supabase, supabaseKey } from '@/lib/supabase';
 import { useFileSystem } from '@/contexts/FileSystemContext';
@@ -9,6 +8,12 @@ import { CodeReflectionService } from '@/services/CodeReflectionService';
 
 // File extensions we want to include in code analysis
 const CODE_FILE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx'];
+// Maximum number of files to analyze in a folder
+const MAX_FILES_TO_ANALYZE = 5;
+// Maximum token estimate per file (rough approximation)
+const MAX_TOKENS_PER_FILE = 600;
+// Maximum total tokens for analysis (keep under OpenAI's context limit)
+const MAX_TOTAL_TOKENS = 3000;
 
 export const useCodeReflection = () => {
   const [currentDraft, setCurrentDraft] = useState<CodeReflectionDraft | null>(null);
@@ -20,20 +25,41 @@ export const useCodeReflection = () => {
   const collectFilesFromFolder = useCallback(async (folderPath: string): Promise<{ path: string, content: string }[]> => {
     console.log(`Collecting files from folder: ${folderPath}`);
     const codeFiles: { path: string, content: string }[] = [];
+    let estimatedTokenCount = 0;
     
     // Helper function to recursively collect files
     const collectFiles = (entries: any[], currentPath: string = '') => {
+      // Early exit if we've reached our file or token limits
+      if (codeFiles.length >= MAX_FILES_TO_ANALYZE || estimatedTokenCount >= MAX_TOTAL_TOKENS) {
+        return;
+      }
+      
       for (const entry of entries) {
+        // Early exit check in each iteration
+        if (codeFiles.length >= MAX_FILES_TO_ANALYZE || estimatedTokenCount >= MAX_TOTAL_TOKENS) {
+          return;
+        }
+        
         const entryPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
         
         // For files, check if they're code files
         if (entry.type === 'file') {
           const extension = entry.name.substring(entry.name.lastIndexOf('.'));
           if (CODE_FILE_EXTENSIONS.includes(extension) && entry.content) {
-            codeFiles.push({
-              path: entryPath,
-              content: entry.content
-            });
+            // Rough token estimation (about 0.75 tokens per character)
+            const estimatedEntryTokens = Math.ceil(entry.content.length * 0.75);
+            
+            // Only add if we won't exceed our token budget
+            if (estimatedTokenCount + estimatedEntryTokens <= MAX_TOTAL_TOKENS) {
+              codeFiles.push({
+                path: entryPath,
+                content: entry.content
+              });
+              estimatedTokenCount += estimatedEntryTokens;
+              console.log(`Added file: ${entryPath} (est. tokens: ${estimatedEntryTokens}, total: ${estimatedTokenCount})`);
+            } else {
+              console.log(`Skipping file due to token limit: ${entryPath}`);
+            }
           }
         }
         
@@ -58,7 +84,7 @@ export const useCodeReflection = () => {
       collectFiles(folder.children, normalizedPath);
     }
     
-    console.log(`Found ${codeFiles.length} code files in ${folderPath}`);
+    console.log(`Found ${codeFiles.length} code files in ${folderPath} within token budget`);
     return codeFiles;
   }, [fileSystem]);
 
@@ -87,12 +113,38 @@ export const useCodeReflection = () => {
       console.log("Starting code reflection for:", path);
       const normalizedPath = normalizePath(path);
       
-      // Check if this is a folder or file reflection
-      if (await isFolder(normalizedPath)) {
+      // First check if the path exists at all
+      const entry = fileSystem.getFileByPath(normalizedPath);
+      if (!entry) {
+        console.error(`Path not found: ${normalizedPath}`);
+        
+        // Find similar files or folders for suggestions
+        const similarFiles = findSimilarFiles(normalizedPath, fileSystem.fileSystem.files);
+        let errorMessage = `Path not found: ${normalizedPath}`;
+        
+        // Add suggestions if any were found
+        if (similarFiles.length > 0) {
+          errorMessage += "\n\nDid you mean one of these?";
+          const suggestions = similarFiles.slice(0, 5).map(file => `- ${file.path} (${file.type})`).join("\n");
+          errorMessage += `\n${suggestions}`;
+        } else {
+          // Log the available file tree for debugging
+          console.log("No similar paths found. Available file tree:\n", 
+            getFileTreeDebugInfo(fileSystem.fileSystem.files));
+        }
+        
+        return { 
+          success: false, 
+          error: errorMessage
+        };
+      }
+      
+      // Now check if this is a folder or file reflection
+      if (entry.type === 'folder') {
         // Handle folder reflection
         return await reflectOnFolder(normalizedPath);
       } else {
-        // Handle file reflection (existing functionality)
+        // Handle file reflection
         return await reflectOnFile(normalizedPath);
       }
     } catch (error: any) {
@@ -102,7 +154,7 @@ export const useCodeReflection = () => {
         error: `Reflection process error: ${error instanceof Error ? error.message : String(error)}`
       };
     }
-  }, [fileSystem, isFolder]);
+  }, [fileSystem, normalizePath]);
 
   /**
    * Process reflection for a single file
@@ -175,18 +227,10 @@ export const useCodeReflection = () => {
       };
     }
     
-    // Limit the number of files if needed for token constraints
-    const maxFiles = 5; // Reasonable limit for token context
-    const selectedFiles = codeFiles.length > maxFiles 
-      ? codeFiles.slice(0, maxFiles) 
-      : codeFiles;
-    
-    if (codeFiles.length > maxFiles) {
-      console.log(`Limiting analysis to ${maxFiles} files out of ${codeFiles.length} total files`);
-    }
+    console.log(`Analyzing ${codeFiles.length} files from folder: ${folderPath}`);
     
     // Use the CodeReflectionService to analyze the folder
-    return await CodeReflectionService.analyzeFolderCode(selectedFiles, folderPath);
+    return await CodeReflectionService.analyzeFolderCode(codeFiles, folderPath);
   }, [fileSystem, collectFilesFromFolder]);
 
   const applyChanges = useCallback(async (draftId: string): Promise<boolean> => {

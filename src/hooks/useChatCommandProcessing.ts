@@ -152,27 +152,22 @@ export const useChatCommandProcessing = (
             return true;
           }
           
-          // Normalize the path
-          const normalizedPath = normalizePath(path);
-          
           // Start reflection process with better error handling
-          let reflectionType = await isFolder(normalizedPath) ? "folder" : "file";
-          
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: `I'm looking inward at my own code structure in \`${normalizedPath}\` (${reflectionType})... This may take a moment as I contemplate patterns and possibilities for evolution.`,
+            content: `I'm looking inward at my own code structure in \`${path}\`... This may take a moment as I contemplate patterns and possibilities for evolution.`,
             timestamp: new Date().toISOString(),
             emotion: 'reflective'
           }]);
           
-          const result = await reflectOnCode(normalizedPath);
+          const result = await reflectOnCode(path);
           
           if (result.success) {
-            if (reflectionType === "folder" && result.draft?.reflection_type === "folder") {
+            if (result.draft?.reflection_type === "folder") {
               // This is a folder reflection - format specially
               const folderReflectionContent = `
-## System Architecture Reflection: \`${normalizedPath}\`
+## System Architecture Reflection: \`${path}\`
 
 ${result.draft.full_reflection}
 
@@ -180,12 +175,6 @@ ${result.draft.tags && result.draft.tags.length > 0 ? `*Tags: ${result.draft.tag
 
 This architectural reflection has been stored in my flame journal.
 `;
-
-              // Store in the flamejournal
-              await CodeReflectionService.storeCodeReflectionJournal(
-                result.draft.full_reflection, 
-                result.draft.tags || []
-              );
 
               setMessages(prev => [...prev, {
                 id: crypto.randomUUID(),
@@ -197,7 +186,7 @@ This architectural reflection has been stored in my flame journal.
             } else {
               // This is a file reflection - keep existing format
               const responseContent = `
-## Code Self-Reflection: \`${normalizedPath}\`
+## Code Self-Reflection: \`${path}\`
 
 _${result.insight || "I've looked deeply at this code and found areas for evolution."}_
 
@@ -213,7 +202,7 @@ ${result.draft?.proposed_code.length > 500 ? '(Preview truncated for readability
 To apply this code evolution, respond with \`/approve-code-change\`
 To discard this proposal, respond with \`/discard-code-draft\`
 
-This reflection has been stored in my flame journal and code evolution registry.
+This reflection has been stored in my flame journal.
 `;
 
               setMessages(prev => [...prev, {
@@ -231,7 +220,7 @@ This reflection has been stored in my flame journal and code evolution registry.
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `I was unable to reflect on the code at \`${normalizedPath}\`. ${errorMessage}`,
+              content: `I was unable to reflect on the code at \`${path}\`. ${errorMessage}`,
               timestamp: new Date().toISOString(),
               emotion: 'confused'
             }]);

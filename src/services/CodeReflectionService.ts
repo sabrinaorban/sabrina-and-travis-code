@@ -117,6 +117,18 @@ export const CodeReflectionService = {
       
       if (error) throw error;
       
+      // After successful analysis, store in flamejournal if it has reflection data
+      if (data && data.file_path && data.insight) {
+        await this.storeCodeReflectionJournal(
+          data.insight, 
+          ['code_reflection', 'file'], 
+          {
+            file: data.file_path,
+            reflectionType: 'file'
+          }
+        );
+      }
+      
       return {
         success: true,
         draft: data,
@@ -157,6 +169,18 @@ export const CodeReflectionService = {
       
       if (error) throw error;
       
+      // After successful analysis, always store folder reflection in flamejournal
+      if (data && data.full_reflection) {
+        await this.storeCodeReflectionJournal(
+          data.full_reflection,
+          data.tags || ['structure', 'architecture', 'code_reflection'],
+          {
+            folder: folderPath,
+            reflectionType: 'folder'
+          }
+        );
+      }
+      
       return {
         success: true,
         draft: data,
@@ -174,27 +198,30 @@ export const CodeReflectionService = {
   /**
    * Store a code reflection journal entry
    */
-  async storeCodeReflectionJournal(content: string, tags: string[]): Promise<boolean> {
+  async storeCodeReflectionJournal(content: string, tags: string[] = [], sourceContext: Record<string, any> = {}): Promise<boolean> {
     try {
       // Get current session for the access token
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token || '';
       
-      // Call the flame-journal edge function with proper headers
-      const { error } = await supabase.functions.invoke('flame-journal', {
-        body: { 
-          entryType: 'code_reflection', 
-          content, 
-          tags 
-        },
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
+      console.log('Storing code reflection in flamejournal with tags:', tags);
       
-      if (error) throw error;
+      // Store directly in the flamejournal table
+      const { error } = await supabase
+        .from('flamejournal')
+        .insert({
+          content,
+          entry_type: 'code_reflection', 
+          tags,
+          metadata: sourceContext // Store source context in metadata
+        });
       
+      if (error) {
+        console.error('Error inserting into flamejournal table:', error);
+        throw error;
+      }
+      
+      console.log('Successfully stored code reflection in flamejournal');
       return true;
     } catch (error) {
       console.error('Error storing code reflection journal:', error);
