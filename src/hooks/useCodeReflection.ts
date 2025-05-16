@@ -1,201 +1,194 @@
-
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useToast } from '@/hooks/use-toast';
-import { CodeReflectionDraft, CodeReflectionResult, FileEntry } from '@/types';
-import { CodeReflectionService } from '@/services/CodeReflectionService';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
+import { CodeReflectionDraft, CodeReflectionResult } from '@/types';
 
-export function useCodeReflection() {
-  const [isReflecting, setIsReflecting] = useState(false);
+export const useCodeReflection = () => {
   const [currentDraft, setCurrentDraft] = useState<CodeReflectionDraft | null>(null);
-  const [drafts, setDrafts] = useState<CodeReflectionDraft[]>([]);
-  const { toast } = useToast();
   const fileSystem = useFileSystem();
-
-  const loadDrafts = useCallback(async () => {
-    const fetchedDrafts = await CodeReflectionService.getDrafts();
-    setDrafts(fetchedDrafts);
-    return fetchedDrafts;
-  }, []);
-
-  // Analyze a file path to generate code reflection
-  const analyzePath = useCallback(async (path: string): Promise<CodeReflectionResult> => {
-    setIsReflecting(true);
+  
+  const reflectOnCode = useCallback(async (filePath: string) => {
+    if (!filePath) {
+      console.error("Cannot reflect on code without a valid file path");
+      return { 
+        success: false, 
+        error: "No file path provided for reflection" 
+      };
+    }
+    
     try {
-      console.log(`Starting code reflection for path: ${path}`);
-      
-      // Normalize the path (remove leading slash if present)
-      const normalizedPath = normalizePath(path);
-      console.log(`Normalized path: ${normalizedPath}`);
-      
-      // Check if file exists before proceeding
-      if (!fileSystem || !fileSystem.getFileByPath) {
-        console.error('File system not available');
-        throw new Error('File system not available');
-      }
-      
-      // Check if file exists
-      const fileExists = fileSystem.getFileByPath(normalizedPath) !== null;
-      if (!fileExists) {
-        console.error(`File not found at path: ${normalizedPath}`);
-        throw new Error(`File not found at path: ${normalizedPath}`);
-      }
+      console.log("Starting code reflection for:", filePath);
       
       // Get the file content
-      const fileContent = fileSystem.getFileContentByPath(normalizedPath);
-      console.log(`File content found: ${Boolean(fileContent)}`);
+      const fileSystem = useFileSystem.getState();
+      const normalizedPath = normalizePath(filePath);
+      
+      console.log("Looking for file with normalized path:", normalizedPath);
+      const fileEntry = fileSystem.getFileByPath(normalizedPath);
+      
+      if (!fileEntry) {
+        console.error(`File not found: ${normalizedPath}`);
+        return { 
+          success: false, 
+          error: `File not found at path: ${normalizedPath}` 
+        };
+      }
+      
+      const fileContent = fileEntry.content;
       
       if (!fileContent) {
-        console.error(`File content not available for: ${normalizedPath}`);
-        throw new Error(`File content not available for: ${normalizedPath}`);
-      }
-
-      // Call the serverless function to analyze the code
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/code-reflection-analysis`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ file_path: normalizedPath, content: fileContent }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error(`API error: ${response.status} ${errorData}`);
-        throw new Error(`API error: ${response.status} ${errorData}`);
-      }
-
-      const result = await response.json();
-      console.log(`API result received, success: ${result.success}`);
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to analyze code');
-      }
-
-      // Create a draft with the analysis results
-      const draftData = {
-        file_path: normalizedPath,
-        original_code: fileContent,
-        proposed_code: result.proposed_code,
-        reason: result.reason
-      };
-
-      const storedDraft = await CodeReflectionService.storeDraft(draftData);
-      console.log(`Draft stored, success: ${storedDraft.success}`);
-
-      if (storedDraft.success && storedDraft.draft) {
-        setCurrentDraft(storedDraft.draft);
-        // Refresh the drafts list
-        await loadDrafts();
-        
-        return {
-          success: true,
-          draft: storedDraft.draft,
-          insight: result.insight
+        console.error(`File has no content: ${normalizedPath}`);
+        return { 
+          success: false, 
+          error: "File exists but has no content"
         };
-      } else {
-        throw new Error('Failed to store draft');
       }
-    } catch (error) {
-      console.error('Error in code reflection:', error);
-      toast({
-        title: 'Code Reflection Error',
-        description: error instanceof Error ? error.message : 'An unknown error occurred',
-        variant: 'destructive'
+      
+      console.log(`Sending ${fileContent.length} bytes for analysis`);
+      
+      // Call the edge function to analyze the code
+      const { data, error } = await supabase.functions.invoke('code-reflection-analysis', {
+        body: { 
+          code: fileContent,
+          filePath: normalizedPath
+        }
       });
+      
+      if (error) {
+        console.error("Error from code reflection API:", error);
+        return { 
+          success: false, 
+          error: `API error: ${error.message}`
+        };
+      }
+      
+      console.log("Reflection API response:", data);
+      
+      if (!data) {
+        return { 
+          success: false, 
+          error: "No data returned from reflection API"
+        };
+      }
+      
+      // Store the draft in the database
+      const { data: draftData, error: draftError } = await supabase
+        .from('code_reflection_drafts')
+        .insert({
+          file_path: normalizedPath,
+          original_code: fileContent,
+          proposed_code: data.proposed_code || fileContent,
+          reason: data.reason || "To improve code structure and readability"
+        })
+        .select()
+        .single();
+        
+      if (draftError) {
+        console.error("Error storing code draft:", draftError);
+        return {
+          success: false, 
+          error: `Failed to save code draft: ${draftError.message}`
+        };
+      }
+      
+      // Set the current draft
+      setCurrentDraft(draftData);
       
       return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        success: true,
+        draft: draftData,
+        insight: data.insight || "Reflection complete"
       };
-    } finally {
-      setIsReflecting(false);
+      
+    } catch (error) {
+      console.error("Code reflection error:", error);
+      return { 
+        success: false, 
+        error: `Reflection process error: ${error.message}`
+      };
     }
-  }, [fileSystem, toast, loadDrafts]);
+  }, []);
 
-  // Apply changes from a draft to the file system
   const applyChanges = useCallback(async (draftId: string): Promise<boolean> => {
     try {
-      // Get the draft
-      const draft = await CodeReflectionService.getDraftById(draftId);
-      
-      if (!draft) {
-        throw new Error('Draft not found');
+      // Retrieve the draft from the database
+      const { data: draft, error: draftError } = await supabase
+        .from('code_reflection_drafts')
+        .select('*')
+        .eq('id', draftId)
+        .single();
+
+      if (draftError) {
+        console.error("Error fetching code draft:", draftError);
+        return false;
       }
-      
-      console.log(`Applying changes to file: ${draft.file_path}`);
-      
-      // Apply the changes to the file
-      await fileSystem.updateFileByPath(draft.file_path, draft.proposed_code);
-      
-      // Delete the draft
-      await CodeReflectionService.deleteDraft(draftId);
-      
-      // Refresh drafts
-      await loadDrafts();
-      
-      toast({
-        title: 'Changes Applied',
-        description: `Changes have been applied to ${draft.file_path}`,
-      });
-      
+
+      if (!draft) {
+        console.error("Draft not found with ID:", draftId);
+        return false;
+      }
+
+      // Get the file content
+      const fileSystem = useFileSystem.getState();
+      const fileEntry = fileSystem.getFileByPath(draft.file_path);
+
+      if (!fileEntry) {
+        console.error(`File not found: ${draft.file_path}`);
+        return false;
+      }
+
+      // Update the file content in the database
+      const { error: updateError } = await supabase
+        .from('files')
+        .update({ content: draft.proposed_code })
+        .eq('id', fileEntry.id);
+
+      if (updateError) {
+        console.error("Error updating file content:", updateError);
+        return false;
+      }
+
+      // Refresh the file system to reflect the changes
+      fileSystem.refreshFiles();
+
+      // Clear the current draft
+      setCurrentDraft(null);
+
       return true;
     } catch (error) {
-      console.error('Error applying changes:', error);
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to apply changes',
-        variant: 'destructive'
-      });
-      
+      console.error("Error applying code changes:", error);
       return false;
     }
-  }, [fileSystem, loadDrafts, toast]);
+  }, []);
 
-  // Discard a draft without applying changes
   const discardDraft = useCallback(async (draftId: string): Promise<boolean> => {
     try {
-      await CodeReflectionService.deleteDraft(draftId);
-      await loadDrafts();
-      
-      toast({
-        title: 'Draft Discarded',
-        description: 'The code reflection draft has been discarded',
-      });
-      
+      // Delete the draft from the database
+      const { error } = await supabase
+        .from('code_reflection_drafts')
+        .delete()
+        .eq('id', draftId);
+
+      if (error) {
+        console.error("Error deleting code draft:", error);
+        return false;
+      }
+
+      // Clear the current draft
+      setCurrentDraft(null);
+
       return true;
     } catch (error) {
-      console.error('Error discarding draft:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to discard draft',
-        variant: 'destructive'
-      });
-      
+      console.error("Error discarding code draft:", error);
       return false;
     }
-  }, [loadDrafts, toast]);
-
-  // Add alias for discardCodeDraft to match usage in useChatCommandProcessing
-  const discardCodeDraft = discardDraft;
-  
-  // Add reflectOnCode as an alias for analyzePath to maintain compatibility
-  const reflectOnCode = analyzePath;
+  }, []);
 
   return {
-    isReflecting,
-    currentDraft,
-    drafts,
-    loadDrafts,
-    analyzePath,
     reflectOnCode,
     applyChanges,
     discardDraft,
-    discardCodeDraft
+    currentDraft
   };
-}
-
-export default useCodeReflection;
+};

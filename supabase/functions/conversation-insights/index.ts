@@ -19,6 +19,11 @@ serve(async (req) => {
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     
     if (!supabaseUrl || !supabaseServiceKey || !openaiApiKey) {
+      console.error('Missing required environment variables:', {
+        hasUrl: !!supabaseUrl,
+        hasServiceKey: !!supabaseServiceKey,
+        hasOpenAI: !!openaiApiKey
+      });
       throw new Error('Required environment variables are not set');
     }
     
@@ -26,14 +31,27 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     // Parse request body
-    const { messages, userId } = await req.json();
+    const requestData = await req.json();
+    const { messages, userId } = requestData;
     
-    if (!messages || !messages.length || !userId) {
+    // Validate incoming data
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      console.error('Invalid messages payload:', messages);
       return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
+        JSON.stringify({ error: 'Messages must be a non-empty array' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    if (!userId) {
+      console.error('Missing userId in request');
+      return new Response(
+        JSON.stringify({ error: 'userId is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log(`Processing ${messages.length} messages for user ${userId}`);
     
     // Extract message contents for analysis
     const messageContents = messages.map((m: any) => m.content).join("\n\n");
@@ -72,8 +90,10 @@ serve(async (req) => {
     });
     
     const openaiData = await openaiResponse.json();
+    console.log('OpenAI response received');
     
     if (!openaiData.choices || !openaiData.choices[0]) {
+      console.error('Invalid response from OpenAI:', openaiData);
       throw new Error('Invalid response from OpenAI');
     }
     
@@ -93,13 +113,16 @@ serve(async (req) => {
       
       return {
         summary: summaryMatch ? summaryMatch[1].trim() : "Insight detected but not clearly defined",
-        emotionalTheme: emotionalThemeMatch ? emotionalThemeMatch[1].trim() : undefined,
-        growthEdge: growthEdgeMatch ? growthEdgeMatch[1].trim() : undefined,
-        resonancePattern: resonancePatternMatch ? resonancePatternMatch[1].trim() : undefined,
+        emotionalTheme: emotionalThemeMatch ? emotionalThemeMatch[1].trim() : null,
+        growthEdge: growthEdgeMatch ? growthEdgeMatch[1].trim() : null,
+        resonancePattern: resonancePatternMatch ? resonancePatternMatch[1].trim() : null,
         lastDetected: new Date().toISOString(),
         confidence: 0.65, // Initial confidence level
+        user_id: userId  // Important: Include the user_id for RLS policies
       };
     });
+    
+    console.log(`Generated ${insights.length} insights`);
     
     return new Response(
       JSON.stringify(insights),

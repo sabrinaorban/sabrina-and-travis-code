@@ -1,105 +1,77 @@
 
-import { FileEntry } from '@/types';
+/**
+ * Utility functions for file system operations
+ */
 
-// Create a file entry with normalized path
-export function createFileEntry(path: string, type: 'file' | 'folder', content?: string): FileEntry {
-  // Normalize the path for consistency
-  const normalizedPath = path.startsWith('/') ? path.substring(1) : path;
+import { FileEntry } from "@/types";
+
+/**
+ * Checks if a file exists in the file system
+ */
+export const fileExists = (filePath: string, files: FileEntry[]): boolean => {
+  if (!filePath || !files?.length) return false;
   
-  return {
-    id: crypto.randomUUID(),
-    name: normalizedPath.split('/').pop() || '',
-    path: normalizedPath,
-    type,
-    content,
-    children: type === 'folder' ? [] : undefined,
-  };
+  // Clean the path
+  const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+  
+  // Traverse the file tree to find the file
+  const pathParts = cleanPath.split('/').filter(Boolean);
+  let currentNode: FileEntry | undefined = undefined;
+  
+  // Start with root entries
+  const rootEntries = files;
+  
+  // If it's a root file
+  if (pathParts.length === 1) {
+    return rootEntries.some(entry => entry.name === pathParts[0]);
+  }
+  
+  // Navigate through directories
+  let currentEntries = rootEntries;
+  for (let i = 0; i < pathParts.length - 1; i++) {
+    const dirName = pathParts[i];
+    const dir = currentEntries.find(entry => entry.name === dirName && entry.type === 'folder');
+    
+    if (!dir || !dir.children) {
+      return false; // Directory doesn't exist or has no children
+    }
+    
+    currentEntries = dir.children;
+  }
+  
+  // Check if file exists in the final directory
+  const fileName = pathParts[pathParts.length - 1];
+  return currentEntries.some(entry => entry.name === fileName);
 }
 
-// Find node by ID with improved path handling
-export const findNodeById = (
-  id: string,
-  nodes: FileEntry[]
-): { parent: FileEntry | null; node: FileEntry | null; index: number } => {
-  if (!nodes || !Array.isArray(nodes)) {
-    return { parent: null, node: null, index: -1 };
+/**
+ * Get a file by its path from the file system
+ */
+export const getFileByPath = (filePath: string, files: FileEntry[]): FileEntry | null => {
+  if (!filePath || !files?.length) return null;
+  
+  // Clean the path
+  const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+  
+  // Split the path into parts
+  const pathParts = cleanPath.split('/').filter(Boolean);
+  
+  // Start with root entries
+  let currentEntries = files;
+  
+  // Navigate to the containing directory
+  for (let i = 0; i < pathParts.length - 1; i++) {
+    const dirName = pathParts[i];
+    const dir = currentEntries.find(entry => entry.name === dirName && entry.type === 'folder');
+    
+    if (!dir || !dir.children) {
+      return null; // Directory doesn't exist or has no children
+    }
+    
+    currentEntries = dir.children;
   }
   
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i];
-    
-    if (node.id === id) {
-      return { parent: null, node, index: i };
-    }
-    
-    if (node.type === 'folder' && node.children && Array.isArray(node.children)) {
-      const result = findNodeById(id, node.children);
-      if (result.node) {
-        return { ...result, parent: node };
-      }
-    }
-  }
-  
-  return { parent: null, node: null, index: -1 };
-};
-
-// Build file tree with improved path handling
-export const buildFileTree = (flatFiles: FileEntry[]): FileEntry[] => {
-  const rootNodes: FileEntry[] = [];
-  const nodeMap = new Map<string, FileEntry>();
-  
-  if (!flatFiles || !Array.isArray(flatFiles)) {
-    return [];
-  }
-  
-  // First pass: create nodes without children
-  flatFiles.forEach(file => {
-    // Normalize paths to be consistent
-    const normalizedPath = file.path.startsWith('/') ? file.path.substring(1) : file.path;
-    
-    const nodeWithoutChildren = { 
-      ...file,
-      path: normalizedPath,
-      children: file.type === 'folder' ? [] : undefined
-    };
-    nodeMap.set(normalizedPath, nodeWithoutChildren);
-  });
-  
-  // Second pass: build the tree structure
-  flatFiles.forEach(file => {
-    const normalizedPath = file.path.startsWith('/') ? file.path.substring(1) : file.path;
-    const node = nodeMap.get(normalizedPath);
-    if (!node) return;
-    
-    if (normalizedPath === '' || normalizedPath === '/') {
-      rootNodes.push(node);
-      return;
-    }
-    
-    // Find the parent path
-    const pathParts = normalizedPath.split('/').filter(Boolean);
-    if (pathParts.length === 0) {
-      rootNodes.push(node);
-      return;
-    }
-    
-    // Remove the last part (file/folder name)
-    pathParts.pop();
-    const parentPath = pathParts.length > 0 ? pathParts.join('/') : '';
-    
-    const parentNode = nodeMap.get(parentPath);
-    if (parentNode && parentNode.type === 'folder' && parentNode.children) {
-      parentNode.children.push(node);
-    } else {
-      rootNodes.push(node);
-    }
-  });
-  
-  return rootNodes;
-};
-
-// Re-export the functions from the correct paths
-export { findNode } from '../services/utils/FileTreeUtils';
-export { ensureFolderExists } from '../services/utils/FolderOperations';
-export { createNextJsProject } from '../services/utils/ProjectTemplates';
-export { handleFileOperation } from '../services/utils/FileOperationHandler';
+  // Find the file in the final directory
+  const fileName = pathParts[pathParts.length - 1];
+  return currentEntries.find(entry => entry.name === fileName) || null;
+}

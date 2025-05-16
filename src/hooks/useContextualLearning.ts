@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { Message, Insight } from '../types';
 import { supabase } from '@/lib/supabase';
@@ -26,6 +27,8 @@ export const useContextualLearning = () => {
       // Get last 30 user messages for pattern analysis
       const recentUserMessages = userMessages.slice(-30);
       
+      console.log(`Analyzing ${recentUserMessages.length} messages for user ${user.id}`);
+      
       // Call Supabase Edge Function to analyze patterns
       const { data: insights, error } = await supabase.functions.invoke('conversation-insights', {
         body: { 
@@ -35,11 +38,13 @@ export const useContextualLearning = () => {
       });
       
       if (error) {
+        console.error('Error from conversation-insights function:', error);
         throw error;
       }
       
       // Store insights in database if they don't exist yet
       if (insights && insights.length > 0) {
+        console.log(`Received ${insights.length} insights, storing in database`);
         await storeInsights(insights);
       }
       
@@ -63,6 +68,12 @@ export const useContextualLearning = () => {
 
     try {
       for (const insight of insights) {
+        // Make sure each insight has a user_id field for RLS
+        const insightWithUserId = {
+          ...insight,
+          user_id: user.id
+        };
+        
         // Check if a similar insight already exists
         const { data: existingInsights } = await supabase
           .from('conversation_insights')
@@ -88,7 +99,6 @@ export const useContextualLearning = () => {
             .insert({
               user_id: user.id,
               content: insight.content || insight.summary || 'Insight detected',
-              created_at: new Date().toISOString(),
               summary: insight.summary,
               emotional_theme: insight.emotionalTheme,
               growth_edge: insight.growthEdge,
@@ -172,10 +182,7 @@ export const useContextualLearning = () => {
     analyzeConversationPatterns,
     storeInsights,
     retrieveInsights,
-    generateInsightReflection: async (): Promise<string | null> => {
-      // Implementation would be here
-      return null;
-    },
+    generateInsightReflection,
     isProcessing,
   };
 };
