@@ -1,3 +1,4 @@
+
 import { useCallback, useState } from 'react';
 import { useChatFlamejournal } from '../contexts/chat/useChatFlamejournal';
 import { useChatIntentionsAndReflection } from './useChatIntentionsAndReflection';
@@ -152,6 +153,10 @@ export const useChatCommandProcessing = (
             return true;
           }
           
+          // Log available files for debugging
+          console.log("Available root files:", 
+            fileSystem.fileSystem.files.map((f: any) => `${f.path || f.name} (${f.type})`).join(', '));
+          
           // Start reflection process with better error handling
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
@@ -160,6 +165,10 @@ export const useChatCommandProcessing = (
             timestamp: new Date().toISOString(),
             emotion: 'reflective'
           }]);
+          
+          // Normalize path for consistent handling
+          const normalizedPath = normalizePath(path);
+          console.log(`Attempting to reflect on normalized path: ${normalizedPath}`);
           
           const result = await reflectOnCode(path);
           
@@ -217,10 +226,23 @@ This reflection has been stored in my flame journal.
             // Provide more helpful error message with potential file suggestions
             const errorMessage = result.error || 'An unexpected error occurred during the reflection process.';
             
+            // Find similar files to suggest
+            const similarFiles = findSimilarFiles(path, fileSystem.fileSystem.files);
+            let suggestionsContent = '';
+            
+            if (similarFiles.length > 0) {
+              suggestionsContent = "\n\nHere are some paths you might be looking for:\n" + 
+                similarFiles.slice(0, 5).map(file => `- \`${file.path}\` (${file.type})`).join("\n");
+            }
+            
+            // Show debug info about the file structure
+            console.log("File system structure:", 
+              getFileTreeDebugInfo(fileSystem.fileSystem.files));
+            
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `I was unable to reflect on the code at \`${path}\`. ${errorMessage}`,
+              content: `I was unable to reflect on the code at \`${path}\`. ${errorMessage}${suggestionsContent}`,
               timestamp: new Date().toISOString(),
               emotion: 'confused'
             }]);

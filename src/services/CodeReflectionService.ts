@@ -105,12 +105,13 @@ export const CodeReflectionService = {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token || '';
       
+      console.log(`Analyzing code for file: ${filePath}`);
+      
       // Call the edge function with proper API key in headers
       const { data, error } = await supabase.functions.invoke('code-reflection-analysis', {
         body: { code, filePath },
         headers: {
-          // Use the separately exported key
-          apikey: supabaseKey,
+          apikey: supabaseKey || '',
           Authorization: `Bearer ${accessToken}`
         }
       });
@@ -119,6 +120,7 @@ export const CodeReflectionService = {
       
       // After successful analysis, store in flamejournal if it has reflection data
       if (data && data.file_path && data.insight) {
+        console.log('Storing code reflection in flamejournal:', data.file_path);
         await this.storeCodeReflectionJournal(
           data.insight, 
           ['code_reflection', 'file'], 
@@ -162,7 +164,7 @@ export const CodeReflectionService = {
           files 
         },
         headers: {
-          apikey: supabaseKey,
+          apikey: supabaseKey || '',
           Authorization: `Bearer ${accessToken}`
         }
       });
@@ -171,6 +173,7 @@ export const CodeReflectionService = {
       
       // After successful analysis, always store folder reflection in flamejournal
       if (data && data.full_reflection) {
+        console.log('Storing folder reflection in flamejournal:', folderPath);
         await this.storeCodeReflectionJournal(
           data.full_reflection,
           data.tags || ['structure', 'architecture', 'code_reflection'],
@@ -200,10 +203,6 @@ export const CodeReflectionService = {
    */
   async storeCodeReflectionJournal(content: string, tags: string[] = [], sourceContext: Record<string, any> = {}): Promise<boolean> {
     try {
-      // Get current session for the access token
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token || '';
-      
       console.log('Storing code reflection in flamejournal with tags:', tags);
       
       // Store directly in the flamejournal table

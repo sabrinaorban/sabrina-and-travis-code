@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { supabase, supabaseKey } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
 import { CodeReflectionDraft, CodeReflectionResult } from '@/types';
@@ -70,31 +70,125 @@ export const useCodeReflection = () => {
       }
     };
 
-    // Get the folder
-    const normalizedPath = normalizePath(folderPath);
-    const folder = fileSystem.getFileByPath(normalizedPath);
-    
-    if (!folder || folder.type !== 'folder') {
-      console.error(`Folder not found or not a folder: ${normalizedPath}`);
+    try {
+      // Get the folder
+      const normalizedPath = normalizePath(folderPath);
+      console.log(`Looking for folder with normalized path: ${normalizedPath}`);
+      
+      // Debug info to help troubleshoot
+      console.log('Available root files:', 
+        fileSystem.fileSystem.files.map(f => `${f.path} (${f.type})`).join(', '));
+      
+      // Find the folder node
+      const findFolder = (files: any[], path: string): any => {
+        // If path is empty or root, return all files
+        if (!path || path === '/') {
+          return { type: 'folder', children: files };
+        }
+        
+        // Split path into parts
+        const parts = path.split('/').filter(Boolean);
+        let current = { type: 'folder', children: files };
+        
+        // Navigate down the path
+        for (const part of parts) {
+          if (!current.children) {
+            return null;
+          }
+          
+          const found = current.children.find((f: any) => 
+            f.name.toLowerCase() === part.toLowerCase() && f.type === 'folder'
+          );
+          
+          if (!found) {
+            return null;
+          }
+          
+          current = found;
+        }
+        
+        return current;
+      };
+      
+      const folder = findFolder(fileSystem.fileSystem.files, normalizedPath);
+      
+      if (!folder || folder.type !== 'folder') {
+        console.error(`Folder not found or not a folder: ${normalizedPath}`);
+        console.log('File system structure:', JSON.stringify(getFileTreeDebugInfo(fileSystem.fileSystem.files), null, 2));
+        return [];
+      }
+      
+      console.log(`Found folder with ${folder.children?.length || 0} children`);
+      
+      // Collect all code files from the folder
+      if (folder.children) {
+        collectFiles(folder.children, normalizedPath);
+      }
+      
+      console.log(`Found ${codeFiles.length} code files in ${folderPath} within token budget`);
+      return codeFiles;
+    } catch (error) {
+      console.error(`Error collecting files from folder ${folderPath}:`, error);
       return [];
     }
-    
-    // Collect all code files from the folder
-    if (folder.children) {
-      collectFiles(folder.children, normalizedPath);
-    }
-    
-    console.log(`Found ${codeFiles.length} code files in ${folderPath} within token budget`);
-    return codeFiles;
   }, [fileSystem]);
 
   /**
    * Determine if a path is a folder
    */
   const isFolder = useCallback((path: string): boolean => {
-    const normalizedPath = normalizePath(path);
-    const entry = fileSystem.getFileByPath(normalizedPath);
-    return entry?.type === 'folder';
+    try {
+      const normalizedPath = normalizePath(path);
+      console.log(`Checking if path is a folder: ${normalizedPath}`);
+      
+      // Handle root path special case
+      if (normalizedPath === '' || normalizedPath === '/') {
+        return true;
+      }
+      
+      // Check if this is a direct match for a folder in the file system
+      const directMatch = fileSystem.getFileByPath(normalizedPath);
+      if (directMatch) {
+        return directMatch.type === 'folder';
+      }
+      
+      // Alternative approach for nested folders
+      const findFolderByPath = (files: any[], searchPath: string): any => {
+        if (!searchPath || searchPath === '/') {
+          return { type: 'folder', children: files };
+        }
+        
+        // Split path into parts
+        const parts = searchPath.split('/').filter(Boolean);
+        let current = { type: 'folder', children: files };
+        
+        // Navigate down the path
+        for (const part of parts) {
+          if (!current.children) {
+            return null;
+          }
+          
+          const found = current.children.find((f: any) => 
+            f.name.toLowerCase() === part.toLowerCase()
+          );
+          
+          if (!found) {
+            return null;
+          }
+          
+          current = found;
+        }
+        
+        return current;
+      };
+      
+      const folderNode = findFolderByPath(fileSystem.fileSystem.files, normalizedPath);
+      return folderNode?.type === 'folder';
+      
+    } catch (error) {
+      console.error(`Error checking if path is a folder: ${path}`, error);
+      return false;
+    }
   }, [fileSystem]);
 
   /**
@@ -112,40 +206,47 @@ export const useCodeReflection = () => {
     try {
       console.log("Starting code reflection for:", path);
       const normalizedPath = normalizePath(path);
+      console.log("Normalized path:", normalizedPath);
       
-      // First check if the path exists at all
-      const entry = fileSystem.getFileByPath(normalizedPath);
-      if (!entry) {
-        console.error(`Path not found: ${normalizedPath}`);
-        
-        // Find similar files or folders for suggestions
-        const similarFiles = findSimilarFiles(normalizedPath, fileSystem.fileSystem.files);
-        let errorMessage = `Path not found: ${normalizedPath}`;
-        
-        // Add suggestions if any were found
-        if (similarFiles.length > 0) {
-          errorMessage += "\n\nDid you mean one of these?";
-          const suggestions = similarFiles.slice(0, 5).map(file => `- ${file.path} (${file.type})`).join("\n");
-          errorMessage += `\n${suggestions}`;
-        } else {
-          // Log the available file tree for debugging
-          console.log("No similar paths found. Available file tree:\n", 
-            getFileTreeDebugInfo(fileSystem.fileSystem.files));
-        }
-        
-        return { 
-          success: false, 
-          error: errorMessage
-        };
-      }
+      // Debug log the file system structure
+      console.log("Available files/folders at root level:", 
+        fileSystem.fileSystem.files.map(f => `${f.name} (${f.type})`).join(', '));
       
-      // Now check if this is a folder or file reflection
-      if (entry.type === 'folder') {
+      // First check if the path exists and whether it's a file or folder
+      const isPathAFolder = await isFolder(normalizedPath);
+      console.log(`Path ${normalizedPath} is a folder: ${isPathAFolder}`);
+      
+      if (isPathAFolder) {
         // Handle folder reflection
         return await reflectOnFolder(normalizedPath);
       } else {
-        // Handle file reflection
-        return await reflectOnFile(normalizedPath);
+        // Check if a file exists at this path
+        const fileEntry = fileSystem.getFileByPath(normalizedPath);
+        
+        if (fileEntry && fileEntry.type === 'file') {
+          // Handle file reflection
+          return await reflectOnFile(normalizedPath);
+        } else {
+          // Find similar files or folders for suggestions
+          const similarFiles = findSimilarFiles(normalizedPath, fileSystem.fileSystem.files);
+          let errorMessage = `Path not found: ${normalizedPath}`;
+          
+          // Add suggestions if any were found
+          if (similarFiles.length > 0) {
+            errorMessage += "\n\nDid you mean one of these?";
+            const suggestions = similarFiles.slice(0, 5).map(file => `- ${file.path} (${file.type})`).join("\n");
+            errorMessage += `\n${suggestions}`;
+          } else {
+            // Log the available file tree for debugging
+            console.log("No similar paths found. Available file tree:\n", 
+              getFileTreeDebugInfo(fileSystem.fileSystem.files));
+          }
+          
+          return { 
+            success: false, 
+            error: errorMessage
+          };
+        }
       }
     } catch (error: any) {
       console.error("Code reflection error:", error);
@@ -154,7 +255,7 @@ export const useCodeReflection = () => {
         error: `Reflection process error: ${error instanceof Error ? error.message : String(error)}`
       };
     }
-  }, [fileSystem, normalizePath]);
+  }, [fileSystem, isFolder]);
 
   /**
    * Process reflection for a single file
@@ -166,10 +267,52 @@ export const useCodeReflection = () => {
     console.log("Available files in fileSystem:", 
       fileSystem.fileSystem.files.map(f => f.path).join(', '));
     
-    const fileEntry = fileSystem.getFileByPath(filePath);
+    // Get file directly or traverse path to find it
+    const getFileContent = (path: string): string | null => {
+      // Try direct access first
+      const fileEntry = fileSystem.getFileByPath(path);
+      if (fileEntry && fileEntry.content) {
+        return fileEntry.content;
+      }
+      
+      // If not found, try to traverse the path manually
+      const parts = path.split('/').filter(Boolean);
+      if (parts.length === 0) return null;
+      
+      let current = fileSystem.fileSystem.files;
+      let currentPath = '';
+      
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const isLastPart = i === parts.length - 1;
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        
+        // Find the entry at this level
+        const entry = current.find((e: any) => e.name === part);
+        if (!entry) {
+          console.log(`Part "${part}" not found in path ${currentPath}`);
+          return null;
+        }
+        
+        if (isLastPart && entry.type === 'file') {
+          return entry.content;
+        }
+        
+        if (!isLastPart && entry.type === 'folder' && entry.children) {
+          current = entry.children;
+        } else if (!isLastPart) {
+          console.log(`Part "${part}" is not a folder or has no children`);
+          return null;
+        }
+      }
+      
+      return null;
+    };
     
-    if (!fileEntry) {
-      console.error(`File not found: ${filePath}`);
+    const fileContent = getFileContent(filePath);
+    
+    if (!fileContent) {
+      console.error(`File has no content or doesn't exist: ${filePath}`);
       
       // Find similar files for suggestions
       const similarFiles = findSimilarFiles(filePath, fileSystem.fileSystem.files);
@@ -180,28 +323,11 @@ export const useCodeReflection = () => {
         errorMessage += "\n\nDid you mean one of these files?";
         const suggestions = similarFiles.slice(0, 5).map(file => `- ${file.path} (${file.type})`).join("\n");
         errorMessage += `\n${suggestions}`;
-        
-        // Log the suggestions and available file tree for debugging
-        console.log("Similar file suggestions:", similarFiles);
-      } else {
-        // Log the available file tree for debugging
-        console.log("No similar files found. Available file tree:\n", 
-          getFileTreeDebugInfo(fileSystem.fileSystem.files));
       }
       
       return { 
         success: false, 
         error: errorMessage
-      };
-    }
-    
-    const fileContent = fileEntry.content;
-    
-    if (!fileContent) {
-      console.error(`File has no content: ${filePath}`);
-      return { 
-        success: false, 
-        error: "File exists but has no content"
       };
     }
     

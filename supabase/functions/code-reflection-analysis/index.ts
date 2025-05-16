@@ -46,6 +46,8 @@ serve(async (req) => {
     
     // Parse request body
     const requestData = await req.json();
+    console.log("Request data type:", requestData.isFolder ? "folder" : "file");
+    console.log("Path:", requestData.folderPath || requestData.filePath);
     
     // Check if this is a folder or single file analysis
     if (requestData.isFolder) {

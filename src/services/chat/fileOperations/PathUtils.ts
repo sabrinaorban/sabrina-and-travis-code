@@ -13,6 +13,9 @@ export const normalizePath = (path: string): string => {
   // Remove trailing slashes
   normalizedPath = normalizedPath.replace(/\/+$/, '');
   
+  // Log for debugging
+  console.log(`Normalized path: "${path}" -> "${normalizedPath}"`);
+  
   return normalizedPath;
 };
 
@@ -37,4 +40,32 @@ export const fileExists = (fileSystem: any, path: string): boolean => {
     console.error(`Error checking if file exists at path ${path}:`, error);
     return false;
   }
+};
+
+// Recursively search for a file or folder in the file system
+export const findNodeByPath = (files: any[], path: string): any => {
+  if (!path || path === '/' || path === '') {
+    return { type: 'folder', children: files };
+  }
+  
+  const parts = path.split('/').filter(Boolean);
+  let current: any = { type: 'folder', children: files };
+  
+  for (const part of parts) {
+    if (!current?.children) {
+      return null;
+    }
+    
+    const found = current.children.find((f: any) => 
+      f.name.toLowerCase() === part.toLowerCase()
+    );
+    
+    if (!found) {
+      return null;
+    }
+    
+    current = found;
+  }
+  
+  return current;
 };
