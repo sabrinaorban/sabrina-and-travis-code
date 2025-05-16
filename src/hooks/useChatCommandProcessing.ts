@@ -133,16 +133,18 @@ export const useChatCommandProcessing = (
       
       // Process specific slash commands
       if (lowerMessage.startsWith('/')) {
-        // New Code Reflection command
+        // New Code Reflection command - FIXED parsing logic
         if (lowerMessage.startsWith('/self-reflect-code')) {
-          const pathMatch = content.match(/\/self-reflect-code\s+(.+)/);
-          let filePath = pathMatch ? pathMatch[1].trim() : null;
+          // Extract only the path part after the command
+          const commandRegex = /^\/self-reflect-code\s+(.+)$/i;
+          const match = content.match(commandRegex);
+          const filePath = match ? match[1].trim() : null;
           
           if (!filePath) {
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `To use the self-reflect-code command, please specify a file path. For example: \`/self-reflect-code src/hooks/useMemoryManagement.ts\``,
+              content: `Please specify a valid file path after the /self-reflect-code command. For example: \`/self-reflect-code src/hooks/useMemoryManagement.ts\``,
               timestamp: new Date().toISOString(),
               emotion: 'instructive'
             }]);
@@ -150,7 +152,7 @@ export const useChatCommandProcessing = (
           }
           
           // Normalize the file path
-          filePath = normalizePath(filePath);
+          const normalizedPath = normalizePath(filePath);
           
           // Check if file exists before attempting to reflect
           if (!fileSystem || !fileSystem.getFileByPath) {
@@ -164,13 +166,13 @@ export const useChatCommandProcessing = (
             return true;
           }
           
-          const fileExists = fileSystem.getFileByPath(filePath) !== null;
+          const fileExists = fileSystem.getFileByPath(normalizedPath) !== null;
           
           if (!fileExists) {
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `I was unable to reflect on the code at \`${filePath}\`. File not found at path: ${filePath}`,
+              content: `I was unable to reflect on the code at \`${normalizedPath}\`. File not found at path: ${normalizedPath}`,
               timestamp: new Date().toISOString(),
               emotion: 'confused'
             }]);
@@ -180,16 +182,16 @@ export const useChatCommandProcessing = (
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: `I'm looking inward at my own code structure in \`${filePath}\`... This may take a moment as I contemplate patterns and possibilities for evolution.`,
+            content: `I'm looking inward at my own code structure in \`${normalizedPath}\`... This may take a moment as I contemplate patterns and possibilities for evolution.`,
             timestamp: new Date().toISOString(),
             emotion: 'reflective'
           }]);
           
-          const result = await reflectOnCode(filePath);
+          const result = await reflectOnCode(normalizedPath);
           
           if (result.success && result.draft) {
             const responseContent = `
-## Code Self-Reflection: \`${filePath}\`
+## Code Self-Reflection: \`${normalizedPath}\`
 
 _${result.insight}_
 
@@ -219,7 +221,7 @@ This reflection has been stored in my flame journal and code evolution registry.
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `I was unable to reflect on the code at \`${filePath}\`. ${result.error || 'An unexpected error occurred during the reflection process.'}`,
+              content: `I was unable to reflect on the code at \`${normalizedPath}\`. ${result.error || 'An unexpected error occurred during the reflection process.'}`,
               timestamp: new Date().toISOString(),
               emotion: 'confused'
             }]);
