@@ -345,6 +345,42 @@ export type Database = {
         }
         Relationships: []
       }
+      shared_code_embeddings: {
+        Row: {
+          created_at: string
+          embedding: string | null
+          file_content: string
+          file_path: string
+          file_type: string
+          id: string
+          last_updated: string
+          metadata: Json | null
+          token_count: number
+        }
+        Insert: {
+          created_at?: string
+          embedding?: string | null
+          file_content: string
+          file_path: string
+          file_type: string
+          id?: string
+          last_updated?: string
+          metadata?: Json | null
+          token_count: number
+        }
+        Update: {
+          created_at?: string
+          embedding?: string | null
+          file_content?: string
+          file_path?: string
+          file_type?: string
+          id?: string
+          last_updated?: string
+          metadata?: Json | null
+          token_count?: number
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           created_at: string
@@ -374,6 +410,19 @@ export type Database = {
       binary_quantize: {
         Args: { "": string } | { "": unknown }
         Returns: unknown
+      }
+      find_similar_code_files: {
+        Args: {
+          query_embedding: string
+          similarity_threshold: number
+          max_results: number
+        }
+        Returns: {
+          id: string
+          file_path: string
+          file_type: string
+          similarity: number
+        }[]
       }
       halfvec_avg: {
         Args: { "": number[] }
