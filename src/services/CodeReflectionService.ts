@@ -18,7 +18,8 @@ export const CodeReflectionService = {
           file_path: draft.file_path,
           original_code: draft.original_code,
           proposed_code: draft.proposed_code,
-          reason: draft.reason
+          reason: draft.reason,
+          reflection_type: draft.reflection_type || 'file'
         })
         .select('*')
         .single();
@@ -123,7 +124,7 @@ export const CodeReflectionService = {
         console.log('Storing code reflection in flamejournal:', data.file_path);
         await this.storeCodeReflectionJournal(
           data.insight, 
-          ['code_reflection', 'file'], 
+          data.tags || ['code_reflection', 'file'], 
           {
             file: data.file_path,
             reflectionType: 'file'
@@ -155,6 +156,14 @@ export const CodeReflectionService = {
       const accessToken = sessionData?.session?.access_token || '';
       
       console.log(`Analyzing folder: ${folderPath} with ${files.length} files`);
+      console.log(`Files to analyze:`, files.map(f => f.path).join(', '));
+      
+      if (files.length === 0) {
+        return {
+          success: false,
+          error: `No files to analyze in folder: ${folderPath}`
+        };
+      }
       
       // Call the edge function with proper API key in headers
       const { data, error } = await supabase.functions.invoke('code-reflection-analysis', {
@@ -169,25 +178,34 @@ export const CodeReflectionService = {
         }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error from edge function:', error);
+        throw error;
+      }
+      
+      console.log('Received response from edge function:', data ? Object.keys(data).join(', ') : 'No data');
       
       // After successful analysis, always store folder reflection in flamejournal
       if (data && data.full_reflection) {
         console.log('Storing folder reflection in flamejournal:', folderPath);
-        await this.storeCodeReflectionJournal(
+        const tags = data.tags || ['structure', 'architecture', 'code_reflection', 'folder'];
+        const result = await this.storeCodeReflectionJournal(
           data.full_reflection,
-          data.tags || ['structure', 'architecture', 'code_reflection'],
+          tags,
           {
             folder: folderPath,
             reflectionType: 'folder'
           }
         );
+        console.log('Flamejournal storage result:', result ? 'success' : 'failed');
+      } else {
+        console.error('Missing full_reflection in response from edge function');
       }
       
       return {
         success: true,
         draft: data,
-        insight: data.insight
+        insight: data.insight || 'Architectural patterns analyzed across multiple files'
       };
     } catch (error) {
       console.error('Error analyzing folder code with edge function:', error);
@@ -204,6 +222,21 @@ export const CodeReflectionService = {
   async storeCodeReflectionJournal(content: string, tags: string[] = [], sourceContext: Record<string, any> = {}): Promise<boolean> {
     try {
       console.log('Storing code reflection in flamejournal with tags:', tags);
+      
+      if (!content) {
+        console.error('Cannot store empty content in flamejournal');
+        return false;
+      }
+      
+      // Ensure the code_reflection tag is always present
+      if (!tags.includes('code_reflection')) {
+        tags.push('code_reflection');
+      }
+      
+      // For folders, ensure the folder tag is present
+      if (sourceContext.reflectionType === 'folder' && !tags.includes('folder')) {
+        tags.push('folder');
+      }
       
       // Store directly in the flamejournal table
       const { error } = await supabase

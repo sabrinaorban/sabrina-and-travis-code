@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useFileSystem } from '@/contexts/FileSystemContext';
-import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
+import { normalizePath, findNodeByPath, folderExists } from '@/services/chat/fileOperations/PathUtils';
 import { CodeReflectionDraft, CodeReflectionResult } from '@/types';
 import { findSimilarFiles, getFileTreeDebugInfo } from '@/services/utils/FileSystemUtils';
 import { CodeReflectionService } from '@/services/CodeReflectionService';
@@ -77,44 +77,19 @@ export const useCodeReflection = () => {
       
       // Debug info to help troubleshoot
       console.log('Available root files:', 
-        fileSystem.fileSystem.files.map(f => `${f.path} (${f.type})`).join(', '));
+        fileSystem.fileSystem.files.map((f: any) => `${f.name} (${f.type})`).join(', '));
       
-      // Find the folder node
-      const findFolder = (files: any[], path: string): any => {
-        // If path is empty or root, return all files
-        if (!path || path === '/') {
-          return { type: 'folder', children: files };
-        }
-        
-        // Split path into parts
-        const parts = path.split('/').filter(Boolean);
-        let current = { type: 'folder', children: files };
-        
-        // Navigate down the path
-        for (const part of parts) {
-          if (!current.children) {
-            return null;
-          }
-          
-          const found = current.children.find((f: any) => 
-            f.name.toLowerCase() === part.toLowerCase() && f.type === 'folder'
-          );
-          
-          if (!found) {
-            return null;
-          }
-          
-          current = found;
-        }
-        
-        return current;
-      };
+      // Find the folder node directly using the improved findNodeByPath helper
+      const folder = findNodeByPath(fileSystem.fileSystem.files, normalizedPath);
       
-      const folder = findFolder(fileSystem.fileSystem.files, normalizedPath);
-      
-      if (!folder || folder.type !== 'folder') {
-        console.error(`Folder not found or not a folder: ${normalizedPath}`);
+      if (!folder) {
+        console.error(`Folder not found: ${normalizedPath}`);
         console.log('File system structure:', JSON.stringify(getFileTreeDebugInfo(fileSystem.fileSystem.files), null, 2));
+        return [];
+      }
+      
+      if (folder.type !== 'folder') {
+        console.error(`Path exists but is not a folder: ${normalizedPath}`);
         return [];
       }
       
@@ -126,6 +101,15 @@ export const useCodeReflection = () => {
       }
       
       console.log(`Found ${codeFiles.length} code files in ${folderPath} within token budget`);
+      
+      // If no files were found, log an informative message
+      if (codeFiles.length === 0) {
+        console.log(`No code files (${CODE_FILE_EXTENSIONS.join(', ')}) found in folder ${normalizedPath}`);
+        console.log('Folder contents:', folder.children?.map((child: any) => 
+          `${child.name} (${child.type}${child.type === 'file' ? ' - ' + (child.name.substring(child.name.lastIndexOf('.')) || 'no extension') : ''})`
+        ).join(', '));
+      }
+      
       return codeFiles;
     } catch (error) {
       console.error(`Error collecting files from folder ${folderPath}:`, error);
@@ -138,53 +122,16 @@ export const useCodeReflection = () => {
    */
   const isFolder = useCallback((path: string): boolean => {
     try {
-      const normalizedPath = normalizePath(path);
-      console.log(`Checking if path is a folder: ${normalizedPath}`);
-      
-      // Handle root path special case
-      if (normalizedPath === '' || normalizedPath === '/') {
+      // Handle special cases for root path
+      if (!path || path === '/' || path.trim() === '') {
         return true;
       }
       
-      // Check if this is a direct match for a folder in the file system
-      const directMatch = fileSystem.getFileByPath(normalizedPath);
-      if (directMatch) {
-        return directMatch.type === 'folder';
-      }
+      const normalizedPath = normalizePath(path);
+      console.log(`Checking if path is a folder: ${normalizedPath}`);
       
-      // Alternative approach for nested folders
-      const findFolderByPath = (files: any[], searchPath: string): any => {
-        if (!searchPath || searchPath === '/') {
-          return { type: 'folder', children: files };
-        }
-        
-        // Split path into parts
-        const parts = searchPath.split('/').filter(Boolean);
-        let current = { type: 'folder', children: files };
-        
-        // Navigate down the path
-        for (const part of parts) {
-          if (!current.children) {
-            return null;
-          }
-          
-          const found = current.children.find((f: any) => 
-            f.name.toLowerCase() === part.toLowerCase()
-          );
-          
-          if (!found) {
-            return null;
-          }
-          
-          current = found;
-        }
-        
-        return current;
-      };
-      
-      const folderNode = findFolderByPath(fileSystem.fileSystem.files, normalizedPath);
-      return folderNode?.type === 'folder';
-      
+      // Use our improved folderExists helper
+      return folderExists(fileSystem, normalizedPath);
     } catch (error) {
       console.error(`Error checking if path is a folder: ${path}`, error);
       return false;
@@ -210,7 +157,7 @@ export const useCodeReflection = () => {
       
       // Debug log the file system structure
       console.log("Available files/folders at root level:", 
-        fileSystem.fileSystem.files.map(f => `${f.name} (${f.type})`).join(', '));
+        fileSystem.fileSystem.files.map((f: any) => `${f.name} (${f.type})`).join(', '));
       
       // First check if the path exists and whether it's a file or folder
       const isPathAFolder = await isFolder(normalizedPath);
@@ -265,7 +212,7 @@ export const useCodeReflection = () => {
       
     // Debug log to show available files
     console.log("Available files in fileSystem:", 
-      fileSystem.fileSystem.files.map(f => f.path).join(', '));
+      fileSystem.fileSystem.files.map((f: any) => f.name).join(', '));
     
     // Get file directly or traverse path to find it
     const getFileContent = (path: string): string | null => {

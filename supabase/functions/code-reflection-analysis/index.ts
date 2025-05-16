@@ -211,6 +211,7 @@ async function handleFolderAnalysis(requestData: any, openaiApiKey: string, cors
   }
   
   console.log(`Processing code reflection for folder: ${folderPath} with ${files.length} files`);
+  console.log(`Files included: ${files.map(f => f.path).join(', ')}`);
   
   // Prepare the files for the prompt
   const fileEntries = files.map(file => {
@@ -273,6 +274,7 @@ ${file.content.length > 1500 ? file.content.substring(0, 1500) + '\n// ... (file
   
   // Process the OpenAI response
   const aiResponse = openaiData.choices[0].message.content;
+  console.log("Received AI response:", aiResponse.substring(0, 100) + "...");
   
   // Extract the insight section
   let insight = "These files form an interconnected system.";
