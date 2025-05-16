@@ -4,7 +4,8 @@ import { MemoryContext, Message } from '@/types';
 export interface ChatContextType {
   messages: Message[];
   sendMessage: (content: string, context?: MemoryContext) => Promise<void>;
-  isTyping: boolean; // Changed from isThinking to isTyping
+  isTyping: boolean; 
+  isLoading: boolean; // Added isLoading property
   memoryContext: MemoryContext | null;
   generateWeeklyReflection: () => Promise<void>;
   generateSoulReflection: () => Promise<void>;
@@ -21,9 +22,9 @@ export interface ChatContextType {
   generateInsight: () => Promise<void>;
   generateDream: () => Promise<void>;
   generateTool: () => Promise<void>;
-  useTool: () => Promise<void>;
-  reflectOnTool: () => Promise<void>;
-  reviseTool: () => Promise<void>;
+  useTool: (toolName: string, params: string) => Promise<void>; // Fixed signature
+  reflectOnTool: (toolName: string) => Promise<void>; // Fixed signature
+  reviseTool: (toolName: string, params: string) => Promise<void>; // Fixed signature
   checkEvolutionCycle: () => Promise<void>;
   currentEvolutionProposal: any;
   isEvolutionChecking: boolean;

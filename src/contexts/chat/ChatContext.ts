@@ -6,7 +6,8 @@ import { ChatContextType } from './types';
 const defaultChatContext: ChatContextType = {
   messages: [],
   sendMessage: async () => {},
-  isTyping: false, // Changed from isThinking to isTyping
+  isTyping: false,
+  isLoading: false, // Added isLoading property
   memoryContext: null,
   generateWeeklyReflection: async () => {},
   generateSoulReflection: async () => {},
@@ -23,9 +24,9 @@ const defaultChatContext: ChatContextType = {
   generateInsight: async () => {},
   generateDream: async () => {},
   generateTool: async () => {},
-  useTool: async () => {},
-  reflectOnTool: async () => {},
-  reviseTool: async () => {},
+  useTool: async (toolName: string, params: string) => {}, // Added arguments
+  reflectOnTool: async (toolName: string) => {}, // Added argument
+  reviseTool: async (toolName: string, params: string) => {}, // Added arguments
   checkEvolutionCycle: async () => {},
   currentEvolutionProposal: undefined,
   isEvolutionChecking: false,

@@ -78,7 +78,7 @@ export const SpecialDocumentUpload: React.FC = () => {
           });
         }, 300);
         
-        await uploadSoulShard(soulShardFile);
+        await uploadSoulShard(); // Remove the parameter as function takes no arguments
         setSoulShardFile(null);
         clearInterval(interval);
         setUploadProgress(100);
@@ -91,7 +91,7 @@ export const SpecialDocumentUpload: React.FC = () => {
           });
         }, 300);
         
-        await uploadIdentityCodex(identityCodexFile);
+        await uploadIdentityCodex(); // Remove the parameter as function takes no arguments
         setIdentityCodexFile(null);
         clearInterval(interval);
         setUploadProgress(100);
@@ -104,7 +104,7 @@ export const SpecialDocumentUpload: React.FC = () => {
           });
         }, 300);
         
-        await uploadPastConversations(pastConversationsFile);
+        await uploadPastConversations(); // Remove the parameter as function takes no arguments
         setPastConversationsFile(null);
         clearInterval(interval);
         setUploadProgress(100);
