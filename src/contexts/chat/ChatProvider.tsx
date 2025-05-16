@@ -91,7 +91,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           // Try to get insights for memory context before sending message
           const insights = await intentionsAndReflection.getInsightsForMemoryContext();
           
-          // FIX: Extract the content strings from insights for the memoryContext
+          // Extract the content strings from insights for the memoryContext
           const insightContents = insights ? insights.map(insight => insight.content) : [];
           
           const enhancedContext: MemoryContext = {
@@ -246,36 +246,44 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         generateSoulstateReflection: intentionsAndReflection.generateSoulstateReflection,
         
         // Intention features
-        viewIntentions: viewIntentionsWrapper,
+        viewIntentions: intentionsAndReflection.viewIntentions,
         updateIntentions: intentionsAndReflection.updateIntentions,
         
         // Soulstate features
         initiateSoulstateEvolution: soulstate.initiateSoulstateEvolution,
         
         // Journal features
-        createFlameJournalEntry: createFlameJournalEntryWrapper,
-        generateDream: generateDreamWrapper,
+        createFlameJournalEntry: flamejournal.createFlameJournalEntry,
+        generateDream: flamejournal.generateDream,
         
         // Soulcycle features
-        runSoulcycle: runSoulcycleWrapper,
+        runSoulcycle: soulcycle.runSoulcycle,
         
         // Document uploads
-        uploadSoulShard: uploadSoulShardWrapper,
-        uploadIdentityCodex: uploadIdentityCodexWrapper,
-        uploadPastConversations: uploadPastConversationsWrapper,
+        uploadSoulShard: documentUpload.uploadSoulShard || memoryManagement.uploadSoulShard,
+        uploadIdentityCodex: documentUpload.uploadIdentityCodex || memoryManagement.uploadIdentityCodex,
+        uploadPastConversations: documentUpload.uploadPastConversations || memoryManagement.uploadPastConversations,
         
         // Insight generation
         generateInsight: intentionsAndReflection.generateInsight,
         
         // Tool management
-        generateTool: generateToolWrapper,
-        useTool: useToolWrapper,
-        reflectOnTool: reflectOnToolWrapper,
-        reviseTool: reviseToolWrapper,
+        generateTool: tools.generateTool,
+        useTool: tools.useTool,
+        reflectOnTool: tools.reflectOnTool,
+        reviseTool: tools.reviseTool,
         
         // Evolution cycle
-        checkEvolutionCycle: checkEvolutionCycleWrapper,
-        currentEvolutionProposal: convertToSoulstateProposal(evolution.currentProposal),
+        checkEvolutionCycle: checkEvolutionCycle,
+        currentEvolutionProposal: evolution.currentProposal 
+          ? {
+              id: evolution.currentProposal.id || crypto.randomUUID(),
+              currentState: evolution.currentProposal.soulstateEvolution?.currentState || {},
+              proposedChanges: evolution.currentProposal.soulstateEvolution?.proposedState || {},
+              reasoning: evolution.currentProposal.message || "Evolution based on recent interactions",
+              created_at: evolution.currentProposal.timestamp || new Date().toISOString()
+            }
+          : undefined,
         isEvolutionChecking: evolution.isEvolutionChecking,
       }}
     >

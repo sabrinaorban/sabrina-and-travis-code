@@ -1,10 +1,8 @@
-
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { fetchMessages as fetchMessagesFromSupabase } from '@/services/ChatService';
+import { fetchMessages as fetchMessagesFromSupabase, callOpenAI, storeUserMessage, storeAssistantMessage, createOpenAIMessages } from '@/services/ChatService';
 import { useAuth } from '@/contexts/AuthContext';
-import { storeUserMessage, storeAssistantMessage } from '@/services/ChatService';
 
 /**
  * Hook for managing chat messages and message sending
@@ -116,7 +114,7 @@ export const useChatMessages = () => {
     return () => clearTimeout(loadingTimeout);
   }, [isLoadingHistory]);
 
-  // Fix: Implement proper message sending logic that actually updates the messages state
+  // Implement proper message sending logic that actually updates the messages state and gets AI responses
   const sendMessage = useCallback(async (content: string, context?: MemoryContext): Promise<void> => {
     if (!content.trim() || !user?.id) {
       console.log("Message rejected: Empty content or no user");
@@ -158,23 +156,62 @@ export const useChatMessages = () => {
         // Continue anyway - the message is in the local state
       }
       
-      // 3. Generate a placeholder response while waiting
-      setTimeout(() => {
-        // Create and add assistant response
-        const assistantMessage: Message = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: "I've received your message. Let me think about that...",
-          timestamp: new Date().toISOString()
-        };
+      // 3. Create placeholder for assistant response
+      const placeholderId = crypto.randomUUID();
+      const placeholderMessage: Message = {
+        id: placeholderId,
+        role: 'assistant',
+        content: "I've received your message. Let me think about that...",
+        timestamp: new Date().toISOString()
+      };
+      
+      // Add placeholder to messages
+      setMessages(prev => [...prev, placeholderMessage]);
+      
+      // 4. Generate real assistant response using OpenAI
+      try {
+        const openAIMessages = await createOpenAIMessages(
+          messages, 
+          userMessage, 
+          memoryContext || {}
+        );
         
-        // Update messages state with assistant response
-        setMessages(prev => [...prev, assistantMessage]);
+        const response = await callOpenAI(openAIMessages, memoryContext || {});
         
-        // Store the assistant message
-        storeAssistantMessage(user.id, assistantMessage.content)
-          .catch(err => console.error("Failed to store assistant message:", err));
-      }, 500);
+        if (response && response.choices && response.choices[0]) {
+          const assistantResponse = response.choices[0].message.content;
+          
+          // 5. Create the final assistant message
+          const assistantMessage: Message = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: assistantResponse,
+            timestamp: new Date().toISOString()
+          };
+          
+          // 6. Replace the placeholder with the real response
+          setMessages(prev => prev.map(msg => 
+            msg.id === placeholderId ? assistantMessage : msg
+          ));
+          
+          // 7. Store the assistant message
+          await storeAssistantMessage(user.id, assistantResponse);
+        } else {
+          throw new Error("Invalid response format from OpenAI");
+        }
+      } catch (aiError) {
+        console.error("Failed to get AI response:", aiError);
+        
+        // If AI call fails, keep the placeholder but update its content
+        setMessages(prev => prev.map(msg => 
+          msg.id === placeholderId 
+            ? {
+                ...msg,
+                content: "I'm sorry, I couldn't process that request. Can you try again?"
+              }
+            : msg
+        ));
+      }
       
       console.log("useChatMessages: Message processed successfully");
     } catch (error: any) {
@@ -202,9 +239,9 @@ export const useChatMessages = () => {
       setTimeout(() => {
         messageInProgress.current = false;
         setIsTyping(false);
-      }, 1500);
+      }, 1000);
     }
-  }, [user?.id, toast]);
+  }, [user?.id, toast, messages, memoryContext]);
 
   // Function to manually refresh messages from the database
   const refreshMessages = useCallback(async (): Promise<void> => {
