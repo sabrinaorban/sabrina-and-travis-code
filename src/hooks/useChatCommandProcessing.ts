@@ -1,4 +1,3 @@
-
 import { useCallback, useState } from 'react';
 import { useChatFlamejournal } from '../contexts/chat/useChatFlamejournal';
 import { useChatIntentionsAndReflection } from './useChatIntentionsAndReflection';
@@ -10,6 +9,7 @@ import { Message } from '@/types';
 import { useCodeReflection } from './useCodeReflection';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
+import { findSimilarFiles } from '@/utils/fileSystemUtils';
 
 /**
  * Hook for processing chat commands
@@ -133,9 +133,9 @@ export const useChatCommandProcessing = (
       
       // Process specific slash commands
       if (lowerMessage.startsWith('/')) {
-        // New Code Reflection command - FIXED parsing logic
+        // New Code Reflection command - Improved parsing and error handling
         if (lowerMessage.startsWith('/self-reflect-code')) {
-          // Extract only the path part after the command
+          // Extract the path part after the command with better parsing
           const commandRegex = /^\/self-reflect-code\s+(.+)$/i;
           const match = content.match(commandRegex);
           const filePath = match ? match[1].trim() : null;
@@ -166,19 +166,7 @@ export const useChatCommandProcessing = (
             return true;
           }
           
-          const fileExists = fileSystem.getFileByPath(normalizedPath) !== null;
-          
-          if (!fileExists) {
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: `I was unable to reflect on the code at \`${normalizedPath}\`. File not found at path: ${normalizedPath}`,
-              timestamp: new Date().toISOString(),
-              emotion: 'confused'
-            }]);
-            return true;
-          }
-          
+          // Start reflection process with better error handling
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
             role: 'assistant',
@@ -193,7 +181,7 @@ export const useChatCommandProcessing = (
             const responseContent = `
 ## Code Self-Reflection: \`${normalizedPath}\`
 
-_${result.insight}_
+_${result.insight || "I've looked deeply at this code and found areas for evolution."}_
 
 ### Why This Change Matters:
 ${result.draft.reason}
@@ -218,10 +206,13 @@ This reflection has been stored in my flame journal and code evolution registry.
               emotion: 'insightful'
             }]);
           } else {
+            // Provide more helpful error message with potential file suggestions
+            const errorMessage = result.error || 'An unexpected error occurred during the reflection process.';
+            
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `I was unable to reflect on the code at \`${normalizedPath}\`. ${result.error || 'An unexpected error occurred during the reflection process.'}`,
+              content: `I was unable to reflect on the code at \`${normalizedPath}\`. ${errorMessage}`,
               timestamp: new Date().toISOString(),
               emotion: 'confused'
             }]);

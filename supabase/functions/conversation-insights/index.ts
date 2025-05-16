@@ -113,16 +113,60 @@ serve(async (req) => {
       
       return {
         summary: summaryMatch ? summaryMatch[1].trim() : "Insight detected but not clearly defined",
-        emotionalTheme: emotionalThemeMatch ? emotionalThemeMatch[1].trim() : null,
-        growthEdge: growthEdgeMatch ? growthEdgeMatch[1].trim() : null,
-        resonancePattern: resonancePatternMatch ? resonancePatternMatch[1].trim() : null,
-        lastDetected: new Date().toISOString(),
+        emotional_theme: emotionalThemeMatch ? emotionalThemeMatch[1].trim() : null, // Fixed field name
+        growth_edge: growthEdgeMatch ? growthEdgeMatch[1].trim() : null, // Fixed field name
+        resonance_pattern: resonancePatternMatch ? resonancePatternMatch[1].trim() : null, // Fixed field name
+        last_detected: new Date().toISOString(),
         confidence: 0.65, // Initial confidence level
         user_id: userId  // Important: Include the user_id for RLS policies
       };
     });
     
     console.log(`Generated ${insights.length} insights`);
+    console.log("Sample insight structure:", JSON.stringify(insights[0], null, 2));
+    
+    // Validate each insight for required fields before inserting
+    for (const insight of insights) {
+      if (!insight.summary) {
+        console.error("Invalid insight - missing summary:", insight);
+        return new Response(
+          JSON.stringify({ error: 'Invalid insight format - missing summary' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+    
+    // Store insights in database
+    try {
+      const { data: insertedData, error: insertError } = await supabase
+        .from('conversation_insights')
+        .insert(insights)
+        .select();
+        
+      if (insertError) {
+        console.error('Error storing insights in database:', insertError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Database error when storing insights', 
+            details: insertError.message,
+            payload: insights
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log(`Successfully stored ${insertedData?.length || 0} insights in database`);
+    } catch (dbError) {
+      console.error('Exception when storing insights:', dbError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Exception when storing insights', 
+          details: dbError instanceof Error ? dbError.message : String(dbError),
+          payload: insights 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     return new Response(
       JSON.stringify(insights),
@@ -132,7 +176,10 @@ serve(async (req) => {
     console.error('Error in conversation-insights function:', error);
     
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

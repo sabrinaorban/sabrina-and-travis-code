@@ -147,3 +147,70 @@ export const buildFileTree = (files: FileEntry[]): FileEntry[] => {
   
   return rootEntries;
 };
+
+/**
+ * Find files that match a partial path (for suggestions)
+ * Returns matching files with their full paths
+ */
+export const findSimilarFiles = (partialPath: string, files: FileEntry[]): {path: string, type: string}[] => {
+  if (!partialPath || !files?.length) return [];
+  
+  const cleanPath = partialPath.toLowerCase().startsWith('/') ? 
+    partialPath.substring(1).toLowerCase() : 
+    partialPath.toLowerCase();
+  
+  const results: {path: string, type: string}[] = [];
+  
+  // Helper function to search through a file tree
+  const searchFiles = (entries: FileEntry[], currentPath: string = '') => {
+    for (const entry of entries) {
+      const entryPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+      
+      // Check if this entry's path contains the search string
+      if (entryPath.toLowerCase().includes(cleanPath)) {
+        results.push({ 
+          path: entryPath,
+          type: entry.type
+        });
+      }
+      
+      // Recursively search in folders
+      if (entry.type === 'folder' && entry.children) {
+        searchFiles(entry.children, entryPath);
+      }
+    }
+  };
+  
+  searchFiles(files);
+  
+  // Sort results by relevance - exact matches first, then by path length
+  return results.sort((a, b) => {
+    const aIsExact = a.path.toLowerCase() === cleanPath;
+    const bIsExact = b.path.toLowerCase() === cleanPath;
+    
+    if (aIsExact && !bIsExact) return -1;
+    if (!aIsExact && bIsExact) return 1;
+    
+    return a.path.length - b.path.length;
+  });
+};
+
+/**
+ * Debug helper to print the available files structure
+ */
+export const getFileTreeDebugInfo = (files: FileEntry[]): string => {
+  const output: string[] = [];
+  
+  const printTree = (entries: FileEntry[], indent: string = '') => {
+    for (const entry of entries) {
+      output.push(`${indent}${entry.name} (${entry.type}) - Path: ${entry.path}`);
+      
+      if (entry.type === 'folder' && entry.children) {
+        printTree(entry.children, `${indent}  `);
+      }
+    }
+  };
+  
+  printTree(files);
+  return output.join('\n');
+};

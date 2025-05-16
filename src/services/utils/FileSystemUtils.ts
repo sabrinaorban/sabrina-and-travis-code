@@ -6,3 +6,4 @@ export { ensureFolderExists } from './FolderOperations';
 export { createNextJsProject } from './ProjectTemplates';
 export { handleFileOperation } from './FileOperationHandler';
 export { buildFileTree } from '@/utils/fileSystemUtils'; // Added export
+export { findSimilarFiles, getFileTreeDebugInfo } from '@/utils/fileSystemUtils'; // Added exports

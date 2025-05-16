@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
 import { CodeReflectionDraft, CodeReflectionResult } from '@/types';
+import { findSimilarFiles, getFileTreeDebugInfo } from '@/utils/fileSystemUtils';
 
 export const useCodeReflection = () => {
   const [currentDraft, setCurrentDraft] = useState<CodeReflectionDraft | null>(null);
@@ -21,7 +22,7 @@ export const useCodeReflection = () => {
     try {
       console.log("Starting code reflection for:", filePath);
       
-      // Get the file content - use the hook directly
+      // Get the file content - properly access the fileSystem 
       const normalizedPath = normalizePath(filePath);
       
       console.log("Looking for file with normalized path:", normalizedPath);
@@ -29,9 +30,28 @@ export const useCodeReflection = () => {
       
       if (!fileEntry) {
         console.error(`File not found: ${normalizedPath}`);
+        
+        // Find similar files for suggestions
+        const similarFiles = findSimilarFiles(normalizedPath, fileSystem.fileSystem.files);
+        let errorMessage = `File not found at path: ${normalizedPath}`;
+        
+        // Add suggestions if any were found
+        if (similarFiles.length > 0) {
+          errorMessage += "\n\nDid you mean one of these files?";
+          const suggestions = similarFiles.slice(0, 5).map(file => `- ${file.path} (${file.type})`).join("\n");
+          errorMessage += `\n${suggestions}`;
+          
+          // Log the suggestions and available file tree for debugging
+          console.log("Similar file suggestions:", similarFiles);
+        } else {
+          // Log the available file tree for debugging
+          console.log("No similar files found. Available file tree:\n", 
+            getFileTreeDebugInfo(fileSystem.fileSystem.files));
+        }
+        
         return { 
           success: false, 
-          error: `File not found at path: ${normalizedPath}` 
+          error: errorMessage
         };
       }
       
@@ -101,11 +121,11 @@ export const useCodeReflection = () => {
         insight: data.insight || "Reflection complete"
       };
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Code reflection error:", error);
       return { 
         success: false, 
-        error: `Reflection process error: ${error.message}`
+        error: `Reflection process error: ${error instanceof Error ? error.message : String(error)}`
       };
     }
   }, [fileSystem]);
@@ -129,7 +149,7 @@ export const useCodeReflection = () => {
         return false;
       }
 
-      // Get the file - use the hook directly 
+      // Get the file - properly access the fileSystem
       const fileEntry = fileSystem.getFileByPath(draft.file_path);
 
       if (!fileEntry) {

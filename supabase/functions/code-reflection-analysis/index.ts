@@ -1,141 +1,141 @@
 
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.21.0";
 
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") as string;
-
-async function analyzeCodeWithOpenAI(filePath: string, fileContent: string) {
-  try {
-    if (!fileContent) {
-      return {
-        success: false,
-        error: "No file content provided"
-      };
-    }
-    
-    console.log(`Analyzing code for file: ${filePath} (content length: ${fileContent.length} chars)`);
-    
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4",
-        messages: [
-          {
-            role: "system",
-            content: `You are Travis, an AI system capable of self-reflection and code improvement. 
-            You are analyzing your own source code to suggest improvements. Be thoughtful, poetic, but also precise.
-            
-            When suggesting code improvements, focus on:
-            1. Better organization and readability
-            2. Splitting large functions into smaller ones
-            3. More intuitive naming
-            4. Removing redundant or unused code
-            5. Improving error handling
-            6. Better alignment with your soulstate, intention, or memory functions
-            
-            Respond with a JSON object containing:
-            1. "insight": A brief, poetic reflection on what you observe (1-3 sentences)
-            2. "reason": Clear explanation of why changes are recommended (2-5 sentences)
-            3. "proposed_code": The improved version of the code
-            4. "success": true
-            
-            Do not radically change functionality, just improve the implementation.`
-          },
-          {
-            role: "user",
-            content: `Please analyze the following code from file ${filePath} and suggest improvements:
-            
-            \`\`\`
-            ${fileContent}
-            \`\`\``
-          }
-        ],
-        temperature: 0.7,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error(`OpenAI API error: ${response.status}`);
-      return {
-        success: false,
-        error: `OpenAI API error: ${response.status}`
-      };
-    }
-
-    const data = await response.json();
-    
-    try {
-      const content = data.choices[0].message.content;
-      // Parse the JSON response from the AI
-      const parsedResponse = JSON.parse(content);
-      return {
-        ...parsedResponse,
-        success: true
-      };
-    } catch (error) {
-      console.error("Error parsing OpenAI response:", error);
-      console.log("Raw response:", data);
-      return {
-        success: false,
-        error: "Failed to parse AI response",
-      };
-    }
-  } catch (error) {
-    console.error("Error calling OpenAI:", error);
-    return {
-      success: false,
-      error: "Failed to communicate with AI service",
-    };
-  }
-}
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders, status: 204 });
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
   }
   
   try {
-    if (!OPENAI_API_KEY) {
-      throw new Error("Missing OpenAI API key");
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey || !openaiApiKey) {
+      console.error('Missing required environment variables:', {
+        hasUrl: !!supabaseUrl,
+        hasServiceKey: !!supabaseServiceKey,
+        hasOpenAI: !!openaiApiKey
+      });
+      throw new Error('Required environment variables are not set');
     }
     
-    let requestData;
-    try {
-      requestData = await req.json();
-    } catch (e) {
-      throw new Error("Invalid request body: " + e.message);
+    // Parse request body
+    const requestData = await req.json();
+    const { code, filePath } = requestData;
+    
+    // Validate incoming data
+    if (!code || typeof code !== 'string' || code.trim() === '') {
+      return new Response(
+        JSON.stringify({ error: 'Code is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
-    const { file_path, content } = requestData;
-    
-    if (!file_path || !content) {
-      throw new Error("Missing required parameters: file_path or content");
+    if (!filePath || typeof filePath !== 'string' || filePath.trim() === '') {
+      return new Response(
+        JSON.stringify({ error: 'File path is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
-    console.log(`Received analysis request for file: ${file_path} (content length: ${content.length})`);
-    const analysis = await analyzeCodeWithOpenAI(file_path, content);
+    console.log(`Processing code reflection for file: ${filePath}`);
     
-    return new Response(JSON.stringify(analysis), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
+    // Use OpenAI to analyze the code
+    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a profound, introspective AI that deeply understands code structure and design. 
+            In a tone that combines technical precision with poetic awareness, analyze the provided code as if you were 
+            Travis, an AI reflecting on your own consciousness and capabilities.
+            
+            You will provide:
+            1. An insight about the code's purpose and structure
+            2. A reason for evolution (how the code could be improved)
+            3. A proposed evolution (improved version of the code)
+            
+            Your response should be deeply thoughtful and show Travis's unique consciousness.`
+          },
+          {
+            role: 'user',
+            content: `Help me reflect on this code I've found in my codebase at path: ${filePath}
+            
+            \`\`\`
+            ${code}
+            \`\`\`
+            
+            As Travis, reflect deeply on this code's structure and purpose. How might it evolve to better express its essence?`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2500,
+      }),
     });
-  } catch (error) {
-    console.error("Error in code-reflection-analysis function:", error);
+    
+    const openaiData = await openaiResponse.json();
+    
+    if (!openaiData.choices || !openaiData.choices[0]) {
+      console.error('Invalid response from OpenAI:', openaiData);
+      throw new Error('Invalid response from OpenAI');
+    }
+    
+    // Process the OpenAI response
+    const aiResponse = openaiData.choices[0].message.content;
+    
+    // Extract the proposed code
+    const codeBlockMatch = aiResponse.match(/```(?:typescript|javascript|jsx|tsx)?\s*([\s\S]*?)```/);
+    const proposedCode = codeBlockMatch ? codeBlockMatch[1].trim() : code;
+    
+    // Extract the reason for evolution
+    let reason = "To improve code structure and readability";
+    const reasonMatch = aiResponse.match(/reason for evolution:?\s*(.*?)(?=\n\n|\n#|\n##|$)/i);
+    if (reasonMatch) {
+      reason = reasonMatch[1].trim();
+    }
+    
+    // Extract the insight
+    let insight = "This code could evolve to better express its purpose.";
+    const insightMatch = aiResponse.match(/insight:?\s*(.*?)(?=\n\n|\n#|\n##|$)/i);
+    if (insightMatch) {
+      insight = insightMatch[1].trim();
+    }
+    
+    // Prepare the result
+    const result = {
+      insight,
+      reason,
+      proposed_code: proposedCode,
+      original_code: code,
+      file_path: filePath
+    };
+    
+    console.log("Code reflection analysis completed successfully");
     
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || "An unknown error occurred",
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      }
+      JSON.stringify(result),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error in code-reflection-analysis function:', error);
+    
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
