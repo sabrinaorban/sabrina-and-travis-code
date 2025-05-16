@@ -9,6 +9,7 @@ import { useChatMessages } from './useChatMessages';
 import { useChatCommandProcessing } from '@/hooks/useChatCommandProcessing';
 import { Message, MemoryContext } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+import { useChatCommands } from './useChatCommands';
 
 interface ChatProviderProps {
   children: React.ReactNode;
@@ -41,7 +42,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     useTool,
     reflectOnTool,
     reviseTool,
-    generateTool 
+    generateTool,
+    executeTool,
+    isExecuting: isProcessingTool
   } = useChatTools(setMessages);
   
   // Process special commands using the command processor
@@ -51,6 +54,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     isProcessing: isProcessingCommand
   } = useChatCommandProcessing(setMessages, sendChatMessage);
 
+  // Add chat command processing
+  const { handleChatCommand, isProcessingCommand: isProcessingSlashCommand } = 
+    useChatCommands(setMessages);
+  
   // Access all the chat intention hooks
   const { 
     generateWeeklyReflection,
@@ -112,7 +119,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     try {
       // First check if it's a slash command
       if (content.startsWith('/')) {
-        const isCommand = await processCommand(content, context);
+        const isCommand = await handleChatCommand(content);
         if (isCommand) {
           // If it was a command, don't process it as a normal message
           return;
@@ -126,7 +133,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       console.error('Error in sendMessage wrapper:', e);
       setError(e.message || 'Failed to send message.');
     }
-  }, [processCommand, sendChatMessage]);
+  }, [handleChatCommand, sendChatMessage]);
 
   // Initialize currentEvolutionProposal state
   const [currentEvolutionProposal, setCurrentEvolutionProposal] = useState<any>(undefined);
@@ -195,7 +202,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         addMessage,
         updateMessage,
         deleteMessage,
-        isProcessingCommand,
+        isProcessingCommand: isProcessingCommand || isProcessingSlashCommand || isProcessingTool,
         error,
         clearError,
         retryMessage,

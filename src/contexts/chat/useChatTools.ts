@@ -1,12 +1,23 @@
 
 import { useCallback, useState } from 'react';
 import { Message } from '@/types';
+import { useChatTools as useBaseChatTools } from '@/hooks/useChatTools';
 
 /**
  * Hook for managing tool execution within the chat context
  */
 export const useChatTools = (setMessages: React.Dispatch<React.SetStateAction<Message[]>>) => {
   const [isExecuting, setIsExecuting] = useState(false);
+  // Import the base hook that contains all the tool functions
+  const {
+    useTool: baseUseTool,
+    reflectOnTool: baseReflectOnTool,
+    reviseTool: baseReviseTool,
+    generateTool: baseGenerateTool,
+    processToolCreation,
+    handleToolCommand,
+    isProcessing
+  } = useBaseChatTools(setMessages);
 
   /**
    * Execute a tool based on the prompt
@@ -44,6 +55,11 @@ export const useChatTools = (setMessages: React.Dispatch<React.SetStateAction<Me
 
   return {
     executeTool,
-    isExecuting
+    isExecuting,
+    // Expose the missing methods from the base hook
+    useTool: baseUseTool,
+    reflectOnTool: baseReflectOnTool,
+    reviseTool: baseReviseTool,
+    generateTool: baseGenerateTool
   };
 };
