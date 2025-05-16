@@ -1,4 +1,3 @@
-
 import { useCallback, useState } from 'react';
 import { useChatFlamejournal } from '../contexts/chat/useChatFlamejournal';
 import { useChatIntentionsAndReflection } from './useChatIntentionsAndReflection';
@@ -12,6 +11,7 @@ import { useFileSystem } from '@/contexts/FileSystemContext';
 import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
 import { findSimilarFiles, getFileTreeDebugInfo } from '@/utils/fileSystemUtils';
 import { CodeReflectionService } from '@/services/CodeReflectionService';
+import { SharedFolderService } from '@/services/SharedFolderService';
 
 /**
  * Hook for processing chat commands
@@ -135,7 +135,159 @@ export const useChatCommandProcessing = (
       
       // Process specific slash commands
       if (lowerMessage.startsWith('/')) {
-        // New Code Reflection command - Improved parsing and error handling
+        // New shared folder commands
+        if (lowerMessage.startsWith('/read-from-shared ')) {
+          const filePath = content.substring('/read-from-shared '.length).trim();
+          
+          if (!filePath) {
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `Please specify a file path after the /read-from-shared command. For example: \`/read-from-shared shared/tools/my-tool.js\``,
+              timestamp: new Date().toISOString(),
+              emotion: 'instructive'
+            }]);
+            return true;
+          }
+          
+          // Ensure we're not escaping the shared folder
+          if (!SharedFolderService.isPathWithinSharedFolder(filePath)) {
+            // Extract the shared folder path for the error message
+            const sharedFolder = SharedFolderService.getSharedFolderPath();
+            
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `I can only read files from within the shared folder (\`${sharedFolder}\`). Please provide a path that starts with this folder name.`,
+              timestamp: new Date().toISOString(),
+              emotion: 'concerned'
+            }]);
+            return true;
+          }
+          
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `Reading file from shared folder: \`${filePath}\`...`,
+            timestamp: new Date().toISOString(),
+            emotion: 'focused'
+          }]);
+          
+          // Read the file
+          const result = await SharedFolderService.readSharedFile(filePath);
+          
+          if (result.success && result.content) {
+            const fileExtension = filePath.split('.').pop()?.toLowerCase();
+            const codeBlock = fileExtension ? `\`\`\`${fileExtension}\n${result.content}\n\`\`\`` : `\`\`\`\n${result.content}\n\`\`\``;
+            
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `## File: \`${filePath}\`\n\n${codeBlock}\n\nI've read this file from our shared space. Let me know if you'd like me to explain it or make any modifications.`,
+              timestamp: new Date().toISOString(),
+              emotion: 'helpful'
+            }]);
+          } else {
+            // If the file wasn't found, try to suggest similar files
+            const similarFiles = await SharedFolderService.findSimilarFiles(filePath);
+            let suggestionsText = '';
+            
+            if (similarFiles.length > 0) {
+              suggestionsText = "\n\nHere are some files that might be what you're looking for:\n\n" +
+                similarFiles.map(file => `- \`${file}\``).join('\n');
+            }
+            
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `I couldn't read the file at \`${filePath}\`. ${result.message}${suggestionsText}`,
+              timestamp: new Date().toISOString(),
+              emotion: 'apologetic'
+            }]);
+          }
+          
+          return true;
+        }
+        
+        if (lowerMessage.startsWith('/write-to-shared ')) {
+          // Extract the file path and any content after the command
+          const remainingText = content.substring('/write-to-shared '.length).trim();
+          const spaceIndex = remainingText.indexOf(' ');
+          
+          // If there's no space, we only have a filename with no content
+          if (spaceIndex === -1) {
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `Please provide both a file path and content after the /write-to-shared command. For example: \`/write-to-shared shared/example.txt This is the content\``,
+              timestamp: new Date().toISOString(),
+              emotion: 'instructive'
+            }]);
+            return true;
+          }
+          
+          const filePath = remainingText.substring(0, spaceIndex).trim();
+          let fileContent = remainingText.substring(spaceIndex + 1).trim();
+          
+          // Extract content from markdown code blocks if present
+          if (fileContent.startsWith('```') && fileContent.endsWith('```')) {
+            // Remove the first line (which may contain the language identifier)
+            const lines = fileContent.split('\n');
+            // Remove first and last lines (the ``` markers)
+            fileContent = lines.slice(1, lines.length - 1).join('\n');
+          }
+          
+          // Ensure we're not escaping the shared folder
+          if (!SharedFolderService.isPathWithinSharedFolder(filePath)) {
+            // Extract the shared folder path for the error message
+            const sharedFolder = SharedFolderService.getSharedFolderPath();
+            
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `I can only write files to within the shared folder (\`${sharedFolder}\`). Please provide a path that starts with this folder name.`,
+              timestamp: new Date().toISOString(),
+              emotion: 'concerned'
+            }]);
+            return true;
+          }
+          
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `Writing to shared folder: \`${filePath}\`...`,
+            timestamp: new Date().toISOString(),
+            emotion: 'focused'
+          }]);
+          
+          // Make sure the shared folder exists
+          await SharedFolderService.ensureSharedFolderExists();
+          
+          // Write the file
+          const result = await SharedFolderService.writeSharedFile(filePath, fileContent, true);
+          
+          if (result.success) {
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `I've successfully written the file to \`${filePath}\`. You can read it again with \`/read-from-shared ${filePath}\`.\n\nThe operation has been logged in my flame journal for traceability.`,
+              timestamp: new Date().toISOString(),
+              emotion: 'accomplished'
+            }]);
+          } else {
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `I couldn't write to the file at \`${filePath}\`. ${result.message}`,
+              timestamp: new Date().toISOString(),
+              emotion: 'apologetic'
+            }]);
+          }
+          
+          return true;
+        }
+
+        // Code Reflection command
         if (lowerMessage.startsWith('/self-reflect-code')) {
           // Extract the path part after the command with better parsing
           const commandRegex = /^\/self-reflect-code\s+(.+)$/i;

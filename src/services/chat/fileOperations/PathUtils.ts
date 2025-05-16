@@ -63,6 +63,21 @@ export const folderExists = (fileSystem: any, path: string): boolean => {
   }
 };
 
+// Determine if a path is a folder path (either exists as a folder or ends with a slash)
+export const isFolderPath = (path: string): boolean => {
+  // A path is considered a folder path if it ends with a slash or is empty
+  const trimmed = path.trim();
+  return trimmed === '' || trimmed === '/' || trimmed.endsWith('/');
+};
+
+// Ensure a path has proper folder format (ends with a slash)
+export const ensureFolderFormat = (path: string): string => {
+  if (!path) return '';
+  const trimmed = path.trim();
+  if (trimmed === '') return '';
+  return trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
+};
+
 // Get similar paths for suggestions when a path is not found
 export const getSimilarPaths = (fileSystem: any, path: string, maxResults: number = 5): string[] => {
   try {
@@ -153,4 +168,73 @@ export const findNodeByPath = (files: any[], path: string): any => {
   }
   
   return current;
+};
+
+/**
+ * Get all files recursively from a path
+ * @param fileSystem - The file system instance
+ * @param folderPath - The path to get files from
+ * @param maxFiles - Maximum number of files to return (default: 5)
+ * @param extensions - File extensions to include (default: all files)
+ */
+export const getAllFilesFromPath = (
+  fileSystem: any,
+  folderPath: string,
+  maxFiles: number = 5,
+  extensions: string[] = ['.ts', '.tsx', '.js', '.jsx']
+): { path: string; content: string }[] => {
+  try {
+    if (!fileSystem) return [];
+    
+    const normalizedPath = normalizePath(folderPath);
+    const node = findNodeByPath(fileSystem.files, normalizedPath);
+    
+    if (!node || node.type !== 'folder' || !node.children) {
+      console.log(`Path not found or not a folder: ${folderPath}`);
+      return [];
+    }
+    
+    const results: { path: string; content: string }[] = [];
+    
+    // Helper function to traverse folders recursively
+    const traverseFolder = (currentNode: any, currentPath: string) => {
+      if (results.length >= maxFiles) return;
+      
+      if (!currentNode.children) return;
+      
+      for (const child of currentNode.children) {
+        if (results.length >= maxFiles) break;
+        
+        const childPath = currentPath ? `${currentPath}/${child.name}` : child.name;
+        
+        if (child.type === 'file') {
+          // Check extension if specified
+          if (extensions.length > 0) {
+            const fileExtension = '.' + (child.name.split('.').pop() || '');
+            if (extensions.includes(fileExtension.toLowerCase())) {
+              results.push({
+                path: childPath,
+                content: child.content || ''
+              });
+            }
+          } else {
+            // Include all file types
+            results.push({
+              path: childPath,
+              content: child.content || ''
+            });
+          }
+        } else if (child.type === 'folder' && child.children) {
+          traverseFolder(child, childPath);
+        }
+      }
+    };
+    
+    traverseFolder(node, normalizedPath);
+    
+    return results;
+  } catch (error) {
+    console.error(`Error getting files from path ${folderPath}:`, error);
+    return [];
+  }
 };

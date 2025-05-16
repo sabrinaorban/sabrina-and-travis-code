@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { FileEntry, FileSystemState, FileSystemContextType } from '../types';
 import { useAuth } from './AuthContext';
@@ -5,6 +6,7 @@ import { useFileFetcher } from '../hooks/useFileFetcher';
 import { useFileOperations } from '../hooks/useFileOperations';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { useFileRefresh } from '../hooks/useFileRefresh';
+import { SharedFolderService } from '@/services/SharedFolderService';
 
 export const FileSystemContext = createContext<FileSystemContextType | null>(null);
 
@@ -61,6 +63,16 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
     }
   }, [user]); // Only depend on user to prevent unwanted refreshes
+
+  // Ensure shared folder exists after files are loaded
+  useEffect(() => {
+    if (user && fileSystem.files.length > 0) {
+      // Create the shared folder if it doesn't exist yet
+      SharedFolderService.ensureSharedFolderExists().catch(error => {
+        console.error('Error ensuring shared folder exists:', error);
+      });
+    }
+  }, [fileSystem.files.length, user]);
 
   return (
     <FileSystemContext.Provider
