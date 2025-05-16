@@ -94,5 +94,40 @@ export const CodeReflectionService = {
       console.error('Error deleting code reflection draft:', error);
       return false;
     }
+  },
+  
+  /**
+   * Perform code reflection analysis using edge function
+   */
+  async analyzeCode(code: string, filePath: string): Promise<CodeReflectionResult> {
+    try {
+      // Get current session for the access token
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token || '';
+      
+      // Call the edge function with proper API key in headers
+      const { data, error } = await supabase.functions.invoke('code-reflection-analysis', {
+        body: { code, filePath },
+        headers: {
+          // Use the key from the supabase client
+          apikey: supabase.supabaseKey,
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      
+      if (error) throw error;
+      
+      return {
+        success: true,
+        draft: data,
+        insight: data.insight
+      };
+    } catch (error) {
+      console.error('Error analyzing code with edge function:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
   }
 };

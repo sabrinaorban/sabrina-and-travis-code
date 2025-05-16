@@ -28,6 +28,19 @@ serve(async (req) => {
       throw new Error('Required environment variables are not set');
     }
     
+    // Validate API key from request
+    const apiKey = req.headers.get('apikey');
+    if (!apiKey) {
+      console.error('No API key provided in request headers');
+      return new Response(
+        JSON.stringify({ 
+          error: 'No API key found in request',
+          hint: 'No `apikey` request header or url param was found.'
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     // Create a Supabase client with the service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     

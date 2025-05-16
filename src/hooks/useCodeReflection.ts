@@ -1,9 +1,10 @@
+
 import { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
 import { CodeReflectionDraft, CodeReflectionResult } from '@/types';
-import { findSimilarFiles, getFileTreeDebugInfo } from '@/utils/fileSystemUtils';
+import { findSimilarFiles, getFileTreeDebugInfo } from '@/services/utils/FileSystemUtils';
 
 export const useCodeReflection = () => {
   const [currentDraft, setCurrentDraft] = useState<CodeReflectionDraft | null>(null);
@@ -71,11 +72,21 @@ export const useCodeReflection = () => {
       
       console.log(`Sending ${fileContent.length} bytes for analysis`);
       
-      // Call the edge function to analyze the code
+      // Get the current session
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token || '';
+      
+      // Call the edge function to analyze the code with correct API key and headers
       const { data, error } = await supabase.functions.invoke('code-reflection-analysis', {
         body: { 
           code: fileContent,
           filePath: normalizedPath
+        },
+        // Fix: Include the apikey and Authorization header properly
+        headers: {
+          // Use the key from the supabase client
+          apikey: supabase.supabaseKey,
+          Authorization: `Bearer ${accessToken}`
         }
       });
       
