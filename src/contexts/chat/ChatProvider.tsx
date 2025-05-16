@@ -1,4 +1,3 @@
-
 import React, { useCallback, useEffect, useState } from 'react';
 import { ChatContext } from './ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,9 +6,10 @@ import { useChatMemory } from './useChatMemory';
 import { useChatTools } from './useChatTools';
 import { useChatMessages } from './useChatMessages';
 import { useChatCommandProcessing } from '@/hooks/useChatCommandProcessing';
-import { Message, MemoryContext } from '@/types';
+import { Message, MemoryContext, SelfTool } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { useChatCommands } from './useChatCommands';
+import { useChatIntentionsAndReflection } from '@/hooks/useChatIntentionsAndReflection';
 
 interface ChatProviderProps {
   children: React.ReactNode;
@@ -44,7 +44,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     reviseTool,
     generateTool,
     executeTool,
-    isExecuting: isProcessingTool
+    isExecuting: isProcessingTool,
+    processToolCreation,
+    handleToolCommand
   } = useChatTools(setMessages);
   
   // Process special commands using the command processor

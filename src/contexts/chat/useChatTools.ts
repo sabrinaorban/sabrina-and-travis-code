@@ -1,6 +1,6 @@
 
 import { useCallback, useState } from 'react';
-import { Message } from '@/types';
+import { Message, SelfTool } from '@/types';
 import { useChatTools as useBaseChatTools } from '@/hooks/useChatTools';
 
 /**
@@ -53,13 +53,34 @@ export const useChatTools = (setMessages: React.Dispatch<React.SetStateAction<Me
     }
   }, [setMessages]);
 
+  // Create wrapper functions with compatible return types
+  const useTool = useCallback((toolName: string): Promise<SelfTool | null> => {
+    return baseUseTool(toolName);
+  }, [baseUseTool]);
+
+  const reflectOnTool = useCallback((toolName: string): Promise<{reflection: string, tool: SelfTool | null}> => {
+    return baseReflectOnTool(toolName);
+  }, [baseReflectOnTool]);
+
+  const reviseTool = useCallback((toolName: string): Promise<{message: string, updatedTool: SelfTool | null}> => {
+    return baseReviseTool(toolName);
+  }, [baseReviseTool]);
+
+  const generateTool = useCallback((purpose: string): Promise<SelfTool | null> => {
+    return baseGenerateTool(purpose);
+  }, [baseGenerateTool]);
+
   return {
     executeTool,
     isExecuting,
-    // Expose the missing methods from the base hook
-    useTool: baseUseTool,
-    reflectOnTool: baseReflectOnTool,
-    reviseTool: baseReviseTool,
-    generateTool: baseGenerateTool
+    // Expose the wrapped methods
+    useTool,
+    reflectOnTool,
+    reviseTool,
+    generateTool,
+    // Also expose these from the base hook
+    processToolCreation,
+    handleToolCommand,
+    isProcessing
   };
 };
