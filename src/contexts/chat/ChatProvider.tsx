@@ -9,8 +9,8 @@ import { useChatCommandProcessing } from '@/hooks/useChatCommandProcessing';
 import { Message, MemoryContext, SelfTool } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { useChatCommands } from './useChatCommands';
-// Import from hooks directory
-import { useChatIntentionsAndReflection as useIntentionsAndReflection } from '@/hooks/useChatIntentionsAndReflection';
+// Import from hooks directory - fix the import name to avoid conflicts
+import { useChatIntentionsAndReflection } from '@/hooks/useChatIntentionsAndReflection';
 
 interface ChatProviderProps {
   children: React.ReactNode;
@@ -75,7 +75,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     uploadIdentityCodex,
     uploadPastConversations,
     generateInsight
-  } = useIntentionsAndReflection(setMessages);
+  } = useChatIntentionsAndReflection(setMessages);
   
   const clearError = useCallback(() => {
     setError(null);
@@ -203,5 +203,3 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     </ChatContext.Provider>
   );
 };
-
-// Remove this local implementation since we're now importing from hooks directory

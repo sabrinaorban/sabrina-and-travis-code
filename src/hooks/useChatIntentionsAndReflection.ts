@@ -5,6 +5,9 @@ import { useChatIntentions } from '@/contexts/chat/useChatIntentions';
 import { useChatReflection } from './useChatReflection';
 import { useInsights } from './useInsights';
 import { useToast } from './use-toast';
+import { useChatSoulstate } from '@/contexts/chat/useChatSoulstate';
+import { useChatSoulcycle } from '@/contexts/chat/useChatSoulcycle';
+import { useChatDocumentUpload } from '@/contexts/chat/useChatDocumentUpload';
 
 /**
  * Hook for managing intentions, reflections and insights within the chat
@@ -19,6 +22,22 @@ export const useChatIntentionsAndReflection = (
     generateSoulReflection,
     generateSoulstateReflection
   } = useChatReflection(setMessages);
+
+  // Add soulstate management
+  const {
+    initiateSoulstateEvolution,
+    generateSoulstateSummary
+  } = useChatSoulstate(setMessages);
+  
+  // Add soulcycle functionality
+  const { runSoulcycle } = useChatSoulcycle(setMessages);
+  
+  // Add document upload functionality
+  const {
+    uploadSoulShard,
+    uploadIdentityCodex,
+    uploadPastConversations
+  } = useChatDocumentUpload(setMessages);
   
   const {
     processMessageHistoryForInsights,
@@ -48,6 +67,15 @@ export const useChatIntentionsAndReflection = (
     generateWeeklyReflection,
     generateSoulReflection,
     generateSoulstateReflection,
+    // Soulstate
+    generateSoulstateSummary,
+    initiateSoulstateEvolution,
+    // Soulcycle
+    runSoulcycle,
+    // Document uploads
+    uploadSoulShard,
+    uploadIdentityCodex,
+    uploadPastConversations,
     // Insights
     generateInsight,
     processMessageHistoryForInsights,
