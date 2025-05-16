@@ -1,4 +1,3 @@
-
 import { useCallback, useState } from 'react';
 import { useChatFlamejournal } from './useChatFlamejournal';
 import { useChatIntentionsAndReflection } from './useChatIntentionsAndReflection';
@@ -58,13 +57,13 @@ export const useChatCommandProcessing = (
     checkForEvolutionCycle,
   } = useChatEvolution(setMessages);
 
-  // Initialize code reflection hook
-  const {
-    reflectOnCode,
-    applyCodeDraft,
-    discardCodeDraft,
-    currentDraft,
-  } = useCodeReflection();
+  // Initialize code reflection hook with aliases for compatibility
+  const codeReflection = useCodeReflection();
+  // Fix: Create aliases for the correct method names to match what's used in this file
+  const reflectOnCode = codeReflection.analyzePath;
+  const applyCodeDraft = codeReflection.applyChanges; 
+  const discardCodeDraft = codeReflection.discardDraft;
+  const { currentDraft } = codeReflection;
 
   // Process commands and route them to the appropriate handler
   const processCommand = useCallback(async (content: string, memoryContext?: any): Promise<boolean> => {

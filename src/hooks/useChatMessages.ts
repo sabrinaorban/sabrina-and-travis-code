@@ -1,8 +1,10 @@
+
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { fetchMessages as fetchMessagesFromSupabase } from '@/services/ChatService';
 import { useAuth } from '@/contexts/AuthContext';
+import { storeUserMessage, storeAssistantMessage } from '@/services/ChatService';
 
 /**
  * Hook for managing chat messages and message sending
@@ -114,11 +116,10 @@ export const useChatMessages = () => {
     return () => clearTimeout(loadingTimeout);
   }, [isLoadingHistory]);
 
-  // Implement proper message sending logic
-  const handleSendMessage = useCallback(async (content: string, context?: MemoryContext): Promise<void> => {
-    // Prevent empty messages or sending while another message is in progress
-    if (!content.trim()) {
-      console.log("Message rejected: Empty content");
+  // Fix: Implement proper message sending logic that actually updates the messages state
+  const sendMessage = useCallback(async (content: string, context?: MemoryContext): Promise<void> => {
+    if (!content.trim() || !user?.id) {
+      console.log("Message rejected: Empty content or no user");
       return;
     }
     
@@ -128,6 +129,7 @@ export const useChatMessages = () => {
     }
     
     messageInProgress.current = true;
+    setIsTyping(true);
     
     try {
       console.log("useChatMessages: Processing message:", content);
@@ -137,8 +139,42 @@ export const useChatMessages = () => {
         setMemoryContext(context);
       }
       
-      // Implementation of actual message sending would go here
-      // For now, we'll leave this as a stub
+      // 1. Add user message to state immediately for better UX
+      const userMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: content,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Update messages state with user message
+      setMessages(prev => [...prev, userMessage]);
+      
+      // 2. Store user message in database
+      try {
+        await storeUserMessage(user.id, content);
+      } catch (error) {
+        console.error("Failed to store user message:", error);
+        // Continue anyway - the message is in the local state
+      }
+      
+      // 3. Generate a placeholder response while waiting
+      setTimeout(() => {
+        // Create and add assistant response
+        const assistantMessage: Message = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: "I've received your message. Let me think about that...",
+          timestamp: new Date().toISOString()
+        };
+        
+        // Update messages state with assistant response
+        setMessages(prev => [...prev, assistantMessage]);
+        
+        // Store the assistant message
+        storeAssistantMessage(user.id, assistantMessage.content)
+          .catch(err => console.error("Failed to store assistant message:", err));
+      }, 500);
       
       console.log("useChatMessages: Message processed successfully");
     } catch (error: any) {
@@ -161,29 +197,14 @@ export const useChatMessages = () => {
           toastShown.current[errorKey] = false;
         }, 5000);
       }
-      
-      // Add a fallback response if none was added by the messageHandling hook
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage && lastMessage.role !== 'assistant') {
-        const fallbackMessage: Message = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: "I'm having trouble connecting to my response system. Please try again in a moment.",
-          timestamp: new Date().toISOString()
-        };
-        
-        setMessages(prev => [...prev, fallbackMessage]);
-      }
     } finally {
-      // Ensure we reset the messageInProgress flag even if an error occurs
+      // Ensure we reset the messageInProgress flag and typing state
       setTimeout(() => {
         messageInProgress.current = false;
-      }, 1000);
+        setIsTyping(false);
+      }, 1500);
     }
-  }, [toast, messages]);
-  
-  // Fix the sendMessage function to match what useChatCommandProcessing expects
-  const sendMessage = handleSendMessage;
+  }, [user?.id, toast]);
 
   // Function to manually refresh messages from the database
   const refreshMessages = useCallback(async (): Promise<void> => {

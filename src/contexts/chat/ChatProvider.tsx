@@ -90,9 +90,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           console.log("ChatProvider: Sending regular message");
           // Try to get insights for memory context before sending message
           const insights = await intentionsAndReflection.getInsightsForMemoryContext();
+          
+          // FIX: Extract the content strings from insights for the memoryContext
+          const insightContents = insights ? insights.map(insight => insight.content) : [];
+          
           const enhancedContext: MemoryContext = {
             ...(context || memoryContext || {}),
-            insights: insights ? insights.map(insight => insight.content) : [] // Extract just the content string from each Insight
+            insights: insightContents
           };
           
           // Call originalSendMessage without returning its value
