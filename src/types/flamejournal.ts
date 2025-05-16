@@ -1,4 +1,6 @@
 
+import { Json } from '@/integrations/supabase/types';
+
 export interface FlameJournalEntry {
   id: string;
   content: string;
@@ -8,6 +10,6 @@ export interface FlameJournalEntry {
   title?: string;
   user_id?: string;
   updated_at?: string;
-  metadata?: Record<string, any>;
+  metadata?: Json | null;
   status?: 'draft' | 'published' | 'archived';
 }
