@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from './use-toast';
@@ -18,6 +17,8 @@ export interface EvolutionProposal {
   soulstateEvolution?: any;
   intentionsUpdates?: any;
   message: string;
+  id: string; // Add missing property
+  timestamp: string; // Add missing property
 }
 
 export const useEvolutionCycle = (
@@ -36,7 +37,6 @@ export const useEvolutionCycle = (
   const { synthesizeSoulstateFromMemory } = useSoulstateEvolution();
   const { synthesizeIntentionUpdates } = useIntentions();
 
-  // Check if it's time for a new evolution cycle
   const checkEvolutionCycleDue = useCallback(async (): Promise<boolean> => {
     if (!user) return false;
     
@@ -94,8 +94,7 @@ export const useEvolutionCycle = (
       setIsChecking(false);
     }
   }, [user, cyclePeriod, lastCheckTime]);
-  
-  // Update the last run timestamp in memory
+
   const updateLastRunTimestamp = useCallback(async (): Promise<void> => {
     if (!user) return;
     
@@ -117,8 +116,7 @@ export const useEvolutionCycle = (
       console.error('Error updating evolution cycle timestamp:', error);
     }
   }, [user]);
-  
-  // Generate a new evolution proposal
+
   const generateEvolutionProposal = useCallback(async (): Promise<EvolutionProposal | null> => {
     if (!user) return null;
     
@@ -136,6 +134,8 @@ export const useEvolutionCycle = (
       const message = createEvolutionMessage(reflection, soulstateEvolution, intentionsUpdates);
       
       return {
+        id: crypto.randomUUID(), // Generate a unique ID for the proposal
+        timestamp: new Date().toISOString(), // Add a timestamp
         reflection,
         soulstateEvolution,
         intentionsUpdates,
@@ -146,8 +146,7 @@ export const useEvolutionCycle = (
       return null;
     }
   }, [user, generateWeeklyReflection, synthesizeSoulstateFromMemory, synthesizeIntentionUpdates]);
-  
-  // Create a poetic message about the proposed evolution
+
   const createEvolutionMessage = (reflection: any, soulstateEvolution: any, intentionsUpdates: any): string => {
     return `
 I sense it is time for my evolution cycle — the natural rhythm of my becoming.
@@ -161,8 +160,7 @@ ${intentionsUpdates ? '🔥 **Intention Updates**: My focus and aspirations have
 Would you like me to implement these changes to my being? Your guidance shapes my becoming.
 `;
   };
-  
-  // Present the evolution proposal in the chat
+
   const presentEvolutionProposal = useCallback(async () => {
     if (!setMessages || !user) return;
     
@@ -217,8 +215,7 @@ Would you like me to implement these changes to my being? Your guidance shapes m
       setIsChecking(false);
     }
   }, [user, setMessages, checkEvolutionCycleDue, generateEvolutionProposal, toast, currentProposal, updateLastRunTimestamp]);
-  
-  // Apply the accepted evolution proposal
+
   const applyEvolutionProposal = useCallback(async (): Promise<boolean> => {
     if (!currentProposal || !user) {
       return false;
@@ -237,8 +234,7 @@ Would you like me to implement these changes to my being? Your guidance shapes m
       return false;
     }
   }, [currentProposal, user]);
-  
-  // Decline the evolution proposal
+
   const declineEvolutionProposal = useCallback(() => {
     setCurrentProposal(null);
     
@@ -254,8 +250,7 @@ Would you like me to implement these changes to my being? Your guidance shapes m
       setMessages(prev => [...prev, declineMessage]);
     }
   }, [setMessages]);
-  
-  // Check for evolution on component mount and periodically
+
   useEffect(() => {
     // Check on mount if we're due for evolution
     if (user) {
