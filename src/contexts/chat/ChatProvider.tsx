@@ -46,7 +46,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     generateDream,
     isProcessing: isFlamejournalProcessing
   } = useChatFlamejournal(setMessages);
-  const { recallRelevantMemories, storeMemory } = useChatMemory();
+  const { storeMemory, recallRelevantMemories } = useChatMemory();
   const { executeTool } = useChatTools(setMessages);
 
   const clearError = useCallback(() => {
