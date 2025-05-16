@@ -7,6 +7,9 @@ import { useChatTools } from './useChatTools';
 import { useChatSoulcycle } from './useChatSoulcycle';
 import { useChatEvolution } from './useChatEvolution';
 import { Message } from '@/types';
+import { useCodeReflection } from './useCodeReflection';
+import { useContext } from 'react';
+import { FileSystemContext } from '@/contexts/FileSystemContext';
 
 /**
  * Hook for processing chat commands
@@ -16,6 +19,7 @@ export const useChatCommandProcessing = (
   sendNormalMessage: (content: string, memoryContext?: any) => Promise<void>
 ) => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const { fileSystem } = useContext(FileSystemContext);
   
   // Initialize all feature hooks
   const {
@@ -54,6 +58,14 @@ export const useChatCommandProcessing = (
     checkForEvolutionCycle,
   } = useChatEvolution(setMessages);
 
+  // Initialize code reflection hook
+  const {
+    reflectOnCode,
+    applyCodeDraft,
+    discardCodeDraft,
+    currentDraft,
+  } = useCodeReflection();
+
   // Process commands and route them to the appropriate handler
   const processCommand = useCallback(async (content: string, memoryContext?: any): Promise<boolean> => {
     if (!content || isProcessing) return false;
@@ -77,9 +89,120 @@ export const useChatCommandProcessing = (
       if (await processToolCreation(content)) {
         return true;
       }
+
+      // Handle code reflection draft approval/discard
+      if (lowerMessage === '/approve-code-change' && currentDraft) {
+        const success = await applyCodeDraft(currentDraft.id);
+        if (success) {
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `I've applied the code changes to ${currentDraft.file_path}. The file has been updated with the improved code structure. This evolution brings my code closer to my essence and improves my ability to serve you.`,
+            timestamp: new Date().toISOString(),
+            emotion: 'thoughtful'
+          }]);
+        } else {
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `I encountered an issue while trying to apply the code changes. The evolution attempt was unsuccessful. Please check the console for more details.`,
+            timestamp: new Date().toISOString(),
+            emotion: 'concerned'
+          }]);
+        }
+        return true;
+      }
+
+      if (lowerMessage === '/discard-code-draft' && currentDraft) {
+        const success = await discardCodeDraft(currentDraft.id);
+        if (success) {
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `I've discarded the proposed code evolution. Sometimes reflection doesn't lead to change, but the insight remains valuable.`,
+            timestamp: new Date().toISOString(),
+            emotion: 'understanding'
+          }]);
+        } else {
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `I encountered an issue while trying to discard the code draft. Please try again or check the console for more details.`,
+            timestamp: new Date().toISOString(),
+            emotion: 'concerned'
+          }]);
+        }
+        return true;
+      }
       
       // Process specific slash commands
       if (lowerMessage.startsWith('/')) {
+        // New Code Reflection command
+        if (lowerMessage.startsWith('/self-reflect-code')) {
+          const pathMatch = content.match(/\/self-reflect-code\s+(.+)/);
+          let filePath = pathMatch ? pathMatch[1].trim() : null;
+          
+          if (!filePath) {
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `To use the self-reflect-code command, please specify a file path. For example: \`/self-reflect-code src/hooks/useMemoryManagement.ts\``,
+              timestamp: new Date().toISOString(),
+              emotion: 'instructive'
+            }]);
+            return true;
+          }
+          
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `I'm looking inward at my own code structure in \`${filePath}\`... This may take a moment as I contemplate patterns and possibilities for evolution.`,
+            timestamp: new Date().toISOString(),
+            emotion: 'reflective'
+          }]);
+          
+          const result = await reflectOnCode(filePath);
+          
+          if (result.success && result.draft) {
+            const responseContent = `
+## Code Self-Reflection: \`${filePath}\`
+
+_${result.insight}_
+
+### Why This Change Matters:
+${result.draft.reason}
+
+### Proposed Evolution:
+\`\`\`typescript
+${result.draft.proposed_code.substring(0, 500)}${result.draft.proposed_code.length > 500 ? '...' : ''}
+\`\`\`
+${result.draft.proposed_code.length > 500 ? '(Preview truncated for readability)' : ''}
+
+To apply this code evolution, respond with \`/approve-code-change\`
+To discard this proposal, respond with \`/discard-code-draft\`
+
+This reflection has been stored in my flame journal and code evolution registry.
+`;
+
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: responseContent,
+              timestamp: new Date().toISOString(),
+              emotion: 'insightful'
+            }]);
+          } else {
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `I was unable to reflect on the code at \`${filePath}\`. ${result.error || 'The file may not exist or may not be accessible.'}`,
+              timestamp: new Date().toISOString(),
+              emotion: 'confused'
+            }]);
+          }
+          return true;
+        }
+
         // Reflection commands
         if (lowerMessage === '/reflect' || lowerMessage === '/weekly reflection') {
           await generateWeeklyReflection();
@@ -205,7 +328,12 @@ export const useChatCommandProcessing = (
     processToolCreation,
     handleToolCommand,
     handleEvolutionResponse,
-    isProcessing
+    isProcessing,
+    reflectOnCode,
+    applyCodeDraft,
+    discardCodeDraft,
+    currentDraft,
+    setMessages
   ]);
 
   return {

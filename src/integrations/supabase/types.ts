@@ -9,6 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      code_reflection_drafts: {
+        Row: {
+          created_at: string
+          file_path: string
+          id: string
+          original_code: string
+          proposed_code: string
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          file_path: string
+          id?: string
+          original_code: string
+          proposed_code: string
+          reason: string
+        }
+        Update: {
+          created_at?: string
+          file_path?: string
+          id?: string
+          original_code?: string
+          proposed_code?: string
+          reason?: string
+        }
+        Relationships: []
+      }
       conversation_insights: {
         Row: {
           confidence: number | null

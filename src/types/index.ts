@@ -1,93 +1,36 @@
+import { Message } from './chat';
+import { FileEntry, FileSystemContextType } from './fileSystem';
+import { FlameJournalEntry } from './flamejournal';
+import { ReflectionEntry } from './reflection';
+import { SelfTool } from './selftool';
+import { SoulState } from './soulstate';
+import { Intention } from './intentions';
+import { CodeReflectionDraft } from './code-reflection';
 
-// Database types
-export type { Json, Database } from './supabase';
+export * from './chat';
+export * from './fileSystem';
+export * from './flamejournal';
+export * from './reflection';
+export * from './selftool';
+export * from './soulstate';
+export * from './intentions';
+export * from './code-reflection';
 
-// Flamejournal types
-export type { FlameJournalEntry } from './flamejournal';
-
-// Self-authored tools types
-export type { SelfTool } from './selftool';
-
-// Intention types
-export type { Intention, IntentionMap, IntentionChange } from './intentions';
-
-// Soulstate types
-export type { SoulState, SoulstateProposal } from './soulstate';
-
-// Chat and message types
-export interface Message {
-  id: string;
-  content: string;
-  role: 'user' | 'assistant';
-  timestamp: string;
-  createdAt?: string;
-  emotion?: string | null; // Added emotion field
-}
-
-export interface OpenAIMessage {
-  role: string;
-  content: string;
-}
-
-// Memory Context interface
 export interface MemoryContext {
-  relevantMemories?: Array<{ content: string; similarity: number }>;
-  livedMemory?: Array<string>;
-  emotionalContext?: string; // Added emotional context
-  insights?: Array<Insight>; // Add insights to memory context
-  [key: string]: any;
+  userProfile?: any;
+  relevantMemories?: any[];
+  pastConversations?: any[];
+  specialDocuments?: {
+    soulShard?: FileEntry;
+    identityCodex?: FileEntry;
+  };
+  livedMemory?: string[];
+  insights?: string[];
 }
 
-// User types
-export interface User {
-  id: string;
-  name: string;
-  email?: string;
-  isAuthenticated: boolean;
+export interface GithubContext {
+    isAuthenticated: boolean;
+    username?: string;
+    currentRepo?: any;
+    currentBranch?: string;
 }
-
-// File system types
-export interface FileEntry {
-  id: string;
-  name: string;
-  path: string;
-  type: 'file' | 'folder';
-  content?: string;
-  lastModified?: string;
-  children?: FileEntry[];
-  isVirtual?: boolean;
-  isModified?: boolean;
-}
-
-export interface FileSystemState {
-  files: FileEntry[];
-  selectedFile: FileEntry | null;
-}
-
-// Memory embedding types
-export interface MemoryEmbedding {
-  id: string;
-  content: string;
-  embedding?: number[];
-  message_type: string;
-  created_at: string;
-  tags?: string[];
-  similarity?: number;
-}
-
-// Add the new Insight interface
-export interface Insight {
-  id?: string;
-  summary: string;
-  emotionalTheme?: string;
-  growthEdge?: string;
-  resonancePattern?: string;
-  lastDetected: string; // ISO timestamp
-  timesDetected?: number;
-  confidence?: number;
-}
-
-// Re-export other specific types
-export type { FileOperation } from './chat';
-export type { Reflection } from './reflection';
-export type { GitHubRepo, GitHubBranch, GitHubFile, GitHubAuthState } from './github';
