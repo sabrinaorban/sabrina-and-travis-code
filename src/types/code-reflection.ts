@@ -10,6 +10,9 @@ export interface CodeReflectionDraft {
   proposed_code: string;
   reason: string;
   created_at: string;
+  reflection_type?: 'file' | 'folder';
+  full_reflection?: string;
+  tags?: string[];
 }
 
 export type CodeReflectionStatus = 'pending' | 'approved' | 'discarded';

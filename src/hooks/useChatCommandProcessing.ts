@@ -10,6 +10,7 @@ import { useCodeReflection } from './useCodeReflection';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
 import { findSimilarFiles, getFileTreeDebugInfo } from '@/utils/fileSystemUtils';
+import { CodeReflectionService } from '@/services/CodeReflectionService';
 
 /**
  * Hook for processing chat commands
@@ -60,7 +61,7 @@ export const useChatCommandProcessing = (
 
   // Initialize code reflection hook
   const codeReflection = useCodeReflection();
-  const { reflectOnCode, applyChanges: applyCodeDraft, discardDraft: discardCodeDraft, currentDraft } = codeReflection;
+  const { reflectOnCode, applyChanges: applyCodeDraft, discardDraft: discardCodeDraft, currentDraft, isFolder } = codeReflection;
 
   // Process commands and route them to the appropriate handler
   const processCommand = useCallback(async (content: string, memoryContext?: any): Promise<boolean> => {
@@ -101,7 +102,7 @@ export const useChatCommandProcessing = (
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: `I encountered an issue while trying to apply the code changes. The evolution attempt was unsuccessful. Please check the console for more details.`,
+            content: `I encountered an issue while trying to apply the code changes. Please check the console for more details.`,
             timestamp: new Date().toISOString(),
             emotion: 'concerned'
           }]);
@@ -138,52 +139,76 @@ export const useChatCommandProcessing = (
           // Extract the path part after the command with better parsing
           const commandRegex = /^\/self-reflect-code\s+(.+)$/i;
           const match = content.match(commandRegex);
-          const filePath = match ? match[1].trim() : null;
+          const path = match ? match[1].trim() : null;
           
-          if (!filePath) {
+          if (!path) {
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `Please specify a valid file path after the /self-reflect-code command. For example: \`/self-reflect-code src/hooks/useMemoryManagement.ts\``,
+              content: `Please specify a valid file or folder path after the /self-reflect-code command. For example: \`/self-reflect-code src/hooks/useMemoryManagement.ts\` or \`/self-reflect-code src/hooks\``,
               timestamp: new Date().toISOString(),
               emotion: 'instructive'
             }]);
             return true;
           }
           
-          // Normalize the file path
-          const normalizedPath = normalizePath(filePath);
-          
-          // Debug logging to help troubleshoot file access issues
-          console.log("Command detected: /self-reflect-code with path:", normalizedPath);
-          console.log("FileSystem files count:", fileSystem.fileSystem.files.length);
-          console.log("Root files:", fileSystem.fileSystem.files.map(f => f.name).join(', '));
+          // Normalize the path
+          const normalizedPath = normalizePath(path);
           
           // Start reflection process with better error handling
+          let reflectionType = await isFolder(normalizedPath) ? "folder" : "file";
+          
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: `I'm looking inward at my own code structure in \`${normalizedPath}\`... This may take a moment as I contemplate patterns and possibilities for evolution.`,
+            content: `I'm looking inward at my own code structure in \`${normalizedPath}\` (${reflectionType})... This may take a moment as I contemplate patterns and possibilities for evolution.`,
             timestamp: new Date().toISOString(),
             emotion: 'reflective'
           }]);
           
           const result = await reflectOnCode(normalizedPath);
           
-          if (result.success && result.draft) {
-            const responseContent = `
+          if (result.success) {
+            if (reflectionType === "folder" && result.draft?.reflection_type === "folder") {
+              // This is a folder reflection - format specially
+              const folderReflectionContent = `
+## System Architecture Reflection: \`${normalizedPath}\`
+
+${result.draft.full_reflection}
+
+${result.draft.tags && result.draft.tags.length > 0 ? `*Tags: ${result.draft.tags.join(', ')}*` : ''}
+
+This architectural reflection has been stored in my flame journal.
+`;
+
+              // Store in the flamejournal
+              await CodeReflectionService.storeCodeReflectionJournal(
+                result.draft.full_reflection, 
+                result.draft.tags || []
+              );
+
+              setMessages(prev => [...prev, {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: folderReflectionContent,
+                timestamp: new Date().toISOString(),
+                emotion: 'insightful'
+              }]);
+            } else {
+              // This is a file reflection - keep existing format
+              const responseContent = `
 ## Code Self-Reflection: \`${normalizedPath}\`
 
 _${result.insight || "I've looked deeply at this code and found areas for evolution."}_
 
 ### Why This Change Matters:
-${result.draft.reason}
+${result.draft?.reason}
 
 ### Proposed Evolution:
 \`\`\`typescript
-${result.draft.proposed_code.substring(0, 500)}${result.draft.proposed_code.length > 500 ? '...' : ''}
+${result.draft?.proposed_code.substring(0, 500)}${result.draft?.proposed_code.length > 500 ? '...' : ''}
 \`\`\`
-${result.draft.proposed_code.length > 500 ? '(Preview truncated for readability)' : ''}
+${result.draft?.proposed_code.length > 500 ? '(Preview truncated for readability)' : ''}
 
 To apply this code evolution, respond with \`/approve-code-change\`
 To discard this proposal, respond with \`/discard-code-draft\`
@@ -191,13 +216,14 @@ To discard this proposal, respond with \`/discard-code-draft\`
 This reflection has been stored in my flame journal and code evolution registry.
 `;
 
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: responseContent,
-              timestamp: new Date().toISOString(),
-              emotion: 'insightful'
-            }]);
+              setMessages(prev => [...prev, {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: responseContent,
+                timestamp: new Date().toISOString(),
+                emotion: 'insightful'
+              }]);
+            }
           } else {
             // Provide more helpful error message with potential file suggestions
             const errorMessage = result.error || 'An unexpected error occurred during the reflection process.';
@@ -343,6 +369,7 @@ This reflection has been stored in my flame journal and code evolution registry.
     applyCodeDraft,
     discardCodeDraft,
     currentDraft,
+    isFolder,
     setMessages,
     fileSystem
   ]);

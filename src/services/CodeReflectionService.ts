@@ -129,5 +129,76 @@ export const CodeReflectionService = {
         error: error.message
       };
     }
+  },
+
+  /**
+   * Analyze a folder of code files for architectural insights
+   */
+  async analyzeFolderCode(files: { path: string, content: string }[], folderPath: string): Promise<CodeReflectionResult> {
+    try {
+      // Get current session for the access token
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token || '';
+      
+      console.log(`Analyzing folder: ${folderPath} with ${files.length} files`);
+      
+      // Call the edge function with proper API key in headers
+      const { data, error } = await supabase.functions.invoke('code-reflection-analysis', {
+        body: { 
+          isFolder: true,
+          folderPath,
+          files 
+        },
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      
+      if (error) throw error;
+      
+      return {
+        success: true,
+        draft: data,
+        insight: data.insight
+      };
+    } catch (error) {
+      console.error('Error analyzing folder code with edge function:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  },
+  
+  /**
+   * Store a code reflection journal entry
+   */
+  async storeCodeReflectionJournal(content: string, tags: string[]): Promise<boolean> {
+    try {
+      // Get current session for the access token
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token || '';
+      
+      // Call the flame-journal edge function with proper headers
+      const { error } = await supabase.functions.invoke('flame-journal', {
+        body: { 
+          entryType: 'code_reflection', 
+          content, 
+          tags 
+        },
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      
+      if (error) throw error;
+      
+      return true;
+    } catch (error) {
+      console.error('Error storing code reflection journal:', error);
+      return false;
+    }
   }
 };
