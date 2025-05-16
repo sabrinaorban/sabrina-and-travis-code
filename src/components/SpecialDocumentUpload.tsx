@@ -53,7 +53,9 @@ export const SpecialDocumentUpload: React.FC = () => {
         });
       }, 300);
       
-      await uploadSoulShard(); // Remove the parameter as function takes no arguments
+      // Convert file to string content before uploading
+      const fileContent = await readFileAsText(soulShardFile);
+      await uploadSoulShard(fileContent);
       setSoulShardFile(null);
       clearInterval(interval);
       setUploadProgress(100);
@@ -90,7 +92,9 @@ export const SpecialDocumentUpload: React.FC = () => {
         });
       }, 300);
       
-      await uploadIdentityCodex(); // Remove the parameter as function takes no arguments
+      // Convert file to string content before uploading
+      const fileContent = await readFileAsText(identityCodexFile);
+      await uploadIdentityCodex(fileContent);
       setIdentityCodexFile(null);
       clearInterval(interval);
       setUploadProgress(100);
@@ -127,7 +131,9 @@ export const SpecialDocumentUpload: React.FC = () => {
         });
       }, 300);
       
-      await uploadPastConversations(); // Remove the parameter as function takes no arguments
+      // Convert file to string content before uploading
+      const fileContent = await readFileAsText(pastConversationsFile);
+      await uploadPastConversations(fileContent);
       setPastConversationsFile(null);
       clearInterval(interval);
       setUploadProgress(100);
@@ -147,6 +153,22 @@ export const SpecialDocumentUpload: React.FC = () => {
       setIsUploading(null);
       setUploadProgress(0);
     }
+  };
+  
+  // Helper function to read a file as text
+  const readFileAsText = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          resolve(event.target.result as string);
+        } else {
+          reject(new Error('Failed to read file'));
+        }
+      };
+      reader.onerror = () => reject(new Error('File read error'));
+      reader.readAsText(file);
+    });
   };
   
   return (

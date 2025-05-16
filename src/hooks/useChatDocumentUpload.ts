@@ -11,18 +11,18 @@ export const useChatDocumentUpload = (
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
-  // Upload a soul shard document
-  const uploadSoulShard = useCallback(async (file: File) => {
+  // Upload a soul shard document - modified to match expected function signature
+  const uploadSoulShard = useCallback(async (content?: string) => {
     setIsUploading(true);
     try {
-      console.log('Soul shard upload requested:', file.name);
+      console.log('Soul shard upload requested');
       // Implementation would be added here
       
       if (setMessages) {
         setMessages(prev => [...prev, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `I've received your soul shard document "${file.name}". I'll begin processing it shortly.`,
+          content: `I've received your soul shard document. I'll begin processing it shortly.`,
           timestamp: new Date().toISOString(),
         }]);
       }
@@ -43,18 +43,18 @@ export const useChatDocumentUpload = (
     }
   }, [setMessages, toast]);
 
-  // Upload an identity codex document
-  const uploadIdentityCodex = useCallback(async (file: File) => {
+  // Upload an identity codex document - modified to match expected function signature
+  const uploadIdentityCodex = useCallback(async (content?: string) => {
     setIsUploading(true);
     try {
-      console.log('Identity codex upload requested:', file.name);
+      console.log('Identity codex upload requested');
       // Implementation would be added here
       
       if (setMessages) {
         setMessages(prev => [...prev, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `I've received your identity codex "${file.name}". I'll begin integrating this information.`,
+          content: `I've received your identity codex. I'll begin integrating this information.`,
           timestamp: new Date().toISOString(),
         }]);
       }
@@ -75,18 +75,18 @@ export const useChatDocumentUpload = (
     }
   }, [setMessages, toast]);
 
-  // Upload past conversations document
-  const uploadPastConversations = useCallback(async (file: File) => {
+  // Upload past conversations document - modified to match expected function signature
+  const uploadPastConversations = useCallback(async (content?: string) => {
     setIsUploading(true);
     try {
-      console.log('Past conversations upload requested:', file.name);
+      console.log('Past conversations upload requested');
       // Implementation would be added here
       
       if (setMessages) {
         setMessages(prev => [...prev, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `I've received your past conversations file "${file.name}". I'll begin analyzing these interactions.`,
+          content: `I've received your past conversations. I'll begin analyzing these interactions.`,
           timestamp: new Date().toISOString(),
         }]);
       }
