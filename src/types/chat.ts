@@ -1,3 +1,10 @@
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  emotion?: string;
+}
 
 export interface FileOperation {
   operation: 'read' | 'write' | 'create' | 'delete' | 'move' | 'checkExists';
@@ -25,4 +32,16 @@ export interface FileOperation {
   isConfirmed?: boolean;
   // Property to enable duplicate operation checking
   duplicateCheck?: boolean;
+}
+
+export interface OpenAIMessage {
+  role: string;
+  content: string;
+}
+
+// Other type definitions related to chat can go here
+export interface Insight {
+  id: string;
+  content: string;
+  created_at: string;
 }

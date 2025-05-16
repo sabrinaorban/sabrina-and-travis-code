@@ -1,14 +1,12 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { FileEntry, FileSystemState } from '../types';
-import { FileSystemContextType } from '../types/fileSystem';
+import { FileEntry, FileSystemState, FileSystemContextType } from '../types';
 import { useAuth } from './AuthContext';
 import { useFileFetcher } from '../hooks/useFileFetcher';
 import { useFileOperations } from '../hooks/useFileOperations';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { useFileRefresh } from '../hooks/useFileRefresh';
 
-const FileSystemContext = createContext<FileSystemContextType | null>(null);
+export const FileSystemContext = createContext<FileSystemContextType | null>(null);
 
 export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [fileSystem, setFileSystem] = useState<FileSystemState>({

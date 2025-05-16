@@ -1,5 +1,21 @@
 
-import { FileEntry, FileSystemState } from './index';
+// Define FileEntry directly here instead of importing it
+export interface FileEntry {
+  id: string;
+  name: string;
+  path: string;
+  type: 'file' | 'folder';
+  content?: string;
+  children?: FileEntry[];
+  parent?: string;
+  isModified?: boolean;
+  lastModified?: string;
+}
+
+export interface FileSystemState {
+  files: FileEntry[];
+  selectedFile: FileEntry | null;
+}
 
 export interface FileSystemContextType {
   fileSystem: FileSystemState;
