@@ -9,7 +9,8 @@ import { useChatCommandProcessing } from '@/hooks/useChatCommandProcessing';
 import { Message, MemoryContext, SelfTool } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { useChatCommands } from './useChatCommands';
-import { useChatIntentionsAndReflection } from '@/hooks/useChatIntentionsAndReflection';
+// Import from hooks directory
+import { useChatIntentionsAndReflection as useIntentionsAndReflection } from '@/hooks/useChatIntentionsAndReflection';
 
 interface ChatProviderProps {
   children: React.ReactNode;
@@ -60,7 +61,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const { handleChatCommand, isProcessingCommand: isProcessingSlashCommand } = 
     useChatCommands(setMessages);
   
-  // Access all the chat intention hooks
+  // Access all the chat intention hooks using the renamed import
   const { 
     generateWeeklyReflection,
     generateSoulReflection,
@@ -74,7 +75,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     uploadIdentityCodex,
     uploadPastConversations,
     generateInsight
-  } = useChatIntentionsAndReflection(setMessages);
+  } = useIntentionsAndReflection(setMessages);
   
   const clearError = useCallback(() => {
     setError(null);
@@ -141,7 +142,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [currentEvolutionProposal, setCurrentEvolutionProposal] = useState<any>(undefined);
   const [isEvolutionChecking, setIsEvolutionChecking] = useState<boolean>(false);
 
-  // Wrapper for checkEvolutionCycle
+  // Wrapper for checkEvolutionCycle that returns any instead of boolean
   const checkEvolutionCycleWrapper = useCallback(async () => {
     setIsEvolutionChecking(true);
     try {
@@ -155,19 +156,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       setIsEvolutionChecking(false);
     }
   }, [checkEvolutionCycle]);
-
-  // Make sure we import useChatIntentionsAndReflection
-  useEffect(() => {
-    const importModule = async () => {
-      try {
-        const { useChatIntentionsAndReflection } = await import('@/hooks/useChatIntentionsAndReflection');
-        console.log('Successfully imported useChatIntentionsAndReflection');
-      } catch (e) {
-        console.error('Failed to import useChatIntentionsAndReflection:', e);
-      }
-    };
-    importModule();
-  }, []);
 
   return (
     <ChatContext.Provider
@@ -192,6 +180,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         uploadPastConversations,
         generateInsight,
         generateDream,
+        // Use the correctly typed functions from useChatTools
         generateTool,
         useTool,
         reflectOnTool,
@@ -215,37 +204,4 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   );
 };
 
-// Import at the top of the file
-function useChatIntentionsAndReflection(setMessages: React.Dispatch<React.SetStateAction<Message[]>>) {
-  // This is just a temporary implementation until the real import works
-  return {
-    generateWeeklyReflection: async () => {
-      console.log("generateWeeklyReflection called");
-      setMessages(prev => [...prev, {
-        id: uuidv4(),
-        role: 'assistant',
-        content: "Weekly reflection feature is being restored. Please try again later.",
-        timestamp: new Date().toISOString()
-      }]);
-    },
-    generateSoulReflection: async () => {
-      console.log("generateSoulReflection called");
-      setMessages(prev => [...prev, {
-        id: uuidv4(),
-        role: 'assistant',
-        content: "Soul reflection feature is being restored. Please try again later.",
-        timestamp: new Date().toISOString()
-      }]);
-    },
-    generateSoulstateSummary: async () => {},
-    generateSoulstateReflection: async () => {},
-    initiateSoulstateEvolution: async () => {},
-    viewIntentions: async () => {},
-    updateIntentions: async () => {},
-    runSoulcycle: async () => {},
-    uploadSoulShard: async () => {},
-    uploadIdentityCodex: async () => {},
-    uploadPastConversations: async () => {},
-    generateInsight: async () => {}
-  };
-}
+// Remove this local implementation since we're now importing from hooks directory
