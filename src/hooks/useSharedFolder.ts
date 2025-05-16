@@ -3,12 +3,14 @@ import { useState, useCallback } from 'react';
 import { SharedFolderService } from '@/services/SharedFolderService';
 import { FileEntry } from '@/types';
 import { useToast } from './use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Hook for interacting with the shared folder
  */
 export const useSharedFolder = () => {
   const { toast } = useToast();
+  const { user } = useAuth(); // Get the authenticated user
   const [isLoading, setIsLoading] = useState(false);
   const [files, setFiles] = useState<FileEntry[]>([]);
 
@@ -18,6 +20,16 @@ export const useSharedFolder = () => {
   const listFiles = useCallback(async () => {
     setIsLoading(true);
     try {
+      // Check if user is authenticated
+      if (!user) {
+        toast({
+          title: 'Authentication Required',
+          description: 'You must be logged in to access shared files',
+          variant: 'destructive',
+        });
+        return [];
+      }
+
       // Ensure the shared folder exists
       await SharedFolderService.ensureSharedFolderExists();
       
@@ -35,7 +47,7 @@ export const useSharedFolder = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, user]);
 
   /**
    * Read a file from the shared folder
@@ -43,6 +55,16 @@ export const useSharedFolder = () => {
   const readFile = useCallback(async (filePath: string) => {
     setIsLoading(true);
     try {
+      // Check if user is authenticated
+      if (!user) {
+        toast({
+          title: 'Authentication Required',
+          description: 'You must be logged in to read shared files',
+          variant: 'destructive',
+        });
+        return { content: '', success: false, message: 'Authentication required' };
+      }
+
       const result = await SharedFolderService.readSharedFile(filePath);
       
       if (!result.success) {
@@ -65,7 +87,7 @@ export const useSharedFolder = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, user]);
 
   /**
    * Write a file to the shared folder
@@ -73,6 +95,16 @@ export const useSharedFolder = () => {
   const writeFile = useCallback(async (filePath: string, content: string, overwrite = false) => {
     setIsLoading(true);
     try {
+      // Check if user is authenticated
+      if (!user) {
+        toast({
+          title: 'Authentication Required',
+          description: 'You must be logged in to write shared files',
+          variant: 'destructive',
+        });
+        return { success: false, message: 'Authentication required' };
+      }
+
       // Ensure the shared folder exists first
       await SharedFolderService.ensureSharedFolderExists();
       
@@ -106,7 +138,7 @@ export const useSharedFolder = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast, listFiles]);
+  }, [toast, user, listFiles]);
 
   /**
    * Get the shared folder path

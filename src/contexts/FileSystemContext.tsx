@@ -64,9 +64,10 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [user]); // Only depend on user to prevent unwanted refreshes
 
-  // Ensure shared folder exists after files are loaded
+  // Ensure shared folder exists after files are loaded and we have a user
   useEffect(() => {
     if (user && fileSystem.files.length > 0) {
+      console.log('User is authenticated, ensuring shared folder exists');
       // Create the shared folder if it doesn't exist yet
       SharedFolderService.ensureSharedFolderExists().catch(error => {
         console.error('Error ensuring shared folder exists:', error);

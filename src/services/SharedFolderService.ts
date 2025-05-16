@@ -1,4 +1,3 @@
-
 import { supabase } from '@/lib/supabase';
 import { normalizePath } from './chat/fileOperations/PathUtils';
 import { FileEntry } from '@/types';
@@ -119,10 +118,22 @@ export const SharedFolderService = {
 
       const normalizedPath = normalizePath(filePath);
       
+      // Get the current user session to get the user_id
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user_id = sessionData?.session?.user?.id;
+      
+      if (!user_id) {
+        console.error('No authenticated user found when writing to shared folder');
+        return { 
+          success: false, 
+          message: `Authentication required: No user ID available for file operation`
+        };
+      }
+      
       // Check if file exists
       const { data: existingFile } = await supabase
         .from('files')
-        .select('id')
+        .select('id, user_id')
         .eq('path', normalizedPath)
         .maybeSingle();
       
@@ -137,7 +148,12 @@ export const SharedFolderService = {
         // Update existing file
         const { error } = await supabase
           .from('files')
-          .update({ content, updated_at: new Date().toISOString() })
+          .update({ 
+            content, 
+            updated_at: new Date().toISOString(),
+            // Keep the original user_id if it exists, otherwise use current user_id
+            user_id: existingFile.user_id || user_id
+          })
           .eq('id', existingFile.id);
         
         if (error) {
@@ -155,7 +171,7 @@ export const SharedFolderService = {
         const fileName = pathParts.pop() || '';
         const directory = pathParts.join('/');
         
-        // Create new file
+        // Create new file with the user_id
         const { error } = await supabase
           .from('files')
           .insert({
@@ -163,6 +179,7 @@ export const SharedFolderService = {
             name: fileName,
             type: 'file',
             content,
+            user_id, // Include the user_id in the insert
             parent_path: directory || null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -194,10 +211,19 @@ export const SharedFolderService = {
     try {
       const sharedFolder = this.getSharedFolderPath();
       
+      // Get the current user session to get the user_id
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user_id = sessionData?.session?.user?.id;
+      
+      if (!user_id) {
+        console.error('No authenticated user found when ensuring shared folder exists');
+        return false;
+      }
+      
       // Check if the folder already exists
       const { data, error } = await supabase
         .from('files')
-        .select('id')
+        .select('id, user_id')
         .eq('path', sharedFolder)
         .eq('type', 'folder')
         .maybeSingle();
@@ -220,6 +246,7 @@ export const SharedFolderService = {
           name: sharedFolder,
           type: 'folder',
           parent_path: '',
+          user_id, // Include the user_id in the insert
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
@@ -245,6 +272,10 @@ export const SharedFolderService = {
     content: string | null
   ): Promise<boolean> {
     try {
+      // Get the current user session to include the user_id in the metadata
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user_id = sessionData?.session?.user?.id;
+      
       // Create a journal entry about this operation
       const { error } = await supabase
         .from('flamejournal')
@@ -256,7 +287,8 @@ export const SharedFolderService = {
             operation: operationType,
             path: filePath,
             timestamp: new Date().toISOString(),
-            hasContent: !!content
+            hasContent: !!content,
+            user_id: user_id || 'anonymous' // Include the user_id in the metadata for auditing
           }
         });
       

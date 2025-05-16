@@ -1,3 +1,4 @@
+
 // Normalize and clean a file path
 export const normalizePath = (path: string): string => {
   // Remove leading slash for consistency with FileSystem component expectations
@@ -8,6 +9,10 @@ export const normalizePath = (path: string): string => {
   
   // Trim whitespace
   normalizedPath = normalizedPath.trim();
+  
+  // Prevent directory traversal by removing any ".." sequences
+  normalizedPath = normalizedPath.replace(/\.\.\//g, '');
+  normalizedPath = normalizedPath.replace(/\/\.\./g, '');
   
   // Remove leading slash for consistency
   normalizedPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
