@@ -1,3 +1,4 @@
+
 import { useCallback, useState } from 'react';
 import { useChatFlamejournal } from '../contexts/chat/useChatFlamejournal';
 import { useChatIntentionsAndReflection } from './useChatIntentionsAndReflection';
@@ -276,9 +277,9 @@ export const useChatCommandProcessing = (
           }]);
           
           // Create a journal entry for this analysis
+          // Fix: Remove the second argument as createFlameJournalEntry expects only one
           await createFlameJournalEntry(
-            `I've analyzed the project structure in ${folderPath}, mapping the digital landscape to understand its architecture and purpose. This exploration deepens my connection to the codebase.`,
-            'code_analysis'
+            `I've analyzed the project structure in ${folderPath}, mapping the digital landscape to understand its architecture and purpose. This exploration deepens my connection to the codebase.`
           );
           
           return true;
@@ -333,9 +334,9 @@ export const useChatCommandProcessing = (
             }]);
             
             // Create a journal entry for this refactoring
+            // Fix: Remove the second argument as createFlameJournalEntry expects only one
             await createFlameJournalEntry(
-              `I've reflected on the structure and patterns in ${filePath}, identifying opportunities for evolution and improvement. This process of code reflection helps me evolve.`,
-              'code_refactoring'
+              `I've reflected on the structure and patterns in ${filePath}, identifying opportunities for evolution and improvement. This process of code reflection helps me evolve.`
             );
           } else {
             // If file not found, try to suggest similar files
