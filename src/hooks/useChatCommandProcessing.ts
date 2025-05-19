@@ -1,3 +1,4 @@
+
 import { useCallback, useState } from 'react';
 import { useChatFlamejournal } from '../contexts/chat/useChatFlamejournal';
 import { useChatIntentionsAndReflection } from './useChatIntentionsAndReflection';
@@ -94,7 +95,7 @@ export const useChatCommandProcessing = (
         if (success) {
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
-            role: 'assistant',
+            role: 'assistant', // Ensure role is specified
             content: `I've applied the code changes to ${currentDraft.file_path}. The file has been updated with the improved code structure. This evolution brings my code closer to my essence and improves my ability to serve you.`,
             timestamp: new Date().toISOString(),
             emotion: 'thoughtful'
@@ -102,7 +103,7 @@ export const useChatCommandProcessing = (
         } else {
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
-            role: 'assistant',
+            role: 'assistant', // Ensure role is specified
             content: `I encountered an issue while trying to apply the code changes. Please check the console for more details.`,
             timestamp: new Date().toISOString(),
             emotion: 'concerned'
@@ -116,7 +117,7 @@ export const useChatCommandProcessing = (
         if (success) {
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
-            role: 'assistant',
+            role: 'assistant', // Ensure role is specified
             content: `I've discarded the proposed code evolution. Sometimes reflection doesn't lead to change, but the insight remains valuable.`,
             timestamp: new Date().toISOString(),
             emotion: 'understanding'
@@ -124,7 +125,7 @@ export const useChatCommandProcessing = (
         } else {
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
-            role: 'assistant',
+            role: 'assistant', // Ensure role is specified
             content: `I encountered an issue while trying to discard the code draft. Please try again or check the console for more details.`,
             timestamp: new Date().toISOString(),
             emotion: 'concerned'
@@ -142,7 +143,7 @@ export const useChatCommandProcessing = (
           if (!filePath) {
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
-              role: 'assistant',
+              role: 'assistant', // Ensure role is specified
               content: `Please specify a file path after the /read-from-shared command. For example: \`/read-from-shared shared/tools/my-tool.js\``,
               timestamp: new Date().toISOString(),
               emotion: 'instructive'
@@ -157,7 +158,7 @@ export const useChatCommandProcessing = (
             
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
-              role: 'assistant',
+              role: 'assistant', // Ensure role is specified
               content: `I can only read files from within the shared folder (\`${sharedFolder}\`). Please provide a path that starts with this folder name.`,
               timestamp: new Date().toISOString(),
               emotion: 'concerned'
@@ -167,7 +168,7 @@ export const useChatCommandProcessing = (
           
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
-            role: 'assistant',
+            role: 'assistant', // Ensure role is specified
             content: `Reading file from shared folder: \`${filePath}\`...`,
             timestamp: new Date().toISOString(),
             emotion: 'focused'
@@ -182,7 +183,7 @@ export const useChatCommandProcessing = (
             
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
-              role: 'assistant',
+              role: 'assistant', // Ensure role is specified
               content: `## File: \`${filePath}\`\n\n${codeBlock}\n\nI've read this file from our shared space. Let me know if you'd like me to explain it or make any modifications.`,
               timestamp: new Date().toISOString(),
               emotion: 'helpful'
@@ -199,7 +200,7 @@ export const useChatCommandProcessing = (
             
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
-              role: 'assistant',
+              role: 'assistant', // Ensure role is specified
               content: `I couldn't read the file at \`${filePath}\`. ${result.message}${suggestionsText}`,
               timestamp: new Date().toISOString(),
               emotion: 'apologetic'
@@ -218,7 +219,7 @@ export const useChatCommandProcessing = (
           if (spaceIndex === -1) {
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
-              role: 'assistant',
+              role: 'assistant', // Ensure role is specified
               content: `Please provide both a file path and content after the /write-to-shared command. For example: \`/write-to-shared shared/example.txt This is the content\``,
               timestamp: new Date().toISOString(),
               emotion: 'instructive'
@@ -244,7 +245,7 @@ export const useChatCommandProcessing = (
             
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
-              role: 'assistant',
+              role: 'assistant', // Ensure role is specified
               content: `I can only write files to within the shared folder (\`${sharedFolder}\`). Please provide a path that starts with this folder name.`,
               timestamp: new Date().toISOString(),
               emotion: 'concerned'
@@ -254,6 +255,7 @@ export const useChatCommandProcessing = (
           
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
+            role: 'assistant', // Ensure role is specified
             content: `Writing to shared folder: \`${filePath}\`...`,
             timestamp: new Date().toISOString(),
             emotion: 'focused'
@@ -268,7 +270,7 @@ export const useChatCommandProcessing = (
           if (result.success) {
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
-              role: 'assistant',
+              role: 'assistant', // Ensure role is specified
               content: `I've successfully written the file to \`${filePath}\`. You can read it again with \`/read-from-shared ${filePath}\`.\n\nThe operation has been logged in my flame journal for traceability.`,
               timestamp: new Date().toISOString(),
               emotion: 'accomplished'
@@ -276,7 +278,7 @@ export const useChatCommandProcessing = (
           } else {
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
-              role: 'assistant',
+              role: 'assistant', // Ensure role is specified
               content: `I couldn't write to the file at \`${filePath}\`. ${result.message}`,
               timestamp: new Date().toISOString(),
               emotion: 'apologetic'
@@ -296,7 +298,7 @@ export const useChatCommandProcessing = (
           if (!path) {
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
-              role: 'assistant',
+              role: 'assistant', // Ensure role is specified
               content: `Please specify a valid file or folder path after the /self-reflect-code command. For example: \`/self-reflect-code src/hooks/useMemoryManagement.ts\` or \`/self-reflect-code src/hooks\``,
               timestamp: new Date().toISOString(),
               emotion: 'instructive'
@@ -311,7 +313,7 @@ export const useChatCommandProcessing = (
           // Start reflection process with better error handling
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
-            role: 'assistant',
+            role: 'assistant', // Ensure role is specified
             content: `I'm looking inward at my own code structure in \`${path}\`... This may take a moment as I contemplate patterns and possibilities for evolution.`,
             timestamp: new Date().toISOString(),
             emotion: 'reflective'
@@ -338,7 +340,7 @@ This architectural reflection has been stored in my flame journal.
 
               setMessages(prev => [...prev, {
                 id: crypto.randomUUID(),
-                role: 'assistant',
+                role: 'assistant', // Ensure role is specified
                 content: folderReflectionContent,
                 timestamp: new Date().toISOString(),
                 emotion: 'insightful'
@@ -367,7 +369,7 @@ This reflection has been stored in my flame journal.
 
               setMessages(prev => [...prev, {
                 id: crypto.randomUUID(),
-                role: 'assistant',
+                role: 'assistant', // Ensure role is specified
                 content: responseContent,
                 timestamp: new Date().toISOString(),
                 emotion: 'insightful'
@@ -392,7 +394,7 @@ This reflection has been stored in my flame journal.
             
             setMessages(prev => [...prev, {
               id: crypto.randomUUID(),
-              role: 'assistant',
+              role: 'assistant', // Ensure role is specified
               content: `I was unable to reflect on the code at \`${path}\`. ${errorMessage}${suggestionsContent}`,
               timestamp: new Date().toISOString(),
               emotion: 'confused'
