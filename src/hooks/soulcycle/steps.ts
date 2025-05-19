@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { Message } from '@/types';
 import {
@@ -81,7 +82,7 @@ export const steps = (setMessages: React.Dispatch<React.SetStateAction<Message[]
 
   // Create a function to execute all steps in sequence
   const executeAll = useCallback(async (
-    type: 'weekly' | 'monthly' | 'quarterly',
+    type: 'weekly' | 'monthly' | 'quarterly' | 'soulstate',
     mode: 'deep' | 'standard' | 'quick',
     includeJournal: boolean
   ) => {

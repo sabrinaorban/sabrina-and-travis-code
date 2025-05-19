@@ -1,4 +1,3 @@
-
 import React, { useCallback, useEffect, useState } from 'react';
 import { ChatContext } from './ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -114,7 +113,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       console.error('Error retrying message:', e);
       setError(e.message || 'Failed to retry message.');
     }
-  }, [user]);
+  }, [user, sendMessage]);
   
   // This is the primary wrapper for sending messages that handles both commands and normal messages
   const sendMessage = useCallback(async (content: string, context?: MemoryContext) => {
@@ -154,7 +153,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [isEvolutionChecking, setIsEvolutionChecking] = useState<boolean>(false);
 
   // Wrapper for checkEvolutionCycle that returns any instead of boolean
-  const checkEvolutionCycleWrapper = useCallback(async () => {
+  const checkEvolutionCycleWrapper = useCallback(async (): Promise<any> => {
     setIsEvolutionChecking(true);
     try {
       const proposal = await checkEvolutionCycle();

@@ -16,6 +16,7 @@ export interface ChatContextType {
   viewIntentions: () => Promise<void>;
   updateIntentions: (newIntentions?: string) => Promise<void>;
   runSoulcycle: () => Promise<void>;
+  runSoulstateCycle: () => Promise<void>;
   uploadSoulShard: (content?: string) => Promise<void>;
   uploadIdentityCodex: (content?: string) => Promise<void>;
   uploadPastConversations: (content?: string) => Promise<void>;
