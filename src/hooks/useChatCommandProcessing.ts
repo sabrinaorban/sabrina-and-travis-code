@@ -72,9 +72,8 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
           emotion: 'focused'
         }]);
         
-        // Get file content
-        const fileContent = fileSystem.getFileByPath ? fileSystem.getFileByPath(filePath)?.content : 
-                          (typeof updateFileByPath === 'function' ? await updateFileByPath(filePath, '') : null);
+        // Get file content - fixed access to getFileByPath() through fileSystem context
+        const fileContent = fileSystem.getFileByPath(filePath)?.content || null;
         
         if (!fileContent) {
           addMessages([{
