@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { SelfTool } from '@/types';
 import { useSelfTools } from '@/hooks/useSelfTools';
@@ -34,24 +33,24 @@ export const SelfToolsView: React.FC = () => {
     loadTools();
   }, [listTools]);
   
-  const handleUseClick = () => {
+  const handleUseClick = async () => {
     if (selectedTool) {
-      // Fix: Remove the second argument that was expected
-      useTool(selectedTool.name);
+      // Fix: Call with correct parameter
+      await useTool(selectedTool.name);
     }
   };
   
-  const handleReflectClick = () => {
+  const handleReflectClick = async () => {
     if (selectedTool) {
-      // Fix: Remove the second argument that was expected
-      reflectOnTool(selectedTool.name);
+      // Fix: Call with correct parameter
+      await reflectOnTool(selectedTool.name);
     }
   };
   
-  const handleReviseClick = () => {
+  const handleReviseClick = async () => {
     if (selectedTool) {
-      // Fix: Remove the second argument that was expected
-      reviseTool(selectedTool.name);
+      // Fix: Call with correct parameter
+      await reviseTool(selectedTool.name);
     }
   };
 

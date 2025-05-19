@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Message, MemoryContext } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -118,7 +119,7 @@ export const useChatMessages = () => {
     return () => clearTimeout(loadingTimeout);
   }, [isLoadingHistory]);
 
-  // Implement proper message sending logic that actually updates the messages state and gets AI responses
+  // Fixed sendMessage function with Promise<void> return type to match ChatContext
   const sendMessage = useCallback(async (content: string, context?: MemoryContext): Promise<void> => {
     if (!content.trim() || !user?.id) {
       console.log("Message rejected: Empty content or no user");

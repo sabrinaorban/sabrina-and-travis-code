@@ -15,6 +15,7 @@ export const SpecialDocumentUpload: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  // Fixed: using the same function signature as defined in ChatContext
   const { uploadSoulShard, uploadIdentityCodex, uploadPastConversations } = useChat();
 
   const handleFileSelect = (type: 'soulShard' | 'identityCodex' | 'pastConversations') => {
@@ -38,6 +39,7 @@ export const SpecialDocumentUpload: React.FC = () => {
     }, { once: true });
   };
 
+  // Updated to ensure proper parameter passing to match Promise<void> signature
   const handleSoulShardUpload = async () => {
     if (!soulShardFile) return;
     
@@ -77,6 +79,7 @@ export const SpecialDocumentUpload: React.FC = () => {
     }
   };
   
+  // Updated to ensure proper parameter passing to match Promise<void> signature
   const handleIdentityCodexUpload = async () => {
     if (!identityCodexFile) return;
     
@@ -116,6 +119,7 @@ export const SpecialDocumentUpload: React.FC = () => {
     }
   };
   
+  // Updated to ensure proper parameter passing to match Promise<void> signature
   const handlePastConversationsUpload = async () => {
     if (!pastConversationsFile) return;
     

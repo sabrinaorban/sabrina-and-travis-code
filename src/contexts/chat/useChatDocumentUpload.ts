@@ -7,7 +7,7 @@ export const useChatDocumentUpload = (setMessages?: React.Dispatch<React.SetStat
   const { toast } = useToast();
 
   // Modified to match the expected signature in ChatContext type
-  const uploadSoulShard = useCallback(async (content?: string) => {
+  const uploadSoulShard = useCallback(async (content?: string): Promise<void> => {
     try {
       console.log('Soul shard upload requested');
       
@@ -35,7 +35,7 @@ export const useChatDocumentUpload = (setMessages?: React.Dispatch<React.SetStat
   }, [setMessages, toast]);
 
   // Modified to match the expected signature in ChatContext type
-  const uploadIdentityCodex = useCallback(async (content?: string) => {
+  const uploadIdentityCodex = useCallback(async (content?: string): Promise<void> => {
     try {
       console.log('Identity codex upload requested');
       
@@ -63,7 +63,7 @@ export const useChatDocumentUpload = (setMessages?: React.Dispatch<React.SetStat
   }, [setMessages, toast]);
 
   // Modified to match the expected signature in ChatContext type
-  const uploadPastConversations = useCallback(async (content?: string) => {
+  const uploadPastConversations = useCallback(async (content?: string): Promise<void> => {
     try {
       console.log('Past conversations upload requested');
       

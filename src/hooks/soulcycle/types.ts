@@ -19,16 +19,16 @@ export interface SoulcycleStepProps {
   setCycleResults: React.Dispatch<React.SetStateAction<CycleResults>>;
   user: any;
   cycleResults: CycleResults;
-  // Add these missing properties
-  reflectionType?: string;
+  // Add these missing properties with type definitions
+  reflectionType?: 'weekly' | 'monthly' | 'quarterly';
   includeJournal?: boolean;
-  evolutionMode?: string;
+  evolutionMode?: 'deep' | 'standard' | 'quick';
 }
 
 export type SoulcycleStep = (props: SoulcycleStepProps) => Promise<boolean>;
 
 export interface SoulcycleOptions {
-  reflectionType: string;
+  reflectionType: 'weekly' | 'monthly' | 'quarterly';
   includeJournal: boolean;
-  evolutionMode: string;
+  evolutionMode: 'deep' | 'standard' | 'quick';
 }

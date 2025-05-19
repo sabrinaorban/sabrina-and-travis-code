@@ -29,7 +29,7 @@ export const useChatIntentionsAndReflection = (
     generateSoulstateSummary
   } = useChatSoulstate(setMessages);
   
-  // Add soulcycle functionality
+  // Add soulcycle functionality - ensure Promise<void> return type
   const { runSoulcycle } = useChatSoulcycle(setMessages);
   
   // Add document upload functionality
@@ -46,7 +46,7 @@ export const useChatIntentionsAndReflection = (
   } = useInsights();
   
   // Create a function for the /insight command
-  const generateInsight = useCallback(async () => {
+  const generateInsight = useCallback(async (): Promise<void> => {
     try {
       await generateInsightMessage(setMessages);
     } catch (error) {

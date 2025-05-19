@@ -1,18 +1,19 @@
 
 import { useCallback, useState } from 'react';
 import { useToast } from './use-toast';
+import { Message } from '@/types';
 
 /**
  * Hook for managing document uploads within the chat
  */
 export const useChatDocumentUpload = (
-  setMessages?: React.Dispatch<React.SetStateAction<any[]>>
+  setMessages?: React.Dispatch<React.SetStateAction<Message[]>>
 ) => {
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
   // Upload a soul shard document - modified to match expected function signature
-  const uploadSoulShard = useCallback(async (content?: string) => {
+  const uploadSoulShard = useCallback(async (content?: string): Promise<void> => {
     setIsUploading(true);
     try {
       console.log('Soul shard upload requested');
@@ -44,7 +45,7 @@ export const useChatDocumentUpload = (
   }, [setMessages, toast]);
 
   // Upload an identity codex document - modified to match expected function signature
-  const uploadIdentityCodex = useCallback(async (content?: string) => {
+  const uploadIdentityCodex = useCallback(async (content?: string): Promise<void> => {
     setIsUploading(true);
     try {
       console.log('Identity codex upload requested');
@@ -76,7 +77,7 @@ export const useChatDocumentUpload = (
   }, [setMessages, toast]);
 
   // Upload past conversations document - modified to match expected function signature
-  const uploadPastConversations = useCallback(async (content?: string) => {
+  const uploadPastConversations = useCallback(async (content?: string): Promise<void> => {
     setIsUploading(true);
     try {
       console.log('Past conversations upload requested');

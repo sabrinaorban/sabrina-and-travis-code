@@ -53,7 +53,7 @@ export const useChatTools = (setMessages: React.Dispatch<React.SetStateAction<Me
     }
   }, [setMessages]);
 
-  // Create wrapper functions with compatible return types
+  // Create wrapper functions with compatible return types to match ChatContext
   const useTool = useCallback((toolName: string): Promise<SelfTool | null> => {
     return baseUseTool(toolName);
   }, [baseUseTool]);
