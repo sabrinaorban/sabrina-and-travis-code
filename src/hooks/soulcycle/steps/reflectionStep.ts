@@ -14,7 +14,9 @@ export const runReflectionStep = (
       addSystemMessage(`📝 Initiating Soulcycle...\n\nStep 1/5: Generating ${reflectionType || 'weekly'} reflection...`);
       
       let reflection;
-      if (reflectionType === 'soulstate') {
+      // Use type casting to tell TypeScript that reflectionType could be 'soulstate'
+      // This is necessary since the types parameter from SoulcycleStepProps doesn't include 'soulstate'
+      if ((reflectionType as string) === 'soulstate') {
         reflection = await generateSoulstateReflection();
       } else {
         // Default to weekly for any other value

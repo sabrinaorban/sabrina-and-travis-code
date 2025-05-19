@@ -8,6 +8,7 @@ export const useChatSoulcycle = (setMessages: React.Dispatch<React.SetStateActio
 
   // Fix return type to Promise<void> to match what's expected in ChatContext
   const runSoulcycle = useCallback(async (): Promise<void> => {
+    // Pass 'weekly' as the reflection type, and make sure it's a type included in SoulcycleOptions
     await executeSoulcycle('weekly', true, 'standard');
   }, [executeSoulcycle]);
 

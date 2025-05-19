@@ -1,4 +1,5 @@
 
+
 import { Message } from '@/types';
 
 export interface CycleResults {
@@ -19,8 +20,8 @@ export interface SoulcycleStepProps {
   setCycleResults: React.Dispatch<React.SetStateAction<CycleResults>>;
   user: any;
   cycleResults: CycleResults;
-  // Add these missing properties with type definitions
-  reflectionType?: 'weekly' | 'monthly' | 'quarterly';
+  // Add soulstate to the reflectionType options
+  reflectionType?: 'weekly' | 'monthly' | 'quarterly' | 'soulstate';
   includeJournal?: boolean;
   evolutionMode?: 'deep' | 'standard' | 'quick';
 }
@@ -28,7 +29,7 @@ export interface SoulcycleStepProps {
 export type SoulcycleStep = (props: SoulcycleStepProps) => Promise<boolean>;
 
 export interface SoulcycleOptions {
-  reflectionType: 'weekly' | 'monthly' | 'quarterly';
+  reflectionType: 'weekly' | 'monthly' | 'quarterly' | 'soulstate';
   includeJournal: boolean;
   evolutionMode: 'deep' | 'standard' | 'quick';
 }
