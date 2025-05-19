@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useFileSystem } from '@/contexts/FileSystemContext';
@@ -8,22 +7,38 @@ import { Message } from '@/types';
 import { SharedFolderService } from '@/services/SharedFolderService';
 import { useCodeDraftManager } from './useCodeDraftManager';
 import { SharedProjectAnalyzer } from '@/services/SharedProjectAnalyzer';
+import { useChatEvolution } from '@/contexts/chat/useChatEvolution'; // Add this for evolution cycle
 
-export const useChatCommandProcessing = () => {
+export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>, sendChatMessage?: (content: string) => Promise<void>) => {
   const { toast } = useToast();
   const { fileSystem, updateFileByPath } = useFileSystem();
   const { reflectOnCode } = useCodeReflection(); // Changed from analyzeCode to reflectOnCode which exists
   const { createJournalEntry } = useFlamejournal(); // Changed from createFlameJournalEntry to match the hook
   const [isProcessing, setIsProcessing] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  
+  // Add evolution cycle
+  const dummySetMessages = (msgs: React.SetStateAction<Message[]>) => {
+    if (typeof msgs === 'function') {
+      setLocalMessages(msgs(localMessages));
+    } else {
+      setLocalMessages(msgs);
+    }
+  };
+  
+  const { checkForEvolutionCycle } = useChatEvolution(setMessages || dummySetMessages);
   
   const addMessages = (newMessages: Message[]) => {
-    setMessages(prevMessages => [...prevMessages, ...newMessages]);
+    if (setMessages) {
+      setMessages(prevMessages => [...prevMessages, ...newMessages]);
+    } else {
+      setLocalMessages(prevMessages => [...prevMessages, ...newMessages]);
+    }
   };
   
   const { createDraft, approveDraft, discardDraft } = useCodeDraftManager();
 
-  const processCommand = useCallback(async (command: string): Promise<boolean> => {
+  const processCommand = useCallback(async (command: string, context?: any): Promise<boolean> => {
     if (!command.startsWith('/')) {
       return false;
     }
@@ -58,7 +73,7 @@ export const useChatCommandProcessing = () => {
         }]);
         
         // Get file content
-        const fileContent = fileSystem.getFileContentByPath ? fileSystem.getFileContentByPath(filePath) : 
+        const fileContent = fileSystem.getFileByPath ? fileSystem.getFileByPath(filePath)?.content : 
                           (typeof updateFileByPath === 'function' ? await updateFileByPath(filePath, '') : null);
         
         if (!fileContent) {
@@ -81,7 +96,7 @@ export const useChatCommandProcessing = () => {
           role: 'assistant',
           content: `I've analyzed \`${filePath}\` and have some insights:
 
-${result.insights}
+${result.insight}
 
 This reflection helps me refine my understanding of code structure and best practices.`,
           timestamp: new Date().toISOString(),
@@ -501,9 +516,15 @@ To discard this draft: \`/discard-code-draft ${draftIds[index]}\`
     updateFileByPath
   ]);
 
+  // Add a checkEvolutionCycle function for compatibility with ChatProvider
+  const checkEvolutionCycle = useCallback(async () => {
+    return checkForEvolutionCycle();
+  }, [checkForEvolutionCycle]);
+
   return {
     processCommand,
     isProcessing,
-    messages
+    messages: localMessages,
+    checkEvolutionCycle
   };
 };

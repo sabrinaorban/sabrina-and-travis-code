@@ -51,11 +51,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     handleToolCommand
   } = useChatTools(setMessages);
   
-  // Process special commands using the command processor
+  // Process special commands using the command processor - pass setMessages as argument
   const {
     processCommand,
     checkEvolutionCycle,
-    isProcessing: isProcessingCommand
+    isProcessing: isProcessingCommand,
+    messages: commandMessages
   } = useChatCommandProcessing(setMessages, sendChatMessage);
 
   // Add chat command processing
