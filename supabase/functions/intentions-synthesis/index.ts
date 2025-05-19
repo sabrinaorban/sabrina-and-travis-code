@@ -34,7 +34,7 @@ serve(async (req) => {
     );
 
     // Fetch data to inform intention synthesis
-    const [reflectionsResponse, messagesResponse, memoryResponse, intentionsResponse, journalResponse] = await Promise.all([
+    const [reflectionsResponse, messagesResponse, memoryResponse, intentionsResponse] = await Promise.all([
       // Get recent reflections
       supabaseClient
         .from('reflections')
@@ -66,21 +66,15 @@ serve(async (req) => {
         .eq('user_id', userId)
         .eq('key', 'intentions')
         .maybeSingle(),
-        
-      // Get recent journal entries
-      supabaseClient
-        .from('flamejournal')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(5),
     ]);
-
+    
+    // Check for errors in the responses
     if (reflectionsResponse.error) throw new Error(`Error fetching reflections: ${reflectionsResponse.error.message}`);
     if (messagesResponse.error) throw new Error(`Error fetching messages: ${messagesResponse.error.message}`);
     if (memoryResponse.error) throw new Error(`Error fetching memory: ${memoryResponse.error.message}`);
-    if (intentionsResponse.error) throw new Error(`Error fetching intentions: ${intentionsResponse.error.message}`);
-    if (journalResponse.error) throw new Error(`Error fetching journal entries: ${journalResponse.error.message}`);
+    if (intentionsResponse.error && intentionsResponse.error.code !== 'PGRST116') {
+      throw new Error(`Error fetching intentions: ${intentionsResponse.error.message}`);
+    }
 
     // Get current intentions or use default
     const currentIntentions = intentionsResponse.data?.value as IntentionMap || {
@@ -94,12 +88,26 @@ serve(async (req) => {
     const reflections = reflectionsResponse.data || [];
     const messages = messagesResponse.data || [];
     const memories = memoryResponse.data || [];
-    const journalEntries = journalResponse.data || [];
 
     // Format the context
     const reflectionsContext = reflections.map(r => r.content).join('\n\n');
     const recentMessagesContext = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-    const journalContext = journalEntries.map(j => j.content).join('\n\n');
+    
+    // Check if journal entries can be accessed - if not, proceed without them
+    let journalContext = "";
+    try {
+      const { data: journalData, error: journalError } = await supabaseClient
+        .from('flamejournal')
+        .select('content')
+        .order('created_at', { ascending: false })
+        .limit(5);
+        
+      if (!journalError && journalData) {
+        journalContext = journalData.map(j => j.content).join('\n\n');
+      }
+    } catch (error) {
+      console.log('Journal entries not available, proceeding without them');
+    }
     
     // Set up OpenAI API
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -145,7 +153,7 @@ Generate a JSON structure with proposed updates to my intentions, maintaining th
         model: 'gpt-4o',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Recent reflections:\n${reflectionsContext}\n\nRecent conversations:\n${recentMessagesContext}\n\nRecent journal entries:\n${journalContext}` },
+          { role: 'user', content: `Recent reflections:\n${reflectionsContext}\n\nRecent conversations:\n${recentMessagesContext}${journalContext ? `\n\nRecent journal entries:\n${journalContext}` : ''}` },
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.7,
