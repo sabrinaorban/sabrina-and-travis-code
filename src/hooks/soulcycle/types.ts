@@ -1,5 +1,4 @@
 
-
 import { Message } from '@/types';
 
 export interface CycleResults {
@@ -20,7 +19,7 @@ export interface SoulcycleStepProps {
   setCycleResults: React.Dispatch<React.SetStateAction<CycleResults>>;
   user: any;
   cycleResults: CycleResults;
-  // Add soulstate to the reflectionType options
+  // Include soulstate as a valid reflection type
   reflectionType?: 'weekly' | 'monthly' | 'quarterly' | 'soulstate';
   includeJournal?: boolean;
   evolutionMode?: 'deep' | 'standard' | 'quick';

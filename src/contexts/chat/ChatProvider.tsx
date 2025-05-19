@@ -1,3 +1,4 @@
+
 import React, { useCallback, useEffect, useState } from 'react';
 import { ChatContext } from './ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -71,6 +72,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     viewIntentions,
     updateIntentions,
     runSoulcycle,
+    runSoulstateCycle,
+    checkAndTriggerWeeklyReflection,
     uploadSoulShard,
     uploadIdentityCodex,
     uploadPastConversations,
@@ -164,6 +167,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       setIsEvolutionChecking(false);
     }
   }, [checkEvolutionCycle]);
+  
+  // Automatic reflection trigger - check once a day
+  useEffect(() => {
+    if (!user) return;
+    
+    // Check if we should trigger a weekly reflection on initial load
+    const initialCheck = setTimeout(() => {
+      checkAndTriggerWeeklyReflection().catch(err => 
+        console.error('Error checking for weekly reflection:', err)
+      );
+    }, 15000); // Wait 15 seconds after initial load
+    
+    // Set up a daily check
+    const dailyCheck = setInterval(() => {
+      checkAndTriggerWeeklyReflection().catch(err => 
+        console.error('Error checking for weekly reflection:', err)
+      );
+    }, 24 * 60 * 60 * 1000); // Check once every 24 hours
+    
+    return () => {
+      clearTimeout(initialCheck);
+      clearInterval(dailyCheck);
+    };
+  }, [user, checkAndTriggerWeeklyReflection]);
 
   return (
     <ChatContext.Provider
@@ -183,6 +210,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         viewIntentions,
         updateIntentions,
         runSoulcycle,
+        runSoulstateCycle,
         uploadSoulShard,
         uploadIdentityCodex,
         uploadPastConversations,

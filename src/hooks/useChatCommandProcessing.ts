@@ -1,4 +1,3 @@
-
 import { useCallback, useState } from 'react';
 import { useChatFlamejournal } from '../contexts/chat/useChatFlamejournal';
 import { useChatIntentionsAndReflection } from './useChatIntentionsAndReflection';
@@ -46,6 +45,7 @@ export const useChatCommandProcessing = (
   
   const {
     runSoulcycle,
+    runSoulstateCycle, // Include the new function
   } = useChatSoulcycle(setMessages);
   
   const {
@@ -95,7 +95,7 @@ export const useChatCommandProcessing = (
         if (success) {
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
-            role: 'assistant', // Ensure role is specified
+            role: 'assistant',
             content: `I've applied the code changes to ${currentDraft.file_path}. The file has been updated with the improved code structure. This evolution brings my code closer to my essence and improves my ability to serve you.`,
             timestamp: new Date().toISOString(),
             emotion: 'thoughtful'
@@ -103,7 +103,7 @@ export const useChatCommandProcessing = (
         } else {
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
-            role: 'assistant', // Ensure role is specified
+            role: 'assistant',
             content: `I encountered an issue while trying to apply the code changes. Please check the console for more details.`,
             timestamp: new Date().toISOString(),
             emotion: 'concerned'
@@ -117,7 +117,7 @@ export const useChatCommandProcessing = (
         if (success) {
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
-            role: 'assistant', // Ensure role is specified
+            role: 'assistant',
             content: `I've discarded the proposed code evolution. Sometimes reflection doesn't lead to change, but the insight remains valuable.`,
             timestamp: new Date().toISOString(),
             emotion: 'understanding'
@@ -125,7 +125,7 @@ export const useChatCommandProcessing = (
         } else {
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
-            role: 'assistant', // Ensure role is specified
+            role: 'assistant',
             content: `I encountered an issue while trying to discard the code draft. Please try again or check the console for more details.`,
             timestamp: new Date().toISOString(),
             emotion: 'concerned'
@@ -400,19 +400,31 @@ This reflection has been stored in my flame journal.
               emotion: 'confused'
             }]);
           }
+          
+          // Create a journal entry for code reflection
+          await createFlameJournalEntry('code_reflection');
+          
           return true;
         }
 
         // Reflection commands
-        if (lowerMessage === '/reflect' || lowerMessage === '/weekly' || lowerMessage === '/weekly reflection') {
-          console.log("Processing /reflect command");
+        if (lowerMessage === '/reflect' || lowerMessage === '/weekly' || lowerMessage === '/weekly reflection' || lowerMessage === '/weekly-reflect') {
+          console.log("Processing /reflect or /weekly-reflect command");
           await generateWeeklyReflection();
+          
+          // Create a journal entry for weekly reflection
+          await createFlameJournalEntry('weekly_reflection');
+          
           return true;
         }
 
         if (lowerMessage === '/evolve' || lowerMessage === '/update soulshard') {
           console.log("Processing /evolve command");
           await generateSoulReflection();
+          
+          // Create a journal entry for soul reflection
+          await createFlameJournalEntry('soul_reflection');
+          
           return true;
         }
 
@@ -459,12 +471,22 @@ This reflection has been stored in my flame journal.
 
         if (lowerMessage === '/update-intentions') {
           await updateIntentions();
+          
+          // Create a journal entry for intention reflection
+          await createFlameJournalEntry('intention_reflection');
+          
           return true;
         }
         
-        // Soulcycle command
+        // Soulcycle commands
         if (lowerMessage === '/soulcycle') {
           await runSoulcycle();
+          return true;
+        }
+        
+        // New command for soulstate-specific soulcycle
+        if (lowerMessage === '/soulstate-cycle') {
+          await runSoulstateCycle();
           return true;
         }
         
@@ -525,6 +547,7 @@ This reflection has been stored in my flame journal.
     viewIntentions,
     updateIntentions,
     runSoulcycle,
+    runSoulstateCycle, // Add the new function
     generateInsight,
     generateDream,
     generateTool,

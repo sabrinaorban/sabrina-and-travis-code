@@ -10,7 +10,7 @@ export const useSoulcycle = (
 
   const executeSoulcycle = useCallback(
     async (
-      type: 'weekly' | 'monthly' | 'quarterly',
+      type: 'weekly' | 'monthly' | 'quarterly' | 'soulstate',
       includeJournal: boolean = true,
       mode: 'deep' | 'standard' | 'quick' = 'standard'
     ): Promise<boolean> => {

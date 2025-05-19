@@ -38,8 +38,36 @@ export const useChatSoulcycle = (setMessages: React.Dispatch<React.SetStateActio
     }
   }, [executeSoulcycle, setMessages, toast]);
 
+  // Add a new function to run soulcycle with soulstate reflection
+  const runSoulstateCycle = useCallback(async (): Promise<boolean> => {
+    if (!setMessages) {
+      toast({
+        title: 'Soulstate Cycle Error',
+        description: 'Unable to run soulstate cycle without message context',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
+    setIsProcessing(true);
+    try {
+      return await executeSoulcycle('soulstate', true, 'deep');
+    } catch (error) {
+      console.error('Error executing soulstate cycle:', error);
+      toast({
+        title: 'Soulstate Cycle Failed',
+        description: 'Unable to complete the soulstate cycle process',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [executeSoulcycle, setMessages, toast]);
+
   return {
     runSoulcycle,
+    runSoulstateCycle,
     isProcessingSoulcycle: isProcessing
   };
 };
