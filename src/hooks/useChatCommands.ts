@@ -43,6 +43,10 @@ export const useChatCommands = () => {
           return `
 Available commands:
 /scan-shared-project - Scan and index a project in the shared folder
+/read-project-context [path] - Analyze and summarize project architecture
+/refactor-file [path] - Suggest improvements for a specific file
+/read-from-shared [path] - Read a file from the shared folder
+/write-to-shared [path] [content] - Write content to a file in the shared folder
 /help - Show this help message
           `.trim();
         }

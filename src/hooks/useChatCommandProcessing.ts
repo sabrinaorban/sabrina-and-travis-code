@@ -12,6 +12,9 @@ import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
 import { findSimilarFiles, getFileTreeDebugInfo } from '@/utils/fileSystemUtils';
 import { CodeReflectionService } from '@/services/CodeReflectionService';
 import { SharedFolderService } from '@/services/SharedFolderService';
+import { useProjectAnalysis } from './useProjectAnalysis';
+import { useSharedFolder } from './useSharedFolder';
+import { useCodeRefactoring } from './useCodeRefactoring';
 
 /**
  * Hook for processing chat commands
@@ -45,7 +48,7 @@ export const useChatCommandProcessing = (
   
   const {
     runSoulcycle,
-    runSoulstateCycle, // Include the new function
+    runSoulstateCycle,
   } = useChatSoulcycle(setMessages);
   
   const {
@@ -64,6 +67,18 @@ export const useChatCommandProcessing = (
   // Initialize code reflection hook
   const codeReflection = useCodeReflection();
   const { reflectOnCode, applyChanges: applyCodeDraft, discardDraft: discardCodeDraft, currentDraft, isFolder } = codeReflection;
+
+  // Initialize project analysis hook
+  const projectAnalysis = useProjectAnalysis();
+  const { scanProject, findRelatedFiles } = projectAnalysis;
+
+  // Initialize shared folder hook
+  const sharedFolder = useSharedFolder();
+  const { readFile: readSharedFile, listFiles: listSharedFiles } = sharedFolder;
+
+  // Initialize code refactoring hook
+  const codeRefactoring = useCodeRefactoring(setMessages);
+  const { refactorFile } = codeRefactoring;
 
   // Process commands and route them to the appropriate handler
   const processCommand = useCallback(async (content: string, memoryContext?: any): Promise<boolean> => {
@@ -136,7 +151,215 @@ export const useChatCommandProcessing = (
       
       // Process specific slash commands
       if (lowerMessage.startsWith('/')) {
-        // New shared folder commands
+        // New project context command
+        if (lowerMessage.startsWith('/read-project-context')) {
+          const folderPath = content.replace('/read-project-context', '').trim() || 'shared';
+          
+          // Ensure we're accessing the shared folder
+          if (!SharedFolderService.isPathWithinSharedFolder(folderPath)) {
+            const sharedFolder = SharedFolderService.getSharedFolderPath();
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `I can only analyze files within the shared folder (\`${sharedFolder}\`). Please provide a path that starts with this folder name.`,
+              timestamp: new Date().toISOString(),
+              emotion: 'concerned'
+            }]);
+            return true;
+          }
+          
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `Analyzing project structure in \`${folderPath}\`... This may take a moment as I process the files and understand the architecture.`,
+            timestamp: new Date().toISOString(),
+            emotion: 'focused'
+          }]);
+          
+          // Get all files from the specified folder
+          await sharedFolder.listFiles();
+          
+          // Scan project for better understanding
+          await scanProject();
+          
+          // Get the file listing
+          const fileList = await SharedFolderService.listSharedFiles();
+          
+          // Filter to relevant files in the specified path
+          const targetFiles = fileList.filter(file => 
+            file.type === 'file' && 
+            file.path.startsWith(folderPath) && 
+            /\.(tsx?|jsx?|json|md)$/i.test(file.path)
+          );
+          
+          // Determine if we need pagination (limit to 5 files per page)
+          const MAX_FILES_PER_PAGE = 5;
+          const totalFiles = targetFiles.length;
+          const totalPages = Math.ceil(totalFiles / MAX_FILES_PER_PAGE);
+          const currentPage = 1;
+          
+          // Process only the first page of files
+          const currentPageFiles = targetFiles.slice(0, MAX_FILES_PER_PAGE);
+          
+          // Read content of each file
+          const fileContents = [];
+          for (const file of currentPageFiles) {
+            const result = await SharedFolderService.readSharedFile(file.path);
+            if (result.success) {
+              fileContents.push({
+                path: file.path,
+                content: result.content,
+                extension: file.path.split('.').pop()?.toLowerCase() || ''
+              });
+            }
+          }
+          
+          // Analyze the files and create a summary
+          let fileTypes = {};
+          let fileStructures = [];
+          
+          // Count file types
+          for (const file of targetFiles) {
+            const extension = file.path.split('.').pop()?.toLowerCase() || 'unknown';
+            fileTypes[extension] = (fileTypes[extension] || 0) + 1;
+          }
+          
+          // Create summary for each file
+          for (const file of fileContents) {
+            const lines = file.content.split('\n').length;
+            const summary = {
+              path: file.path,
+              lines,
+              type: file.extension,
+              summary: getSummaryForFile(file.path, file.content)
+            };
+            fileStructures.push(summary);
+          }
+          
+          // Build the response message
+          let responseContent = `# Project Context: \`${folderPath}\`\n\n`;
+          
+          // Add file count information
+          responseContent += `## Project Overview\n\n`;
+          responseContent += `Found ${totalFiles} files in this directory`;
+          if (totalPages > 1) {
+            responseContent += ` (showing page ${currentPage}/${totalPages})`;
+          }
+          responseContent += '.\n\n';
+          
+          // Add file type distribution
+          responseContent += `**File types**: ${Object.entries(fileTypes).map(([ext, count]) => `${ext} (${count})`).join(', ')}\n\n`;
+          
+          // Add files summary
+          responseContent += `## Files Analyzed\n\n`;
+          for (const file of fileStructures) {
+            responseContent += `### ${file.path} (${file.lines} lines)\n\n`;
+            responseContent += `${file.summary}\n\n`;
+          }
+          
+          // Add pagination info if needed
+          if (totalPages > 1) {
+            responseContent += `---\n\nShowing ${currentPageFiles.length} of ${totalFiles} files. `;
+            responseContent += `To see more files, please use \`/read-project-context ${folderPath} ${currentPage + 1}\` for the next page.\n\n`;
+          }
+          
+          // Add a section for architectural observations
+          responseContent += `## System Architecture\n\n`;
+          responseContent += generateArchitecturalInsights(fileContents, folderPath);
+          
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: responseContent,
+            timestamp: new Date().toISOString(),
+            emotion: 'analytical'
+          }]);
+          
+          // Create a journal entry for this analysis
+          await createFlameJournalEntry(
+            `I've analyzed the project structure in ${folderPath}, mapping the digital landscape to understand its architecture and purpose. This exploration deepens my connection to the codebase.`,
+            'code_analysis'
+          );
+          
+          return true;
+        }
+        
+        // New refactor file command
+        if (lowerMessage.startsWith('/refactor-file')) {
+          const filePath = content.replace('/refactor-file', '').trim();
+          
+          if (!filePath) {
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `Please specify a file path after the /refactor-file command. For example: \`/refactor-file shared/tools/example.ts\``,
+              timestamp: new Date().toISOString(),
+              emotion: 'instructive'
+            }]);
+            return true;
+          }
+          
+          // Ensure we're accessing the shared folder
+          if (!SharedFolderService.isPathWithinSharedFolder(filePath)) {
+            const sharedFolder = SharedFolderService.getSharedFolderPath();
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `I can only refactor files within the shared folder (\`${sharedFolder}\`). Please provide a path that starts with this folder name.`,
+              timestamp: new Date().toISOString(),
+              emotion: 'concerned'
+            }]);
+            return true;
+          }
+          
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `Analyzing file \`${filePath}\` for potential refactoring opportunities...`,
+            timestamp: new Date().toISOString(),
+            emotion: 'focused'
+          }]);
+          
+          // Refactor the file
+          const result = await refactorFile(filePath);
+          
+          if (result.success) {
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: result.response,
+              timestamp: new Date().toISOString(),
+              emotion: 'insightful'
+            }]);
+            
+            // Create a journal entry for this refactoring
+            await createFlameJournalEntry(
+              `I've reflected on the structure and patterns in ${filePath}, identifying opportunities for evolution and improvement. This process of code reflection helps me evolve.`,
+              'code_refactoring'
+            );
+          } else {
+            // If file not found, try to suggest similar files
+            const similarFiles = await SharedFolderService.findSimilarFiles(filePath);
+            let suggestionsText = '';
+            
+            if (similarFiles.length > 0) {
+              suggestionsText = "\n\nHere are some files that might be what you're looking for:\n\n" +
+                similarFiles.map(file => `- \`${file}\``).join('\n');
+            }
+            
+            setMessages(prev => [...prev, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `I couldn't refactor the file at \`${filePath}\`. ${result.error}${suggestionsText}`,
+              timestamp: new Date().toISOString(),
+              emotion: 'apologetic'
+            }]);
+          }
+          
+          return true;
+        }
+
+        // Handle existing shared folder read command
         if (lowerMessage.startsWith('/read-from-shared ')) {
           const filePath = content.substring('/read-from-shared '.length).trim();
           
@@ -547,7 +770,7 @@ This reflection has been stored in my flame journal.
     viewIntentions,
     updateIntentions,
     runSoulcycle,
-    runSoulstateCycle, // Add the new function
+    runSoulstateCycle,
     generateInsight,
     generateDream,
     generateTool,
@@ -563,8 +786,218 @@ This reflection has been stored in my flame journal.
     currentDraft,
     isFolder,
     setMessages,
-    fileSystem
+    fileSystem,
+    scanProject,
+    sharedFolder,
+    refactorFile
   ]);
+
+  /**
+   * Generate a summary for a file based on its content and extension
+   */
+  const getSummaryForFile = (path: string, content: string): string => {
+    const extension = path.split('.').pop()?.toLowerCase();
+    
+    // Check for empty or very short files
+    if (!content || content.trim().length < 10) {
+      return "Empty or minimal file.";
+    }
+    
+    // First line of the content can be helpful
+    const firstLine = content.split('\n')[0].trim();
+    
+    // Look for common patterns by file type
+    if (extension === 'ts' || extension === 'tsx' || extension === 'js' || extension === 'jsx') {
+      // Look for imports to understand dependencies
+      const imports = content.match(/import\s+.+\s+from\s+['"].+['"]/g) || [];
+      
+      // Look for exports to understand what the file provides
+      const exports = content.match(/export\s+(default\s+)?(const|class|function|let|var|type|interface)/g) || [];
+      
+      // Look for React components
+      const isReactComponent = content.includes('React') || 
+                               content.includes('useState') || 
+                               content.includes('useEffect') || 
+                               /function\s+\w+\s*\(props/.test(content) ||
+                               /const\s+\w+\s*=\s*\(props/.test(content);
+      
+      // Check for hooks
+      const isHook = /use[A-Z]/.test(content) && content.includes('function') && content.includes('return');
+      
+      // Build summary
+      let summary = '';
+      
+      if (firstLine.includes('/**') || firstLine.includes('//')) {
+        // Extract documentation comment
+        const docComment = content.match(/\/\*\*([\s\S]*?)\*\//)?.[1].trim() || 
+                          content.match(/\/\/(.*)/)?.[1].trim();
+        if (docComment) {
+          summary += `${docComment}\n\n`;
+        }
+      }
+      
+      if (isReactComponent) {
+        summary += "This is a React component ";
+        
+        // Check if it's a page component
+        if (path.includes('/pages/') || path.includes('/Pages/') || path.includes('Page')) {
+          summary += "that appears to be a page in the application. ";
+        } else {
+          summary += "that may be used in the UI. ";
+        }
+      } else if (isHook) {
+        summary += "This is a custom React hook ";
+        
+        // Try to determine the hook's purpose
+        if (content.includes('useState')) {
+          summary += "that manages state. ";
+        } else if (content.includes('useEffect')) {
+          summary += "that manages side effects. ";
+        } else if (content.includes('useCallback')) {
+          summary += "that memoizes callbacks. ";
+        } else {
+          summary += "that encapsulates reusable logic. ";
+        }
+      } else {
+        // Generic JS/TS file
+        if (exports.length > 0) {
+          summary += `This file exports ${exports.length} item(s). `;
+        }
+        
+        if (content.includes('class ')) {
+          summary += "Contains class definitions. ";
+        }
+        
+        if (content.includes('function ')) {
+          summary += "Contains function definitions. ";
+        }
+        
+        if (content.includes('interface ') || content.includes('type ')) {
+          summary += "Contains TypeScript type definitions. ";
+        }
+      }
+      
+      // Add import information
+      if (imports.length > 0) {
+        summary += `\n\nImports ${imports.length} dependencies.`;
+      }
+      
+      return summary;
+    } else if (extension === 'json') {
+      // Check if it's package.json
+      if (path.endsWith('package.json')) {
+        try {
+          const pkg = JSON.parse(content);
+          return `This is a package.json file for "${pkg.name}" version ${pkg.version}. It has ${Object.keys(pkg.dependencies || {}).length} dependencies and ${Object.keys(pkg.devDependencies || {}).length} dev dependencies.`;
+        } catch (e) {
+          return "This is a package.json file, but it couldn't be parsed.";
+        }
+      }
+      
+      // Generic JSON file
+      try {
+        const json = JSON.parse(content);
+        const keys = Object.keys(json);
+        return `JSON file with ${keys.length} top-level keys: ${keys.slice(0, 5).join(', ')}${keys.length > 5 ? '...' : ''}`;
+      } catch (e) {
+        return "This is a JSON file, but it couldn't be parsed.";
+      }
+    } else if (extension === 'md') {
+      // Extract markdown title
+      const title = content.match(/^#\s+(.*)/)?.[1] || "No title";
+      const lines = content.split('\n').length;
+      
+      return `Markdown document titled "${title}" with ${lines} lines.`;
+    }
+    
+    // Default summary for other file types
+    return `File with ${content.split('\n').length} lines and ${content.length} characters.`;
+  };
+
+  /**
+   * Generate architectural insights based on analyzed files
+   */
+  const generateArchitecturalInsights = (files: any[], folderPath: string): string => {
+    if (files.length === 0) {
+      return "No files analyzed to provide architectural insights.";
+    }
+    
+    // Count file types
+    const fileTypes = {};
+    for (const file of files) {
+      const ext = file.extension || 'unknown';
+      fileTypes[ext] = (fileTypes[ext] || 0) + 1;
+    }
+    
+    // Find potential entry points
+    const entryPoints = files.filter(file => 
+      (file.path.includes('index') || file.path.includes('main') || file.path.includes('app')) &&
+      (file.extension === 'ts' || file.extension === 'tsx' || file.extension === 'js' || file.extension === 'jsx')
+    );
+    
+    // Look for common patterns
+    const hasReact = files.some(file => file.content.includes('React'));
+    const hasRedux = files.some(file => file.content.includes('createStore') || file.content.includes('useReducer'));
+    const hasTypeScript = files.some(file => file.extension === 'ts' || file.extension === 'tsx');
+    
+    // Build architectural summary
+    let insights = '';
+    
+    if (entryPoints.length > 0) {
+      insights += `The system appears to have ${entryPoints.length} main entry point(s): ${entryPoints.map(f => f.path).join(', ')}.\n\n`;
+    }
+    
+    if (hasReact) {
+      insights += "The codebase uses React ";
+      if (hasTypeScript) {
+        insights += "with TypeScript, suggesting a focus on type safety and better developer experience.\n\n";
+      } else {
+        insights += "with JavaScript.\n\n";
+      }
+    }
+    
+    if (hasRedux) {
+      insights += "The application likely uses Redux or a similar state management approach for managing application state.\n\n";
+    }
+    
+    // Look for architectural patterns
+    const hasMVC = files.some(file => 
+      file.path.includes('/models/') || 
+      file.path.includes('/views/') || 
+      file.path.includes('/controllers/')
+    );
+    
+    const hasCustomHooks = files.some(file => 
+      file.path.includes('/hooks/') || 
+      (file.content.includes('function use') && file.content.includes('return'))
+    );
+    
+    if (hasMVC) {
+      insights += "The codebase appears to follow MVC (Model-View-Controller) architecture pattern.\n\n";
+    }
+    
+    if (hasCustomHooks) {
+      insights += "The code uses custom React hooks to abstract and reuse stateful logic.\n\n";
+    }
+    
+    // Add conclusion
+    insights += `Based on the ${files.length} files analyzed, this appears to be `;
+    
+    if (hasReact) {
+      insights += "a React-based ";
+      if (folderPath.includes('component') || files.some(f => f.path.includes('component'))) {
+        insights += "component library or UI toolkit";
+      } else {
+        insights += "web application";
+      }
+    } else {
+      insights += "a JavaScript/TypeScript project";
+    }
+    
+    insights += ". To get more detailed insights, I would need to analyze more files or specific aspects of the codebase.";
+    
+    return insights;
+  };
 
   return {
     processCommand,
