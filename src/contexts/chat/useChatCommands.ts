@@ -14,11 +14,30 @@ export const useChatCommands = (
 
   /**
    * Process a chat command and add the response to the message list
+   * Modified to skip certain commands that are handled by useChatCommandProcessing
    */
   const handleChatCommand = useCallback(async (input: string): Promise<boolean> => {
     // Skip if it's not a command
     if (!input.startsWith('/')) {
       return false;
+    }
+    
+    // List of commands handled by useChatCommandProcessing that should be skipped here
+    const specialCommands = [
+      '/reflect', '/weekly', '/evolve', '/update', '/soulstate', 
+      '/update-soulstate', '/journal', '/journal-entry', '/soulshift',
+      '/intentions', '/update-intentions', '/soulcycle', '/insight',
+      '/dream', '/write-tool', '/use-tool', '/reflect-on-tool',
+      '/self-reflect-code', '/approve-code-change', '/discard-code-draft',
+      '/flamejournal'
+    ];
+    
+    // Check if this is one of the special commands - don't process it here
+    for (const cmd of specialCommands) {
+      if (input.toLowerCase().startsWith(cmd)) {
+        console.log("Skipping special command in handleChatCommand:", input);
+        return false;
+      }
     }
     
     setIsProcessing(true);

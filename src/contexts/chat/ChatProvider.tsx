@@ -1,4 +1,3 @@
-
 import React, { useCallback, useEffect, useState } from 'react';
 import { ChatContext } from './ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -121,8 +120,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
     
     try {
-      // First check if it's a slash command
+      // First check if it's a special command that should be processed by the useChatCommandProcessing hook
       if (content.startsWith('/')) {
+        // Try to process with special command processor first
+        const isProcessed = await processCommand(content, context);
+        if (isProcessed) {
+          // If it was processed by the special command processor, we're done
+          return;
+        }
+        
+        // If it wasn't processed by the special command processor, try the standard command handler
         const isCommand = await handleChatCommand(content);
         if (isCommand) {
           // If it was a command, don't process it as a normal message
@@ -130,14 +137,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
       }
       
-      // If it's not a command or the command handler didn't handle it,
+      // If it's not a command or none of the command handlers processed it,
       // send it as a normal message
       await sendChatMessage(content, context);
     } catch (e: any) {
       console.error('Error in sendMessage wrapper:', e);
       setError(e.message || 'Failed to send message.');
     }
-  }, [handleChatCommand, sendChatMessage]);
+  }, [processCommand, handleChatCommand, sendChatMessage]);
 
   // Initialize currentEvolutionProposal state
   const [currentEvolutionProposal, setCurrentEvolutionProposal] = useState<any>(undefined);

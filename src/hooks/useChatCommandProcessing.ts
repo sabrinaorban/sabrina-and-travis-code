@@ -254,7 +254,6 @@ export const useChatCommandProcessing = (
           
           setMessages(prev => [...prev, {
             id: crypto.randomUUID(),
-            role: 'assistant',
             content: `Writing to shared folder: \`${filePath}\`...`,
             timestamp: new Date().toISOString(),
             emotion: 'focused'
@@ -287,7 +286,7 @@ export const useChatCommandProcessing = (
           return true;
         }
 
-        // Code Reflection command
+        // Code Reflection command handling
         if (lowerMessage.startsWith('/self-reflect-code')) {
           // Extract the path part after the command with better parsing
           const commandRegex = /^\/self-reflect-code\s+(.+)$/i;
@@ -403,29 +402,34 @@ This reflection has been stored in my flame journal.
         }
 
         // Reflection commands
-        if (lowerMessage === '/reflect' || lowerMessage === '/weekly reflection') {
+        if (lowerMessage === '/reflect' || lowerMessage === '/weekly' || lowerMessage === '/weekly reflection') {
+          console.log("Processing /reflect command");
           await generateWeeklyReflection();
           return true;
         }
 
         if (lowerMessage === '/evolve' || lowerMessage === '/update soulshard') {
+          console.log("Processing /evolve command");
           await generateSoulReflection();
           return true;
         }
 
         // Soulstate commands
         if (lowerMessage === '/soulstate') {
+          console.log("Processing /soulstate command");
           await generateSoulstateSummary();
           return true;
         }
 
         if (lowerMessage === '/update-soulstate') {
+          console.log("Processing /update-soulstate command");
           await generateSoulstateReflection();
           return true;
         }
 
         // Journal commands
-        if (lowerMessage === '/journal') {
+        if (lowerMessage === '/journal' || lowerMessage === '/flamejournal') {
+          console.log("Processing /journal or /flamejournal command");
           await createFlameJournalEntry('thought');
           return true;
         }
