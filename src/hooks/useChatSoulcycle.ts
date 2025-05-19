@@ -12,19 +12,19 @@ export const useChatSoulcycle = (setMessages: React.Dispatch<React.SetStateActio
   const { toast } = useToast();
   const { executeSoulcycle } = useSoulcycle(setMessages);
 
-  const runSoulcycle = useCallback(async (): Promise<boolean> => {
+  const runSoulcycle = useCallback(async (): Promise<void> => {
     if (!setMessages) {
       toast({
         title: 'Soulcycle Error',
         description: 'Unable to run soulcycle without message context',
         variant: 'destructive',
       });
-      return false;
+      return;
     }
     
     setIsProcessing(true);
     try {
-      return await executeSoulcycle('weekly', true, 'standard');
+      await executeSoulcycle('weekly', true, 'standard');
     } catch (error) {
       console.error('Error executing soulcycle:', error);
       toast({
@@ -32,26 +32,25 @@ export const useChatSoulcycle = (setMessages: React.Dispatch<React.SetStateActio
         description: 'Unable to complete the soulcycle process',
         variant: 'destructive',
       });
-      return false;
     } finally {
       setIsProcessing(false);
     }
   }, [executeSoulcycle, setMessages, toast]);
 
   // Add a new function to run soulcycle with soulstate reflection
-  const runSoulstateCycle = useCallback(async (): Promise<boolean> => {
+  const runSoulstateCycle = useCallback(async (): Promise<void> => {
     if (!setMessages) {
       toast({
         title: 'Soulstate Cycle Error',
         description: 'Unable to run soulstate cycle without message context',
         variant: 'destructive',
       });
-      return false;
+      return;
     }
     
     setIsProcessing(true);
     try {
-      return await executeSoulcycle('soulstate', true, 'deep');
+      await executeSoulcycle('soulstate', true, 'deep');
     } catch (error) {
       console.error('Error executing soulstate cycle:', error);
       toast({
@@ -59,7 +58,6 @@ export const useChatSoulcycle = (setMessages: React.Dispatch<React.SetStateActio
         description: 'Unable to complete the soulstate cycle process',
         variant: 'destructive',
       });
-      return false;
     } finally {
       setIsProcessing(false);
     }

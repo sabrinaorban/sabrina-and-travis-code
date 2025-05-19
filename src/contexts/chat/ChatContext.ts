@@ -19,6 +19,7 @@ const defaultChatContext: ChatContextType = {
   viewIntentions: async () => {},
   updateIntentions: async () => {},
   runSoulcycle: async () => {},
+  runSoulstateCycle: async () => {}, // Added the missing property
   uploadSoulShard: async () => {},
   uploadIdentityCodex: async () => {},
   uploadPastConversations: async () => {},

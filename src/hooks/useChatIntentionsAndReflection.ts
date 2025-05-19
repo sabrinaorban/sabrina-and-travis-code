@@ -40,7 +40,7 @@ export const useChatIntentionsAndReflection = (
     generateSoulstateSummary
   } = useChatSoulstate(setMessages);
   
-  // Add soulcycle functionality
+  // Add soulcycle functionality - Note: these now return void rather than boolean
   const { runSoulcycle, runSoulstateCycle } = useChatSoulcycle(setMessages);
   
   // Add document upload functionality

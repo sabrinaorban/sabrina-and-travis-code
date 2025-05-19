@@ -1,3 +1,4 @@
+
 import React, { useCallback, useEffect, useState } from 'react';
 import { ChatContext } from './ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -100,21 +101,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
   }, [setMessages]);
 
-  const retryMessage = useCallback(async (message: Message) => {
-    if (!user) {
-      setError('You must be logged in to send messages.');
-      return;
-    }
-
-    try {
-      // We'll reuse our sendMessage functionality with the original content
-      await sendMessage(message.content);
-    } catch (e: any) {
-      console.error('Error retrying message:', e);
-      setError(e.message || 'Failed to retry message.');
-    }
-  }, [user, sendMessage]);
-  
   // This is the primary wrapper for sending messages that handles both commands and normal messages
   const sendMessage = useCallback(async (content: string, context?: MemoryContext) => {
     if (!content.trim()) {
@@ -147,6 +133,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       setError(e.message || 'Failed to send message.');
     }
   }, [processCommand, handleChatCommand, sendChatMessage]);
+
+  // Now that sendMessage is defined, we can define retryMessage
+  const retryMessage = useCallback(async (message: Message) => {
+    if (!user) {
+      setError('You must be logged in to send messages.');
+      return;
+    }
+
+    try {
+      // We'll reuse our sendMessage functionality with the original content
+      await sendMessage(message.content);
+    } catch (e: any) {
+      console.error('Error retrying message:', e);
+      setError(e.message || 'Failed to retry message.');
+    }
+  }, [user, sendMessage]);
 
   // Initialize currentEvolutionProposal state
   const [currentEvolutionProposal, setCurrentEvolutionProposal] = useState<any>(undefined);
