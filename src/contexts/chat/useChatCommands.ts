@@ -30,7 +30,7 @@ export const useChatCommands = (
       '/dream', '/write-tool', '/use-tool', '/reflect-on-tool',
       '/self-reflect-code', '/approve-code-change', '/discard-code-draft',
       '/flamejournal', '/scan-shared-project', '/refactor-shared',
-      '/implement-shared-feature', '/approve-code-change', '/discard-code-draft'
+      '/implement-shared-feature'
     ];
     
     // Check if this is one of the special commands - don't process it here
