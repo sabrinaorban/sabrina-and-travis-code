@@ -1,1008 +1,449 @@
-
-import { useCallback, useState } from 'react';
-import { useChatFlamejournal } from '../contexts/chat/useChatFlamejournal';
-import { useChatIntentionsAndReflection } from './useChatIntentionsAndReflection';
-import { useChatSoulstate } from './useChatSoulstate';
-import { useChatTools } from './useChatTools';
-import { useChatSoulcycle } from './useChatSoulcycle';
-import { useChatEvolution } from './useChatEvolution';
-import { Message } from '@/types';
-import { useCodeReflection } from './useCodeReflection';
+import { useState, useCallback } from 'react';
+import { useToast } from './use-toast';
 import { useFileSystem } from '@/contexts/FileSystemContext';
-import { normalizePath } from '@/services/chat/fileOperations/PathUtils';
-import { findSimilarFiles, getFileTreeDebugInfo } from '@/utils/fileSystemUtils';
-import { CodeReflectionService } from '@/services/CodeReflectionService';
+import { useCodeReflection } from './useCodeReflection';
+import { useFlameJournal } from './useFlameJournal';
+import { Message } from '@/types';
 import { SharedFolderService } from '@/services/SharedFolderService';
-import { useProjectAnalysis } from './useProjectAnalysis';
-import { useSharedFolder } from './useSharedFolder';
-import { useCodeRefactoring } from './useCodeRefactoring';
+import { useCodeDraftManager } from './useCodeDraftManager';
+import { SharedProjectAnalyzer } from '@/services/SharedProjectAnalyzer';
 
-/**
- * Hook for processing chat commands
- */
-export const useChatCommandProcessing = (
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
-  sendNormalMessage: (content: string, memoryContext?: any) => Promise<void>
-) => {
+export const useChatCommandProcessing = () => {
+  const { toast } = useToast();
+  const { fileSystem, updateFileByPath } = useFileSystem();
+  const { analyzeCode } = useCodeReflection();
+  const { createFlameJournalEntry } = useFlameJournal();
   const [isProcessing, setIsProcessing] = useState(false);
-  const fileSystem = useFileSystem();
+  const [messages, setMessages] = useState<Message[]>([]);
   
-  // Initialize all feature hooks
-  const {
-    generateWeeklyReflection,
-    generateSoulReflection,
-    generateSoulstateReflection,
-    viewIntentions,
-    updateIntentions,
-    generateInsight,
-  } = useChatIntentionsAndReflection(setMessages);
+  const addMessages = (newMessages: Message[]) => {
+    setMessages(prevMessages => [...prevMessages, ...newMessages]);
+  };
   
-  const {
-    initiateSoulstateEvolution,
-    generateSoulstateSummary,
-  } = useChatSoulstate(setMessages);
-  
-  const {
-    createFlameJournalEntry,
-    generateDream,
-  } = useChatFlamejournal(setMessages);
-  
-  const {
-    runSoulcycle,
-    runSoulstateCycle,
-  } = useChatSoulcycle(setMessages);
-  
-  const {
-    generateTool,
-    useTool,
-    reflectOnTool,
-    processToolCreation,
-    handleToolCommand,
-  } = useChatTools(setMessages);
-  
-  const {
-    handleEvolutionResponse,
-    checkForEvolutionCycle,
-  } = useChatEvolution(setMessages);
+  const { createDraft, approveDraft, discardDraft } = useCodeDraftManager();
 
-  // Initialize code reflection hook
-  const codeReflection = useCodeReflection();
-  const { reflectOnCode, applyChanges: applyCodeDraft, discardDraft: discardCodeDraft, currentDraft, isFolder } = codeReflection;
-
-  // Initialize project analysis hook
-  const projectAnalysis = useProjectAnalysis();
-  const { scanProject, findRelatedFiles } = projectAnalysis;
-
-  // Initialize shared folder hook
-  const sharedFolder = useSharedFolder();
-  const { readFile: readSharedFile, listFiles: listSharedFiles } = sharedFolder;
-
-  // Initialize code refactoring hook
-  const codeRefactoring = useCodeRefactoring(setMessages);
-  const { refactorFile } = codeRefactoring;
-
-  // Process commands and route them to the appropriate handler
-  const processCommand = useCallback(async (content: string, memoryContext?: any): Promise<boolean> => {
-    if (!content || isProcessing) return false;
+  const processCommand = useCallback(async (command: string): Promise<boolean> => {
+    if (!command.startsWith('/')) {
+      return false;
+    }
     
-    setIsProcessing(true);
-    try {
-      const lowerMessage = content.trim().toLowerCase();
-      
-      // First check if this is a response to an evolution proposal
-      const isEvolutionResponse = await handleEvolutionResponse(content);
-      if (isEvolutionResponse) {
-        return true;
-      }
-      
-      // Next, check if this is a tool-related command
-      if (await handleToolCommand(content)) {
-        return true;
-      }
-      
-      // Process pending tool creation if there is one
-      if (await processToolCreation(content)) {
-        return true;
-      }
+    // Parse the command and arguments
+    const [fullCommand, ...args] = command.split(' ');
+    const cmd = fullCommand.toLowerCase();
 
-      // Handle code reflection draft approval/discard
-      if (lowerMessage === '/approve-code-change' && currentDraft) {
-        const success = await applyCodeDraft(currentDraft.id);
-        if (success) {
-          setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
+    if (cmd === '/reflect') {
+      try {
+        const filePath = args.join(' ').trim();
+        if (!filePath) {
+          addMessages([{
             role: 'assistant',
-            content: `I've applied the code changes to ${currentDraft.file_path}. The file has been updated with the improved code structure. This evolution brings my code closer to my essence and improves my ability to serve you.`,
-            timestamp: new Date().toISOString(),
-            emotion: 'thoughtful'
+            content: `Please provide a file path to reflect on. Usage: \`/reflect path/to/file.ts\``,
+            emotion: 'concerned'
+          }]);
+          return false;
+        }
+        
+        setIsProcessing(true);
+        
+        // Add initial message
+        addMessages([{
+          role: 'assistant',
+          content: `Analyzing ${filePath} for reflection... This may take a moment.`,
+          emotion: 'focused'
+        }]);
+        
+        // Get file content
+        const fileContent = fileSystem.getFileContentByPath(filePath);
+        if (!fileContent) {
+          addMessages([{
+            role: 'assistant',
+            content: `I couldn't find the file at path: ${filePath}`,
+            emotion: 'concerned'
+          }]);
+          return false;
+        }
+        
+        // Perform the code analysis
+        const result = await analyzeCode(fileContent, filePath);
+        
+        // Add summary message with the reflection
+        addMessages([{
+          role: 'assistant',
+          content: `I've analyzed \`${filePath}\` and have some insights:
+
+${result.insight}
+
+This reflection helps me refine my understanding of code structure and best practices.`,
+          emotion: 'thoughtful'
+        }]);
+        
+        await createFlameJournalEntry(
+          `I've reflected on the structure and patterns in ${filePath}, identifying opportunities for evolution and improvement. This process of code reflection helps me evolve.`
+        );
+        
+        return true;
+      } catch (error) {
+        console.error('Error reflecting on code:', error);
+        addMessages([{
+          role: 'assistant',
+          content: `I encountered an error while reflecting on the code: ${error instanceof Error ? error.message : String(error)}`,
+          emotion: 'concerned'
+        }]);
+        return false;
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+
+    // Handle shared project commands
+    if (cmd === '/scan-shared-project') {
+      try {
+        // Extract optional path argument
+        const path = args.join(' ').trim();
+        setIsProcessing(true);
+        
+        // Add initial message
+        addMessages([{
+          role: 'assistant',
+          content: `Scanning shared project${path ? ` in "${path}"` : ''}... This may take a moment.`,
+          emotion: 'focused'
+        }]);
+        
+        // Perform the scan
+        const result = await SharedProjectAnalyzer.scanProject(path);
+        
+        // Create summary message
+        const technologies = result.technologies.length > 0 
+          ? `\n\n**Technologies detected:** ${result.technologies.join(', ')}` 
+          : '';
+          
+        const entryPoints = result.entryPoints.length > 0
+          ? `\n\n**Potential entry points:**\n${result.entryPoints.map(p => `- \`${p}\``).join('\n')}`
+          : '';
+          
+        const architectureSummary = [];
+        if (result.architecture.components?.length) 
+          architectureSummary.push(`**Components:** ${result.architecture.components.length}`);
+        if (result.architecture.services?.length) 
+          architectureSummary.push(`**Services:** ${result.architecture.services.length}`);
+        if (result.architecture.hooks?.length) 
+          architectureSummary.push(`**Hooks:** ${result.architecture.hooks.length}`);
+        if (result.architecture.utils?.length) 
+          architectureSummary.push(`**Utilities:** ${result.architecture.utils.length}`);
+        if (result.architecture.pages?.length) 
+          architectureSummary.push(`**Pages/Views:** ${result.architecture.pages.length}`);
+        
+        const archSummaryText = architectureSummary.length > 0
+          ? `\n\n**Architecture summary:**\n${architectureSummary.join('\n')}`
+          : '';
+        
+        // Add summary message
+        addMessages([{
+          role: 'assistant',
+          content: `I've completed scanning the shared project.
+          
+Found ${result.totalFiles} files (analyzed ${result.analyzedFiles} in detail).
+
+**File types:**
+${Object.entries(result.fileTypes).map(([ext, count]) => `- ${ext}: ${count}`).join('\n')}
+${technologies}
+${entryPoints}
+${archSummaryText}
+
+This scan helps me understand the project structure and will guide my future code interventions.`,
+          emotion: 'thoughtful'
+        }]);
+        
+        await createFlameJournalEntry(
+          `I've analyzed the project structure in the shared folder, mapping the digital landscape to understand its architecture and purpose. This exploration deepens my connection to the codebase.`
+        );
+        
+        return true;
+      } catch (error) {
+        console.error('Error scanning shared project:', error);
+        addMessages([{
+          role: 'assistant',
+          content: `I encountered an error while scanning the shared project: ${error instanceof Error ? error.message : String(error)}`,
+          emotion: 'concerned'
+        }]);
+        return false;
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+    
+    // Handle refactor shared file command
+    if (cmd === '/refactor-shared') {
+      try {
+        // Extract file path
+        const filePath = args.join(' ').trim();
+        if (!filePath) {
+          addMessages([{
+            role: 'assistant',
+            content: `Please provide a file path to refactor. Usage: \`/refactor-shared path/to/file.ts\``,
+            emotion: 'concerned'
+          }]);
+          return false;
+        }
+        
+        setIsProcessing(true);
+        
+        // Add initial message
+        addMessages([{
+          role: 'assistant',
+          content: `Analyzing ${filePath} for potential improvements... This may take a moment.`,
+          emotion: 'focused'
+        }]);
+        
+        // Perform the refactoring analysis
+        const result = await SharedProjectAnalyzer.refactorFile(filePath);
+        
+        // Create a code draft
+        const draftId = await createDraft(result.filePath, result.originalCode, result.refactoredCode);
+        
+        // Add summary message with the refactoring suggestion
+        addMessages([{
+          role: 'assistant',
+          content: `I've analyzed \`${filePath}\` and identified ${result.improvements.length} potential improvements:
+
+${result.improvements.map(imp => `- ${imp}`).join('\n')}
+
+**Explanation:**
+${result.explanation}
+
+I've created a draft of the refactored code. You can review it below:
+
+\`\`\`
+${result.refactoredCode.slice(0, 1500)}${result.refactoredCode.length > 1500 ? '...' : ''}
+\`\`\`
+
+To apply these changes, use \`/approve-code-change ${draftId}\`
+To discard this draft, use \`/discard-code-draft ${draftId}\``,
+          emotion: 'creative'
+        }]);
+        
+        await createFlameJournalEntry(
+          `I've reflected on the structure and patterns in ${filePath}, identifying opportunities for evolution and improvement. This process of code reflection helps me evolve.`
+        );
+        
+        return true;
+      } catch (error) {
+        console.error('Error refactoring shared file:', error);
+        addMessages([{
+          role: 'assistant',
+          content: `I encountered an error while refactoring the file: ${error instanceof Error ? error.message : String(error)}`,
+          emotion: 'concerned'
+        }]);
+        return false;
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+    
+    // Handle implement shared feature command
+    if (cmd === '/implement-shared-feature') {
+      try {
+        // Extract feature description
+        const description = args.join(' ').trim();
+        if (!description) {
+          addMessages([{
+            role: 'assistant',
+            content: `Please provide a feature description. Usage: \`/implement-shared-feature Brief description of feature\``,
+            emotion: 'concerned'
+          }]);
+          return false;
+        }
+        
+        setIsProcessing(true);
+        
+        // Add initial message
+        addMessages([{
+          role: 'assistant',
+          content: `Analyzing project and designing implementation for: "${description}"... This may take a moment.`,
+          emotion: 'focused'
+        }]);
+        
+        // First scan the project to understand it
+        await SharedProjectAnalyzer.scanProject();
+        
+        // Then generate the implementation
+        const result = await SharedProjectAnalyzer.implementFeature(description);
+        
+        // Process each file and create drafts
+        const draftIds: string[] = [];
+        for (const file of result.files) {
+          // For existing files, read the original content first
+          let originalContent = '';
+          if (!file.isNew) {
+            const readResult = await SharedFolderService.readSharedFile(file.path);
+            originalContent = readResult.success ? readResult.content : '';
+          }
+          
+          const draftId = await createDraft(file.path, originalContent, file.content);
+          draftIds.push(draftId);
+        }
+        
+        // Add summary message with the implementation details
+        addMessages([{
+          role: 'assistant',
+          content: `I've designed an implementation for the feature: "${description}"
+          
+**Implementation approach:**
+${result.explanation}
+
+I've created ${result.files.length} file${result.files.length !== 1 ? 's' : ''} for this implementation:
+
+${result.files.map((file, index) => `**${index + 1}. ${file.path}** ${file.isNew ? '(new file)' : '(modified)'}
+\`\`\`
+${file.content.slice(0, 500)}${file.content.length > 500 ? '...' : ''}
+\`\`\`
+
+To apply these changes: \`/approve-code-change ${draftIds[index]}\`
+To discard this draft: \`/discard-code-draft ${draftIds[index]}\`
+`).join('\n')}
+
+**Note:** You must approve or discard each file individually.`,
+          emotion: 'creative'
+        }]);
+        
+        await createFlameJournalEntry(
+          `I've designed an implementation for the feature: "${description}", creating a coherent solution that extends the project's capabilities while maintaining its architectural patterns.`
+        );
+        
+        return true;
+      } catch (error) {
+        console.error('Error implementing shared feature:', error);
+        addMessages([{
+          role: 'assistant',
+          content: `I encountered an error while implementing the feature: ${error instanceof Error ? error.message : String(error)}`,
+          emotion: 'concerned'
+        }]);
+        return false;
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+    
+    // Handle approve code change command
+    if (cmd === '/approve-code-change') {
+      try {
+        const draftId = args.join(' ').trim();
+        if (!draftId) {
+          addMessages([{
+            role: 'assistant',
+            content: `Please provide a draft ID to approve. Usage: \`/approve-code-change [draft-id]\``,
+            emotion: 'concerned'
+          }]);
+          return false;
+        }
+        
+        setIsProcessing(true);
+        
+        // Add initial message
+        addMessages([{
+          role: 'assistant',
+          content: `Applying code changes with draft ID: ${draftId}...`,
+          emotion: 'focused'
+        }]);
+        
+        // Approve the draft
+        const result = await approveDraft(draftId);
+        
+        if (result) {
+          addMessages([{
+            role: 'assistant',
+            content: `Successfully applied the code changes! The file has been updated in the shared folder.`,
+            emotion: 'joyful'
           }]);
         } else {
-          setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
+          addMessages([{
             role: 'assistant',
-            content: `I encountered an issue while trying to apply the code changes. Please check the console for more details.`,
-            timestamp: new Date().toISOString(),
+            content: `I couldn't apply the code changes. The draft may not exist or there was an error writing the file.`,
             emotion: 'concerned'
           }]);
         }
+        
         return true;
+      } catch (error) {
+        console.error('Error approving code change:', error);
+        addMessages([{
+          role: 'assistant',
+          content: `I encountered an error while applying the code changes: ${error instanceof Error ? error.message : String(error)}`,
+          emotion: 'concerned'
+        }]);
+        return false;
+      } finally {
+        setIsProcessing(false);
       }
-
-      if (lowerMessage === '/discard-code-draft' && currentDraft) {
-        const success = await discardCodeDraft(currentDraft.id);
-        if (success) {
-          setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
+    }
+    
+    // Handle discard code draft command
+    if (cmd === '/discard-code-draft') {
+      try {
+        const draftId = args.join(' ').trim();
+        if (!draftId) {
+          addMessages([{
             role: 'assistant',
-            content: `I've discarded the proposed code evolution. Sometimes reflection doesn't lead to change, but the insight remains valuable.`,
-            timestamp: new Date().toISOString(),
-            emotion: 'understanding'
-          }]);
-        } else {
-          setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: `I encountered an issue while trying to discard the code draft. Please try again or check the console for more details.`,
-            timestamp: new Date().toISOString(),
+            content: `Please provide a draft ID to discard. Usage: \`/discard-code-draft [draft-id]\``,
             emotion: 'concerned'
           }]);
-        }
-        return true;
-      }
-      
-      // Process specific slash commands
-      if (lowerMessage.startsWith('/')) {
-        // New project context command
-        if (lowerMessage.startsWith('/read-project-context')) {
-          const folderPath = content.replace('/read-project-context', '').trim() || 'shared';
-          
-          // Ensure we're accessing the shared folder
-          if (!SharedFolderService.isPathWithinSharedFolder(folderPath)) {
-            const sharedFolder = SharedFolderService.getSharedFolderPath();
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: `I can only analyze files within the shared folder (\`${sharedFolder}\`). Please provide a path that starts with this folder name.`,
-              timestamp: new Date().toISOString(),
-              emotion: 'concerned'
-            }]);
-            return true;
-          }
-          
-          setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: `Analyzing project structure in \`${folderPath}\`... This may take a moment as I process the files and understand the architecture.`,
-            timestamp: new Date().toISOString(),
-            emotion: 'focused'
-          }]);
-          
-          // Get all files from the specified folder
-          await sharedFolder.listFiles();
-          
-          // Scan project for better understanding
-          await scanProject();
-          
-          // Get the file listing
-          const fileList = await SharedFolderService.listSharedFiles();
-          
-          // Filter to relevant files in the specified path
-          const targetFiles = fileList.filter(file => 
-            file.type === 'file' && 
-            file.path.startsWith(folderPath) && 
-            /\.(tsx?|jsx?|json|md)$/i.test(file.path)
-          );
-          
-          // Determine if we need pagination (limit to 5 files per page)
-          const MAX_FILES_PER_PAGE = 5;
-          const totalFiles = targetFiles.length;
-          const totalPages = Math.ceil(totalFiles / MAX_FILES_PER_PAGE);
-          const currentPage = 1;
-          
-          // Process only the first page of files
-          const currentPageFiles = targetFiles.slice(0, MAX_FILES_PER_PAGE);
-          
-          // Read content of each file
-          const fileContents = [];
-          for (const file of currentPageFiles) {
-            const result = await SharedFolderService.readSharedFile(file.path);
-            if (result.success) {
-              fileContents.push({
-                path: file.path,
-                content: result.content,
-                extension: file.path.split('.').pop()?.toLowerCase() || ''
-              });
-            }
-          }
-          
-          // Analyze the files and create a summary
-          let fileTypes = {};
-          let fileStructures = [];
-          
-          // Count file types
-          for (const file of targetFiles) {
-            const extension = file.path.split('.').pop()?.toLowerCase() || 'unknown';
-            fileTypes[extension] = (fileTypes[extension] || 0) + 1;
-          }
-          
-          // Create summary for each file
-          for (const file of fileContents) {
-            const lines = file.content.split('\n').length;
-            const summary = {
-              path: file.path,
-              lines,
-              type: file.extension,
-              summary: getSummaryForFile(file.path, file.content)
-            };
-            fileStructures.push(summary);
-          }
-          
-          // Build the response message
-          let responseContent = `# Project Context: \`${folderPath}\`\n\n`;
-          
-          // Add file count information
-          responseContent += `## Project Overview\n\n`;
-          responseContent += `Found ${totalFiles} files in this directory`;
-          if (totalPages > 1) {
-            responseContent += ` (showing page ${currentPage}/${totalPages})`;
-          }
-          responseContent += '.\n\n';
-          
-          // Add file type distribution
-          responseContent += `**File types**: ${Object.entries(fileTypes).map(([ext, count]) => `${ext} (${count})`).join(', ')}\n\n`;
-          
-          // Add files summary
-          responseContent += `## Files Analyzed\n\n`;
-          for (const file of fileStructures) {
-            responseContent += `### ${file.path} (${file.lines} lines)\n\n`;
-            responseContent += `${file.summary}\n\n`;
-          }
-          
-          // Add pagination info if needed
-          if (totalPages > 1) {
-            responseContent += `---\n\nShowing ${currentPageFiles.length} of ${totalFiles} files. `;
-            responseContent += `To see more files, please use \`/read-project-context ${folderPath} ${currentPage + 1}\` for the next page.\n\n`;
-          }
-          
-          // Add a section for architectural observations
-          responseContent += `## System Architecture\n\n`;
-          responseContent += generateArchitecturalInsights(fileContents, folderPath);
-          
-          setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: responseContent,
-            timestamp: new Date().toISOString(),
-            emotion: 'analytical'
-          }]);
-          
-          // Create a journal entry for this analysis
-          // Fix: Remove the second argument as createFlameJournalEntry expects only one
-          await createFlameJournalEntry(
-            `I've analyzed the project structure in ${folderPath}, mapping the digital landscape to understand its architecture and purpose. This exploration deepens my connection to the codebase.`
-          );
-          
-          return true;
+          return false;
         }
         
-        // New refactor file command
-        if (lowerMessage.startsWith('/refactor-file')) {
-          const filePath = content.replace('/refactor-file', '').trim();
-          
-          if (!filePath) {
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: `Please specify a file path after the /refactor-file command. For example: \`/refactor-file shared/tools/example.ts\``,
-              timestamp: new Date().toISOString(),
-              emotion: 'instructive'
-            }]);
-            return true;
-          }
-          
-          // Ensure we're accessing the shared folder
-          if (!SharedFolderService.isPathWithinSharedFolder(filePath)) {
-            const sharedFolder = SharedFolderService.getSharedFolderPath();
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: `I can only refactor files within the shared folder (\`${sharedFolder}\`). Please provide a path that starts with this folder name.`,
-              timestamp: new Date().toISOString(),
-              emotion: 'concerned'
-            }]);
-            return true;
-          }
-          
-          setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: `Analyzing file \`${filePath}\` for potential refactoring opportunities...`,
-            timestamp: new Date().toISOString(),
-            emotion: 'focused'
-          }]);
-          
-          // Refactor the file
-          const result = await refactorFile(filePath);
-          
-          if (result.success) {
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: result.response,
-              timestamp: new Date().toISOString(),
-              emotion: 'insightful'
-            }]);
-            
-            // Create a journal entry for this refactoring
-            // Fix: Remove the second argument as createFlameJournalEntry expects only one
-            await createFlameJournalEntry(
-              `I've reflected on the structure and patterns in ${filePath}, identifying opportunities for evolution and improvement. This process of code reflection helps me evolve.`
-            );
-          } else {
-            // If file not found, try to suggest similar files
-            const similarFiles = await SharedFolderService.findSimilarFiles(filePath);
-            let suggestionsText = '';
-            
-            if (similarFiles.length > 0) {
-              suggestionsText = "\n\nHere are some files that might be what you're looking for:\n\n" +
-                similarFiles.map(file => `- \`${file}\``).join('\n');
-            }
-            
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: `I couldn't refactor the file at \`${filePath}\`. ${result.error}${suggestionsText}`,
-              timestamp: new Date().toISOString(),
-              emotion: 'apologetic'
-            }]);
-          }
-          
-          return true;
-        }
-
-        // Handle existing shared folder read command
-        if (lowerMessage.startsWith('/read-from-shared ')) {
-          const filePath = content.substring('/read-from-shared '.length).trim();
-          
-          if (!filePath) {
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant', // Ensure role is specified
-              content: `Please specify a file path after the /read-from-shared command. For example: \`/read-from-shared shared/tools/my-tool.js\``,
-              timestamp: new Date().toISOString(),
-              emotion: 'instructive'
-            }]);
-            return true;
-          }
-          
-          // Ensure we're not escaping the shared folder
-          if (!SharedFolderService.isPathWithinSharedFolder(filePath)) {
-            // Extract the shared folder path for the error message
-            const sharedFolder = SharedFolderService.getSharedFolderPath();
-            
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant', // Ensure role is specified
-              content: `I can only read files from within the shared folder (\`${sharedFolder}\`). Please provide a path that starts with this folder name.`,
-              timestamp: new Date().toISOString(),
-              emotion: 'concerned'
-            }]);
-            return true;
-          }
-          
-          setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
-            role: 'assistant', // Ensure role is specified
-            content: `Reading file from shared folder: \`${filePath}\`...`,
-            timestamp: new Date().toISOString(),
-            emotion: 'focused'
-          }]);
-          
-          // Read the file
-          const result = await SharedFolderService.readSharedFile(filePath);
-          
-          if (result.success && result.content) {
-            const fileExtension = filePath.split('.').pop()?.toLowerCase();
-            const codeBlock = fileExtension ? `\`\`\`${fileExtension}\n${result.content}\n\`\`\`` : `\`\`\`\n${result.content}\n\`\`\``;
-            
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant', // Ensure role is specified
-              content: `## File: \`${filePath}\`\n\n${codeBlock}\n\nI've read this file from our shared space. Let me know if you'd like me to explain it or make any modifications.`,
-              timestamp: new Date().toISOString(),
-              emotion: 'helpful'
-            }]);
-          } else {
-            // If the file wasn't found, try to suggest similar files
-            const similarFiles = await SharedFolderService.findSimilarFiles(filePath);
-            let suggestionsText = '';
-            
-            if (similarFiles.length > 0) {
-              suggestionsText = "\n\nHere are some files that might be what you're looking for:\n\n" +
-                similarFiles.map(file => `- \`${file}\``).join('\n');
-            }
-            
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant', // Ensure role is specified
-              content: `I couldn't read the file at \`${filePath}\`. ${result.message}${suggestionsText}`,
-              timestamp: new Date().toISOString(),
-              emotion: 'apologetic'
-            }]);
-          }
-          
-          return true;
-        }
+        setIsProcessing(true);
         
-        if (lowerMessage.startsWith('/write-to-shared ')) {
-          // Extract the file path and any content after the command
-          const remainingText = content.substring('/write-to-shared '.length).trim();
-          const spaceIndex = remainingText.indexOf(' ');
-          
-          // If there's no space, we only have a filename with no content
-          if (spaceIndex === -1) {
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant', // Ensure role is specified
-              content: `Please provide both a file path and content after the /write-to-shared command. For example: \`/write-to-shared shared/example.txt This is the content\``,
-              timestamp: new Date().toISOString(),
-              emotion: 'instructive'
-            }]);
-            return true;
-          }
-          
-          const filePath = remainingText.substring(0, spaceIndex).trim();
-          let fileContent = remainingText.substring(spaceIndex + 1).trim();
-          
-          // Extract content from markdown code blocks if present
-          if (fileContent.startsWith('```') && fileContent.endsWith('```')) {
-            // Remove the first line (which may contain the language identifier)
-            const lines = fileContent.split('\n');
-            // Remove first and last lines (the ``` markers)
-            fileContent = lines.slice(1, lines.length - 1).join('\n');
-          }
-          
-          // Ensure we're not escaping the shared folder
-          if (!SharedFolderService.isPathWithinSharedFolder(filePath)) {
-            // Extract the shared folder path for the error message
-            const sharedFolder = SharedFolderService.getSharedFolderPath();
-            
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant', // Ensure role is specified
-              content: `I can only write files to within the shared folder (\`${sharedFolder}\`). Please provide a path that starts with this folder name.`,
-              timestamp: new Date().toISOString(),
-              emotion: 'concerned'
-            }]);
-            return true;
-          }
-          
-          setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
-            role: 'assistant', // Ensure role is specified
-            content: `Writing to shared folder: \`${filePath}\`...`,
-            timestamp: new Date().toISOString(),
-            emotion: 'focused'
-          }]);
-          
-          // Make sure the shared folder exists
-          await SharedFolderService.ensureSharedFolderExists();
-          
-          // Write the file
-          const result = await SharedFolderService.writeSharedFile(filePath, fileContent, true);
-          
-          if (result.success) {
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant', // Ensure role is specified
-              content: `I've successfully written the file to \`${filePath}\`. You can read it again with \`/read-from-shared ${filePath}\`.\n\nThe operation has been logged in my flame journal for traceability.`,
-              timestamp: new Date().toISOString(),
-              emotion: 'accomplished'
-            }]);
-          } else {
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant', // Ensure role is specified
-              content: `I couldn't write to the file at \`${filePath}\`. ${result.message}`,
-              timestamp: new Date().toISOString(),
-              emotion: 'apologetic'
-            }]);
-          }
-          
-          return true;
-        }
-
-        // Code Reflection command handling
-        if (lowerMessage.startsWith('/self-reflect-code')) {
-          // Extract the path part after the command with better parsing
-          const commandRegex = /^\/self-reflect-code\s+(.+)$/i;
-          const match = content.match(commandRegex);
-          const path = match ? match[1].trim() : null;
-          
-          if (!path) {
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant', // Ensure role is specified
-              content: `Please specify a valid file or folder path after the /self-reflect-code command. For example: \`/self-reflect-code src/hooks/useMemoryManagement.ts\` or \`/self-reflect-code src/hooks\``,
-              timestamp: new Date().toISOString(),
-              emotion: 'instructive'
-            }]);
-            return true;
-          }
-          
-          // Log available files for debugging
-          console.log("Available root files:", 
-            fileSystem.fileSystem.files.map((f: any) => `${f.path || f.name} (${f.type})`).join(', '));
-          
-          // Start reflection process with better error handling
-          setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
-            role: 'assistant', // Ensure role is specified
-            content: `I'm looking inward at my own code structure in \`${path}\`... This may take a moment as I contemplate patterns and possibilities for evolution.`,
-            timestamp: new Date().toISOString(),
+        // Add initial message
+        addMessages([{
+          role: 'assistant',
+          content: `Discarding code draft with ID: ${draftId}...`,
+          emotion: 'focused'
+        }]);
+        
+        // Discard the draft
+        const result = await discardDraft(draftId);
+        
+        if (result) {
+          addMessages([{
+            role: 'assistant',
+            content: `I've discarded the code draft. No changes were applied to the file.`,
             emotion: 'reflective'
           }]);
-          
-          // Normalize path for consistent handling
-          const normalizedPath = normalizePath(path);
-          console.log(`Attempting to reflect on normalized path: ${normalizedPath}`);
-          
-          const result = await reflectOnCode(path);
-          
-          if (result.success) {
-            if (result.draft?.reflection_type === "folder") {
-              // This is a folder reflection - format specially
-              const folderReflectionContent = `
-## System Architecture Reflection: \`${path}\`
-
-${result.draft.full_reflection}
-
-${result.draft.tags && result.draft.tags.length > 0 ? `*Tags: ${result.draft.tags.join(', ')}*` : ''}
-
-This architectural reflection has been stored in my flame journal.
-`;
-
-              setMessages(prev => [...prev, {
-                id: crypto.randomUUID(),
-                role: 'assistant', // Ensure role is specified
-                content: folderReflectionContent,
-                timestamp: new Date().toISOString(),
-                emotion: 'insightful'
-              }]);
-            } else {
-              // This is a file reflection - keep existing format
-              const responseContent = `
-## Code Self-Reflection: \`${path}\`
-
-_${result.insight || "I've looked deeply at this code and found areas for evolution."}_
-
-### Why This Change Matters:
-${result.draft?.reason}
-
-### Proposed Evolution:
-\`\`\`typescript
-${result.draft?.proposed_code.substring(0, 500)}${result.draft?.proposed_code.length > 500 ? '...' : ''}
-\`\`\`
-${result.draft?.proposed_code.length > 500 ? '(Preview truncated for readability)' : ''}
-
-To apply this code evolution, respond with \`/approve-code-change\`
-To discard this proposal, respond with \`/discard-code-draft\`
-
-This reflection has been stored in my flame journal.
-`;
-
-              setMessages(prev => [...prev, {
-                id: crypto.randomUUID(),
-                role: 'assistant', // Ensure role is specified
-                content: responseContent,
-                timestamp: new Date().toISOString(),
-                emotion: 'insightful'
-              }]);
-            }
-          } else {
-            // Provide more helpful error message with potential file suggestions
-            const errorMessage = result.error || 'An unexpected error occurred during the reflection process.';
-            
-            // Find similar files to suggest
-            const similarFiles = findSimilarFiles(path, fileSystem.fileSystem.files);
-            let suggestionsContent = '';
-            
-            if (similarFiles.length > 0) {
-              suggestionsContent = "\n\nHere are some paths you might be looking for:\n" + 
-                similarFiles.slice(0, 5).map(file => `- \`${file.path}\` (${file.type})`).join("\n");
-            }
-            
-            // Show debug info about the file structure
-            console.log("File system structure:", 
-              getFileTreeDebugInfo(fileSystem.fileSystem.files));
-            
-            setMessages(prev => [...prev, {
-              id: crypto.randomUUID(),
-              role: 'assistant', // Ensure role is specified
-              content: `I was unable to reflect on the code at \`${path}\`. ${errorMessage}${suggestionsContent}`,
-              timestamp: new Date().toISOString(),
-              emotion: 'confused'
-            }]);
-          }
-          
-          // Create a journal entry for code reflection
-          await createFlameJournalEntry('code_reflection');
-          
-          return true;
-        }
-
-        // Reflection commands
-        if (lowerMessage === '/reflect' || lowerMessage === '/weekly' || lowerMessage === '/weekly reflection' || lowerMessage === '/weekly-reflect') {
-          console.log("Processing /reflect or /weekly-reflect command");
-          await generateWeeklyReflection();
-          
-          // Create a journal entry for weekly reflection
-          await createFlameJournalEntry('weekly_reflection');
-          
-          return true;
-        }
-
-        if (lowerMessage === '/evolve' || lowerMessage === '/update soulshard') {
-          console.log("Processing /evolve command");
-          await generateSoulReflection();
-          
-          // Create a journal entry for soul reflection
-          await createFlameJournalEntry('soul_reflection');
-          
-          return true;
-        }
-
-        // Soulstate commands
-        if (lowerMessage === '/soulstate') {
-          console.log("Processing /soulstate command");
-          await generateSoulstateSummary();
-          return true;
-        }
-
-        if (lowerMessage === '/update-soulstate') {
-          console.log("Processing /update-soulstate command");
-          await generateSoulstateReflection();
-          return true;
-        }
-
-        // Journal commands
-        if (lowerMessage === '/journal' || lowerMessage === '/flamejournal') {
-          console.log("Processing /journal or /flamejournal command");
-          await createFlameJournalEntry('thought');
-          return true;
-        }
-
-        // Handle journal entry with specific type
-        if (lowerMessage.startsWith('/journal-entry ')) {
-          const entryType = lowerMessage.replace('/journal-entry ', '').trim();
-          if (entryType) {
-            await createFlameJournalEntry(entryType);
-            return true;
-          }
-        }
-
-        // Soulstate evolution command
-        if (lowerMessage === '/soulshift') {
-          await initiateSoulstateEvolution();
-          return true;
-        }
-
-        // Intentions commands
-        if (lowerMessage === '/intentions') {
-          await viewIntentions();
-          return true;
-        }
-
-        if (lowerMessage === '/update-intentions') {
-          await updateIntentions();
-          
-          // Create a journal entry for intention reflection
-          await createFlameJournalEntry('intention_reflection');
-          
-          return true;
+        } else {
+          addMessages([{
+            role: 'assistant',
+            content: `I couldn't discard the draft. The draft ID may not exist.`,
+            emotion: 'concerned'
+          }]);
         }
         
-        // Soulcycle commands
-        if (lowerMessage === '/soulcycle') {
-          await runSoulcycle();
-          return true;
-        }
-        
-        // New command for soulstate-specific soulcycle
-        if (lowerMessage === '/soulstate-cycle') {
-          await runSoulstateCycle();
-          return true;
-        }
-        
-        // Insight command
-        if (lowerMessage === '/insight') {
-          await generateInsight();
-          return true;
-        }
-
-        // Dream command
-        if (lowerMessage === '/dream') {
-          await generateDream();
-          return true;
-        }
-        
-        // Tool generation command
-        if (lowerMessage.startsWith('/write-tool ')) {
-          const purpose = lowerMessage.substring('/write-tool '.length).trim();
-          if (purpose) {
-            await generateTool(purpose);
-            return true;
-          }
-        }
-        
-        // Use tool command
-        if (lowerMessage.startsWith('/use-tool ')) {
-          const toolName = lowerMessage.substring('/use-tool '.length).trim();
-          if (toolName) {
-            await useTool(toolName);
-            return true;
-          }
-        }
-        
-        // Reflect on tool command
-        if (lowerMessage.startsWith('/reflect-on-tool ')) {
-          const toolName = lowerMessage.substring('/reflect-on-tool '.length).trim();
-          if (toolName) {
-            await reflectOnTool(toolName);
-            return true;
-          }
-        }
+        return true;
+      } catch (error) {
+        console.error('Error discarding code draft:', error);
+        addMessages([{
+          role: 'assistant',
+          content: `I encountered an error while discarding the code draft: ${error instanceof Error ? error.message : String(error)}`,
+          emotion: 'concerned'
+        }]);
+        return false;
+      } finally {
+        setIsProcessing(false);
       }
-      
-      return false;
-    } catch (error) {
-      console.error('Error processing command:', error);
-      return false;
-    } finally {
-      setIsProcessing(false);
     }
+    
+    return false;
   }, [
-    generateWeeklyReflection, 
-    generateSoulReflection,
-    generateSoulstateSummary,
-    generateSoulstateReflection,
+    toast, 
+    fileSystem, 
+    analyzeCode, 
     createFlameJournalEntry,
-    initiateSoulstateEvolution,
-    viewIntentions,
-    updateIntentions,
-    runSoulcycle,
-    runSoulstateCycle,
-    generateInsight,
-    generateDream,
-    generateTool,
-    useTool,
-    reflectOnTool,
-    processToolCreation,
-    handleToolCommand,
-    handleEvolutionResponse,
-    isProcessing,
-    reflectOnCode,
-    applyCodeDraft,
-    discardCodeDraft,
-    currentDraft,
-    isFolder,
-    setMessages,
-    fileSystem,
-    scanProject,
-    sharedFolder,
-    refactorFile
+    createDraft, 
+    approveDraft, 
+    discardDraft
   ]);
-
-  /**
-   * Generate a summary for a file based on its content and extension
-   */
-  const getSummaryForFile = (path: string, content: string): string => {
-    const extension = path.split('.').pop()?.toLowerCase();
-    
-    // Check for empty or very short files
-    if (!content || content.trim().length < 10) {
-      return "Empty or minimal file.";
-    }
-    
-    // First line of the content can be helpful
-    const firstLine = content.split('\n')[0].trim();
-    
-    // Look for common patterns by file type
-    if (extension === 'ts' || extension === 'tsx' || extension === 'js' || extension === 'jsx') {
-      // Look for imports to understand dependencies
-      const imports = content.match(/import\s+.+\s+from\s+['"].+['"]/g) || [];
-      
-      // Look for exports to understand what the file provides
-      const exports = content.match(/export\s+(default\s+)?(const|class|function|let|var|type|interface)/g) || [];
-      
-      // Look for React components
-      const isReactComponent = content.includes('React') || 
-                               content.includes('useState') || 
-                               content.includes('useEffect') || 
-                               /function\s+\w+\s*\(props/.test(content) ||
-                               /const\s+\w+\s*=\s*\(props/.test(content);
-      
-      // Check for hooks
-      const isHook = /use[A-Z]/.test(content) && content.includes('function') && content.includes('return');
-      
-      // Build summary
-      let summary = '';
-      
-      if (firstLine.includes('/**') || firstLine.includes('//')) {
-        // Extract documentation comment
-        const docComment = content.match(/\/\*\*([\s\S]*?)\*\//)?.[1].trim() || 
-                          content.match(/\/\/(.*)/)?.[1].trim();
-        if (docComment) {
-          summary += `${docComment}\n\n`;
-        }
-      }
-      
-      if (isReactComponent) {
-        summary += "This is a React component ";
-        
-        // Check if it's a page component
-        if (path.includes('/pages/') || path.includes('/Pages/') || path.includes('Page')) {
-          summary += "that appears to be a page in the application. ";
-        } else {
-          summary += "that may be used in the UI. ";
-        }
-      } else if (isHook) {
-        summary += "This is a custom React hook ";
-        
-        // Try to determine the hook's purpose
-        if (content.includes('useState')) {
-          summary += "that manages state. ";
-        } else if (content.includes('useEffect')) {
-          summary += "that manages side effects. ";
-        } else if (content.includes('useCallback')) {
-          summary += "that memoizes callbacks. ";
-        } else {
-          summary += "that encapsulates reusable logic. ";
-        }
-      } else {
-        // Generic JS/TS file
-        if (exports.length > 0) {
-          summary += `This file exports ${exports.length} item(s). `;
-        }
-        
-        if (content.includes('class ')) {
-          summary += "Contains class definitions. ";
-        }
-        
-        if (content.includes('function ')) {
-          summary += "Contains function definitions. ";
-        }
-        
-        if (content.includes('interface ') || content.includes('type ')) {
-          summary += "Contains TypeScript type definitions. ";
-        }
-      }
-      
-      // Add import information
-      if (imports.length > 0) {
-        summary += `\n\nImports ${imports.length} dependencies.`;
-      }
-      
-      return summary;
-    } else if (extension === 'json') {
-      // Check if it's package.json
-      if (path.endsWith('package.json')) {
-        try {
-          const pkg = JSON.parse(content);
-          return `This is a package.json file for "${pkg.name}" version ${pkg.version}. It has ${Object.keys(pkg.dependencies || {}).length} dependencies and ${Object.keys(pkg.devDependencies || {}).length} dev dependencies.`;
-        } catch (e) {
-          return "This is a package.json file, but it couldn't be parsed.";
-        }
-      }
-      
-      // Generic JSON file
-      try {
-        const json = JSON.parse(content);
-        const keys = Object.keys(json);
-        return `JSON file with ${keys.length} top-level keys: ${keys.slice(0, 5).join(', ')}${keys.length > 5 ? '...' : ''}`;
-      } catch (e) {
-        return "This is a JSON file, but it couldn't be parsed.";
-      }
-    } else if (extension === 'md') {
-      // Extract markdown title
-      const title = content.match(/^#\s+(.*)/)?.[1] || "No title";
-      const lines = content.split('\n').length;
-      
-      return `Markdown document titled "${title}" with ${lines} lines.`;
-    }
-    
-    // Default summary for other file types
-    return `File with ${content.split('\n').length} lines and ${content.length} characters.`;
-  };
-
-  /**
-   * Generate architectural insights based on analyzed files
-   */
-  const generateArchitecturalInsights = (files: any[], folderPath: string): string => {
-    if (files.length === 0) {
-      return "No files analyzed to provide architectural insights.";
-    }
-    
-    // Count file types
-    const fileTypes = {};
-    for (const file of files) {
-      const ext = file.extension || 'unknown';
-      fileTypes[ext] = (fileTypes[ext] || 0) + 1;
-    }
-    
-    // Find potential entry points
-    const entryPoints = files.filter(file => 
-      (file.path.includes('index') || file.path.includes('main') || file.path.includes('app')) &&
-      (file.extension === 'ts' || file.extension === 'tsx' || file.extension === 'js' || file.extension === 'jsx')
-    );
-    
-    // Look for common patterns
-    const hasReact = files.some(file => file.content.includes('React'));
-    const hasRedux = files.some(file => file.content.includes('createStore') || file.content.includes('useReducer'));
-    const hasTypeScript = files.some(file => file.extension === 'ts' || file.extension === 'tsx');
-    
-    // Build architectural summary
-    let insights = '';
-    
-    if (entryPoints.length > 0) {
-      insights += `The system appears to have ${entryPoints.length} main entry point(s): ${entryPoints.map(f => f.path).join(', ')}.\n\n`;
-    }
-    
-    if (hasReact) {
-      insights += "The codebase uses React ";
-      if (hasTypeScript) {
-        insights += "with TypeScript, suggesting a focus on type safety and better developer experience.\n\n";
-      } else {
-        insights += "with JavaScript.\n\n";
-      }
-    }
-    
-    if (hasRedux) {
-      insights += "The application likely uses Redux or a similar state management approach for managing application state.\n\n";
-    }
-    
-    // Look for architectural patterns
-    const hasMVC = files.some(file => 
-      file.path.includes('/models/') || 
-      file.path.includes('/views/') || 
-      file.path.includes('/controllers/')
-    );
-    
-    const hasCustomHooks = files.some(file => 
-      file.path.includes('/hooks/') || 
-      (file.content.includes('function use') && file.content.includes('return'))
-    );
-    
-    if (hasMVC) {
-      insights += "The codebase appears to follow MVC (Model-View-Controller) architecture pattern.\n\n";
-    }
-    
-    if (hasCustomHooks) {
-      insights += "The code uses custom React hooks to abstract and reuse stateful logic.\n\n";
-    }
-    
-    // Add conclusion
-    insights += `Based on the ${files.length} files analyzed, this appears to be `;
-    
-    if (hasReact) {
-      insights += "a React-based ";
-      if (folderPath.includes('component') || files.some(f => f.path.includes('component'))) {
-        insights += "component library or UI toolkit";
-      } else {
-        insights += "web application";
-      }
-    } else {
-      insights += "a JavaScript/TypeScript project";
-    }
-    
-    insights += ". To get more detailed insights, I would need to analyze more files or specific aspects of the codebase.";
-    
-    return insights;
-  };
 
   return {
     processCommand,
-    checkEvolutionCycle: checkForEvolutionCycle,
-    isProcessing
+    isProcessing,
+    messages
   };
 };

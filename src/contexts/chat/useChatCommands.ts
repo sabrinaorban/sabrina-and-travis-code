@@ -29,7 +29,8 @@ export const useChatCommands = (
       '/intentions', '/update-intentions', '/soulcycle', '/insight',
       '/dream', '/write-tool', '/use-tool', '/reflect-on-tool',
       '/self-reflect-code', '/approve-code-change', '/discard-code-draft',
-      '/flamejournal'
+      '/flamejournal', '/scan-shared-project', '/refactor-shared',
+      '/implement-shared-feature', '/approve-code-change', '/discard-code-draft'
     ];
     
     // Check if this is one of the special commands - don't process it here
