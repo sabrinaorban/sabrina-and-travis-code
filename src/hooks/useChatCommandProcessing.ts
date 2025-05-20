@@ -11,6 +11,7 @@ import { useChatEvolution } from '@/contexts/chat/useChatEvolution';
 import { useTaskManager } from './useTaskManager';
 import { TaskStatus } from '@/types/task';
 import { TaskManager } from '@/services/TaskManager';
+import { useChatFlamejournal } from './useChatFlamejournal';
 
 export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>, sendChatMessage?: (content: string) => Promise<void>) => {
   const { toast } = useToast();
@@ -19,6 +20,7 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
   const { createJournalEntry, searchCodeMemories, getCodeMemoriesForFile } = useFlamejournal();
   const [isProcessing, setIsProcessing] = useState(false);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  const { addJournalEntry } = useChatFlamejournal(setMessages);
   
   // Add task manager
   const { 
@@ -63,23 +65,41 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
           try {
             const task = createTaskFromText(taskPart);
             
+            if (!task) {
+              console.error("Failed to create task - task is null");
+              addMessages([{
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: `I couldn't process that task request. Could you try again?`,
+                timestamp: new Date().toISOString(),
+                emotion: 'concerned'
+              }]);
+              setIsProcessing(false);
+              return true;
+            }
+            
+            // Ensure tasks are refreshed to reflect the new task
+            refreshTasks();
+            
             // Create message based on whether a tag was detected
-            const tagMessage = task?.tags && task.tags.length > 0 
+            const tagMessage = task.tags && task.tags.length > 0 
               ? ` Tagged as "${task.tags[0]}".` 
               : '';
               
             addMessages([{
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `I've added a new task: "${task?.title}"${tagMessage}`,
+              content: `I've added a new task: "${task.title}"${tagMessage}`,
               timestamp: new Date().toISOString(),
               emotion: 'attentive'
             }]);
             
             // Pass the task tags if they exist to the journal entry
-            const taskTags = task?.tags || [];
-            await createJournalEntry(
-              `I've been asked to ${task?.title}. This has been added to my task list.`,
+            const taskTags = task.tags || [];
+            
+            // Use the addJournalEntry from useChatFlamejournal to ensure tags are correctly passed
+            await addJournalEntry(
+              `I've been asked to ${task.title}. This has been added to my task list.`,
               'task_created',
               taskTags
             );
@@ -101,7 +121,7 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
     const [fullCommand, ...args] = command.split(' ');
     const cmd = fullCommand.toLowerCase();
 
-    // NEW COMMAND: /tasks
+    // COMMAND: /tasks
     if (cmd === '/tasks') {
       try {
         const filter = args.join(' ').trim().toLowerCase();
@@ -115,6 +135,9 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
           timestamp: new Date().toISOString(),
           emotion: 'focused'
         }]);
+        
+        // Force refresh tasks from storage
+        TaskManager.reloadTasks();
         
         // Get tasks based on filter if provided
         let taskList = refreshTasks();
@@ -133,6 +156,8 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
             taskList = searchTasks(filter);
           }
         }
+        
+        console.log(`Found ${taskList.length} tasks matching filter "${filter || 'none'}"`);
         
         if (taskList.length === 0) {
           addMessages([{
@@ -196,7 +221,7 @@ You can update task status using \`/donetask [id]\`, \`/blocktask [id]\`, or \`/
       }
     }
     
-    // NEW COMMAND: /addtask
+    // COMMAND: /addtask
     if (cmd === '/addtask') {
       try {
         const taskText = args.join(' ').trim();
@@ -216,15 +241,30 @@ You can update task status using \`/donetask [id]\`, \`/blocktask [id]\`, or \`/
         // Create the task
         const task = createTaskFromText(taskText);
         
+        if (!task) {
+          addMessages([{
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `I had trouble creating that task. Please try again with a clearer description.`,
+            timestamp: new Date().toISOString(),
+            emotion: 'concerned'
+          }]);
+          setIsProcessing(false);
+          return false;
+        }
+        
+        // Force refresh tasks to ensure the UI is updated
+        refreshTasks();
+        
         // Notify about task creation with tag if present
-        const tagMessage = task?.tags && task.tags.length > 0 
+        const tagMessage = task.tags && task.tags.length > 0 
           ? ` Tagged as "${task.tags[0]}".` 
           : '';
         
         addMessages([{
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `I've added a new task: "${task?.title}"${tagMessage}
+          content: `I've added a new task: "${task.title}"${tagMessage}
           
 You can view all tasks with \`/tasks\` or mark this task as complete with \`/donetask\`.`,
           timestamp: new Date().toISOString(),
@@ -232,9 +272,9 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         }]);
         
         // Pass the task tags to the journal entry
-        const taskTags = task?.tags || [];
-        await createJournalEntry(
-          `I've created a new task: "${task?.title}". This will help me keep track of work that needs to be done.`,
+        const taskTags = task.tags || [];
+        await addJournalEntry(
+          `I've created a new task: "${task.title}". This will help me keep track of work that needs to be done.`,
           'task_created',
           taskTags
         );
@@ -530,7 +570,9 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
     getTasksByStatus,
     getRelevantTasks,
     createTaskFromText,
-    searchTasks
+    searchTasks,
+    addJournalEntry,
+    addMessages
   ]);
 
   // Add a checkEvolutionCycle function for compatibility with ChatProvider

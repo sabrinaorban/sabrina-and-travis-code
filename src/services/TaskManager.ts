@@ -1,4 +1,3 @@
-
 import { Task, TaskStatus } from '@/types/task';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -11,6 +10,9 @@ const loadTasks = (): void => {
     const savedTasks = localStorage.getItem('travis_tasks');
     if (savedTasks) {
       tasks = JSON.parse(savedTasks);
+      console.log(`Loaded ${tasks.length} tasks from storage`);
+    } else {
+      console.log('No saved tasks found in storage');
     }
   } catch (error) {
     console.error('Failed to load tasks from storage:', error);
@@ -21,6 +23,7 @@ const loadTasks = (): void => {
 const saveTasks = (): void => {
   try {
     localStorage.setItem('travis_tasks', JSON.stringify(tasks));
+    console.log(`Saved ${tasks.length} tasks to storage`);
   } catch (error) {
     console.error('Failed to save tasks to storage:', error);
   }
@@ -46,8 +49,13 @@ export const TaskManager = {
       updatedAt: now
     };
     
+    // Make sure to add the task to the array
     tasks.push(task);
+    
+    // Always save immediately after creating a task
     saveTasks();
+    
+    console.log(`Created new task: "${title}" with ID: ${task.id}`);
     return task;
   },
   
@@ -55,6 +63,10 @@ export const TaskManager = {
    * Get all tasks
    */
   getAllTasks: (): Task[] => {
+    // Ensure tasks are loaded before returning
+    if (tasks.length === 0) {
+      loadTasks();
+    }
     return [...tasks];
   },
   
@@ -62,6 +74,10 @@ export const TaskManager = {
    * Get tasks by status
    */
   getTasksByStatus: (status: TaskStatus): Task[] => {
+    // Ensure tasks are loaded before filtering
+    if (tasks.length === 0) {
+      loadTasks();
+    }
     return tasks.filter(task => task.status === status);
   },
   
@@ -92,6 +108,7 @@ export const TaskManager = {
       updatedAt: new Date().toISOString()
     };
     
+    // Make sure to save after updating
     saveTasks();
     return tasks[taskIndex];
   },
@@ -109,6 +126,7 @@ export const TaskManager = {
       updatedAt: new Date().toISOString()
     };
     
+    // Make sure to save after updating
     saveTasks();
     return tasks[taskIndex];
   },
@@ -121,6 +139,7 @@ export const TaskManager = {
     tasks = tasks.filter(task => task.id !== taskId);
     
     if (tasks.length !== initialLength) {
+      // Make sure to save after deleting
       saveTasks();
       return true;
     }
@@ -290,5 +309,21 @@ export const TaskManager = {
     }
     
     return null;
+  },
+  
+  /**
+   * Force reload tasks from storage
+   */
+  reloadTasks: (): Task[] => {
+    loadTasks();
+    return [...tasks];
+  },
+  
+  /**
+   * Clear all tasks (for testing)
+   */
+  clearTasks: (): void => {
+    tasks = [];
+    saveTasks();
   }
 };

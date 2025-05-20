@@ -10,6 +10,8 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
   
   const addJournalEntry = useCallback(async (content: string, type: string = 'reflection', additionalTags: string[] = []): Promise<boolean> => {
     try {
+      console.log(`useChatFlamejournal: Creating ${type} entry with tags: ${additionalTags.join(', ')}`);
+      
       // Get current tasks for context
       const inProgressTasks = getTasksByStatus('in_progress');
       const pendingTasks = getTasksByStatus('pending');
@@ -26,9 +28,9 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
       if (inProgressTasks.length > 0) taskTags.push('active_tasks');
       if (pendingTasks.length > 0) taskTags.push('pending_tasks');
       
+      console.log(`useChatFlamejournal: Final tags for journal entry: ${taskTags.join(', ')}`);
+      
       // Create the journal entry with enhanced content
-      // Make sure we're using the correct signature for createEntry:
-      // content, type, tags, metadata - where metadata is a separate object, not part of tags
       const entry = await createEntry(enhancedContent, type, taskTags, {
         taskContext: {
           activeTasks: inProgressTasks.length,
@@ -50,6 +52,7 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
         ]);
       }
       
+      console.log(`useChatFlamejournal: Journal entry created with ID ${entry?.id || 'unknown'}`);
       return true;
     } catch (error) {
       console.error('Error creating flame journal entry:', error);
