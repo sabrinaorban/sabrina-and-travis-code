@@ -23,8 +23,10 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
       
       // Create the journal entry with enhanced content
       const entry = await createEntry(enhancedContent, type, {
-        activeTasks: inProgressTasks.length,
-        pendingTasks: pendingTasks.length
+        taskContext: {
+          activeTasks: inProgressTasks.length,
+          pendingTasks: pendingTasks.length
+        }
       });
       
       // Only add message if setMessages is provided

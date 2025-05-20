@@ -10,6 +10,7 @@ import { SharedProjectAnalyzer } from '@/services/SharedProjectAnalyzer';
 import { useChatEvolution } from '@/contexts/chat/useChatEvolution';
 import { useTaskManager } from './useTaskManager';
 import { TaskStatus } from '@/types/task';
+import { TaskManager } from '@/services/TaskManager';
 
 export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>, sendChatMessage?: (content: string) => Promise<void>) => {
   const { toast } = useToast();
