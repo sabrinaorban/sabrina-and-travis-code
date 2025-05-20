@@ -60,7 +60,33 @@ serve(async (req) => {
         if (taskError) {
           console.error("Error checking task existence:", taskError);
         } else if (!taskData) {
-          console.error("Task not found in database, it should have been saved already");
+          console.log("Task not found in database. Attempting to save it now.");
+          
+          // If metadata contains enough information, we can save the task
+          if (metadata.taskTitle && metadata.taskStatus) {
+            const taskToSave = {
+              id: metadata.taskId,
+              title: metadata.taskTitle,
+              status: metadata.taskStatus,
+              tags: metadata.taskTags || [],
+              related_file: metadata.relatedFile,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+            
+            const { data: savedTask, error: saveError } = await supabase
+              .from('tasks')
+              .upsert(taskToSave)
+              .select();
+              
+            if (saveError) {
+              console.error("Error saving task from journal entry:", saveError);
+            } else {
+              console.log("Successfully saved task from journal entry:", savedTask);
+            }
+          } else {
+            console.error("Insufficient task data in metadata to create task record");
+          }
         } else {
           console.log("Task found in database:", taskData);
         }

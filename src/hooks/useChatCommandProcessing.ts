@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useFileSystem } from '@/contexts/FileSystemContext';
@@ -95,14 +94,15 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
               emotion: 'attentive'
             }]);
             
-            // Pass the task tags if they exist to the journal entry
+            // Pass the task tags and the complete task data to the journal entry
             const taskTags = task.tags || [];
             
-            // Use the addJournalEntry from useChatFlamejournal to ensure tags are correctly passed
+            // Use the addJournalEntry from useChatFlamejournal with the task data
             await addJournalEntry(
               `I've been asked to ${task.title}. This has been added to my task list.`,
               'task_created',
-              taskTags
+              taskTags,
+              task // Pass the complete task object
             );
             
             setIsProcessing(false);
@@ -274,12 +274,13 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
           emotion: 'attentive'
         }]);
         
-        // Pass the task tags to the journal entry
+        // Pass the task tags and complete task object to the journal entry
         const taskTags = task.tags || [];
         await addJournalEntry(
           `I've created a new task: "${task.title}". This will help me keep track of work that needs to be done.`,
           'task_created',
-          taskTags
+          taskTags,
+          task // Pass the complete task object
         );
         
         return true;

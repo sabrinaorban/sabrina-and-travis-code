@@ -3,12 +3,13 @@ import { useCallback } from 'react';
 import { Message } from '@/types';
 import { useFlamejournal } from './useFlamejournal';
 import { useTaskManager } from './useTaskManager';
+import { Task } from '@/types/task';
 
 export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>) => {
   const { createJournalEntry: createEntry } = useFlamejournal();
   const { getTasksByStatus } = useTaskManager();
   
-  const addJournalEntry = useCallback(async (content: string, type: string = 'reflection', additionalTags: string[] = []): Promise<boolean> => {
+  const addJournalEntry = useCallback(async (content: string, type: string = 'reflection', additionalTags: string[] = [], taskData?: Task): Promise<boolean> => {
     try {
       console.log(`useChatFlamejournal: Creating ${type} entry with tags:`, additionalTags);
       
@@ -34,13 +35,31 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
       
       console.log(`useChatFlamejournal: Final tags for journal entry:`, taskTags);
       
-      // Create the journal entry with enhanced content
-      const entry = await createEntry(enhancedContent, type, taskTags, {
+      // Prepare metadata with task information if available
+      const metadata: Record<string, any> = {
         taskContext: {
           activeTasks: inProgressTasks.length,
           pendingTasks: pendingTasks.length
         }
-      });
+      };
+      
+      // Add the specific task data if provided
+      if (taskData) {
+        metadata.taskId = taskData.id;
+        metadata.taskTitle = taskData.title;
+        metadata.taskStatus = taskData.status;
+        if (taskData.tags) {
+          metadata.taskTags = taskData.tags;
+        }
+      }
+      
+      // Create the journal entry with enhanced content
+      const entry = await createEntry(enhancedContent, type, taskTags, metadata);
+      
+      if (!entry) {
+        console.error('useChatFlamejournal: No entry returned from createEntry');
+        return false;
+      }
       
       // Only add message if setMessages is provided
       if (setMessages && entry) {
