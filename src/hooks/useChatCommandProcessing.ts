@@ -378,7 +378,7 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         
         // If there's a reason, update the task description
         if (reason) {
-          const taskWithReason = TaskManager.updateTask(targetTaskId, {
+          TaskManager.updateTask(targetTaskId, {
             description: `${updatedTask.description || ''}\n\nBlocked reason: ${reason}`.trim()
           });
         }

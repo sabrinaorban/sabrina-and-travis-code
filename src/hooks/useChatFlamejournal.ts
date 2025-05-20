@@ -2,11 +2,11 @@
 import { useCallback } from 'react';
 import { Message } from '@/types';
 import { useFlamejournal } from './useFlamejournal';
-import { useTaskManager } from './useTaskManager'; // Import TaskManager hook
+import { useTaskManager } from './useTaskManager';
 
 export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>) => {
   const { createJournalEntry: createEntry } = useFlamejournal();
-  const { getTasksByStatus } = useTaskManager(); // Get TaskManager functions
+  const { getTasksByStatus } = useTaskManager();
   
   const addJournalEntry = useCallback(async (content: string, type: string = 'reflection'): Promise<boolean> => {
     try {
@@ -21,8 +21,14 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
         enhancedContent += `\n\nCurrently working on: ${inProgressTasks.map(t => t.title).join(', ')}`;
       }
       
+      // Create metadata tags related to tasks
+      const taskTags = ['task_context'];
+      if (inProgressTasks.length > 0) taskTags.push('active_tasks');
+      if (pendingTasks.length > 0) taskTags.push('pending_tasks');
+      
       // Create the journal entry with enhanced content
-      const entry = await createEntry(enhancedContent, type, {
+      // Fix: Pass the task metadata as the fourth parameter (metadata) instead of trying to use it as tags
+      const entry = await createEntry(enhancedContent, type, taskTags, {
         taskContext: {
           activeTasks: inProgressTasks.length,
           pendingTasks: pendingTasks.length
