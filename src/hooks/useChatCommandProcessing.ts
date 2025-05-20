@@ -3,7 +3,7 @@ import { useToast } from './use-toast';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { useCodeReflection } from './useCodeReflection';
 import { useFlamejournal } from './useFlamejournal';
-import { Message, CodeMemoryEntry } from '@/types';
+import { Message, CodeMemoryEntry, CodeMemoryMetadata } from '@/types';
 import { SharedFolderService } from '@/services/SharedFolderService';
 import { useCodeDraftManager } from './useCodeDraftManager';
 import { SharedProjectAnalyzer } from '@/services/SharedProjectAnalyzer';
@@ -81,7 +81,7 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
         
         // Format memories in a readable way
         const formattedMemories = memories.slice(0, 10).map((memory, index) => {
-          const metadata = memory.metadata || {};
+          const metadata = memory.metadata || {} as CodeMemoryMetadata;
           const date = new Date(memory.created_at).toLocaleString();
           
           return `**${index + 1}. ${metadata.action_type || 'Edit'} on ${metadata.file_path || 'unknown file'} (${date})**
@@ -177,7 +177,7 @@ Is the file path correct? You can check available files with the FileExplorer or
         
         // Get the most recent memory
         const latestMemory = memories[0];
-        const metadata = latestMemory.metadata || {};
+        const metadata = latestMemory.metadata || {} as CodeMemoryMetadata;
         const date = new Date(latestMemory.created_at).toLocaleString();
         
         // Format a detailed explanation
@@ -516,7 +516,6 @@ To discard this draft, use \`/discard-code-draft ${draftId}\``,
         // Add summary message with the implementation details
         addMessages([{
           id: crypto.randomUUID(),
-          role: 'assistant',
           content: `I've designed an implementation for the feature: "${description}"
           
 **Implementation approach:**

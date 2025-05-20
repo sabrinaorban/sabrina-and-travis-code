@@ -23,6 +23,6 @@ export interface CodeMemoryMetadata {
   related_files?: string[];
 }
 
-export interface CodeMemoryEntry extends FlameJournalEntry {
+export interface CodeMemoryEntry extends Omit<FlameJournalEntry, 'metadata'> {
   metadata: CodeMemoryMetadata | null;
 }

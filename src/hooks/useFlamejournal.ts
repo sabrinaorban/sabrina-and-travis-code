@@ -105,7 +105,17 @@ export const useFlamejournal = () => {
       related_files: relatedFiles || []
     };
     
-    return createJournalEntry(content, 'code_memory', tags, metadata) as Promise<CodeMemoryEntry | null>;
+    const result = await createJournalEntry(content, 'code_memory', tags, metadata);
+    
+    // Cast to CodeMemoryEntry with type verification
+    if (result) {
+      return {
+        ...result,
+        metadata: result.metadata as unknown as CodeMemoryMetadata
+      } as CodeMemoryEntry;
+    }
+    
+    return null;
   }, [createJournalEntry]);
   
   // Get the most recent journal entry
@@ -147,7 +157,7 @@ export const useFlamejournal = () => {
       if (!data) return [];
       
       // Filter entries where metadata.file_path matches or metadata.related_files contains the filePath
-      return data.filter(entry => {
+      const filteredEntries = data.filter(entry => {
         if (!entry.metadata) return false;
         
         const metadata = entry.metadata as any;
@@ -156,7 +166,13 @@ export const useFlamejournal = () => {
           metadata.file_path === filePath || 
           (metadata.related_files && metadata.related_files.includes(filePath))
         );
-      }) as CodeMemoryEntry[];
+      });
+      
+      // Convert to CodeMemoryEntry type
+      return filteredEntries.map(entry => ({
+        ...entry,
+        metadata: entry.metadata as unknown as CodeMemoryMetadata
+      })) as CodeMemoryEntry[];
     } catch (error) {
       console.error(`Error fetching code memories for file ${filePath}:`, error);
       return [];
@@ -182,7 +198,7 @@ export const useFlamejournal = () => {
       // Then filter by content or metadata fields containing the search term (case insensitive)
       const searchTermLower = searchTerm.toLowerCase();
       
-      return data.filter(entry => {
+      const filteredEntries = data.filter(entry => {
         // Check content
         if (entry.content && entry.content.toLowerCase().includes(searchTermLower)) {
           return true;
@@ -201,7 +217,13 @@ export const useFlamejournal = () => {
         }
         
         return false;
-      }) as CodeMemoryEntry[];
+      });
+      
+      // Convert to CodeMemoryEntry type
+      return filteredEntries.map(entry => ({
+        ...entry,
+        metadata: entry.metadata as unknown as CodeMemoryMetadata
+      })) as CodeMemoryEntry[];
     } catch (error) {
       console.error(`Error searching code memories for "${searchTerm}":`, error);
       return [];
