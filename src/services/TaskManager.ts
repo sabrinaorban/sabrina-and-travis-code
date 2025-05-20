@@ -1,31 +1,97 @@
+
 import { Task, TaskStatus } from '@/types/task';
 import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '@/integrations/supabase/client';
 
 // Simple in-memory storage for now
 let tasks: Task[] = [];
 
-// Load tasks from localStorage on initialization
-const loadTasks = (): void => {
+// Load tasks from localStorage and Supabase on initialization
+const loadTasks = async (): Promise<void> => {
   try {
+    // First load from localStorage as a fallback
     const savedTasks = localStorage.getItem('travis_tasks');
     if (savedTasks) {
       tasks = JSON.parse(savedTasks);
-      console.log(`Loaded ${tasks.length} tasks from storage`);
+      console.log(`Loaded ${tasks.length} tasks from localStorage`);
     } else {
-      console.log('No saved tasks found in storage');
+      console.log('No saved tasks found in localStorage');
+    }
+    
+    // Then try to fetch from Supabase (if available)
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*');
+        
+      if (error) {
+        console.error('Failed to fetch tasks from Supabase:', error);
+      } else if (data && data.length > 0) {
+        // Replace local tasks with Supabase data
+        tasks = data;
+        console.log(`Loaded ${tasks.length} tasks from Supabase`);
+        
+        // Update localStorage with the latest data
+        saveTasks();
+      }
+    } catch (dbError) {
+      console.error('Supabase error when loading tasks:', dbError);
     }
   } catch (error) {
-    console.error('Failed to load tasks from storage:', error);
+    console.error('Failed to load tasks:', error);
   }
 };
 
-// Save tasks to localStorage
-const saveTasks = (): void => {
+// Save tasks to localStorage and Supabase
+const saveTasks = async (): Promise<void> => {
   try {
+    // Always save to localStorage as a backup
     localStorage.setItem('travis_tasks', JSON.stringify(tasks));
-    console.log(`Saved ${tasks.length} tasks to storage`);
+    console.log(`Saved ${tasks.length} tasks to localStorage`);
   } catch (error) {
-    console.error('Failed to save tasks to storage:', error);
+    console.error('Failed to save tasks to localStorage:', error);
+  }
+};
+
+// Save a single task to Supabase (new or updated)
+const saveTaskToSupabase = async (task: Task): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .from('tasks')
+      .upsert(task, { onConflict: 'id' })
+      .select();
+      
+    if (error) {
+      console.error('Failed to save task to Supabase:', error);
+      return false;
+    }
+    
+    console.log(`Task "${task.title}" saved to Supabase with ID: ${task.id}`);
+    return true;
+  } catch (error) {
+    console.error('Error saving task to Supabase:', error);
+    return false;
+  }
+};
+
+// Delete a task from Supabase
+const deleteTaskFromSupabase = async (taskId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', taskId);
+      
+    if (error) {
+      console.error('Failed to delete task from Supabase:', error);
+      return false;
+    }
+    
+    console.log(`Task with ID ${taskId} deleted from Supabase`);
+    return true;
+  } catch (error) {
+    console.error('Error deleting task from Supabase:', error);
+    return false;
   }
 };
 
@@ -36,7 +102,7 @@ export const TaskManager = {
   /**
    * Create a new task
    */
-  createTask: (title: string, description?: string, relatedFile?: string, tags?: string[]): Task => {
+  createTask: async (title: string, description?: string, relatedFile?: string, tags?: string[]): Promise<Task> => {
     const now = new Date().toISOString();
     const task: Task = {
       id: uuidv4(),
@@ -52,8 +118,14 @@ export const TaskManager = {
     // Make sure to add the task to the array
     tasks.push(task);
     
-    // Always save immediately after creating a task
-    saveTasks();
+    // Always save immediately to localStorage after creating a task
+    await saveTasks();
+    
+    // Save to Supabase
+    const saved = await saveTaskToSupabase(task);
+    if (!saved) {
+      console.error(`Failed to save task "${title}" to Supabase. It's only stored locally.`);
+    }
     
     console.log(`Created new task: "${title}" with ID: ${task.id}`);
     return task;
@@ -98,7 +170,7 @@ export const TaskManager = {
   /**
    * Update a task's status
    */
-  updateTaskStatus: (taskId: string, status: TaskStatus): Task | null => {
+  updateTaskStatus: async (taskId: string, status: TaskStatus): Promise<Task | null> => {
     const taskIndex = tasks.findIndex(t => t.id === taskId);
     if (taskIndex === -1) return null;
     
@@ -109,14 +181,18 @@ export const TaskManager = {
     };
     
     // Make sure to save after updating
-    saveTasks();
+    await saveTasks();
+    
+    // Update in Supabase
+    await saveTaskToSupabase(tasks[taskIndex]);
+    
     return tasks[taskIndex];
   },
   
   /**
    * Update a task's details
    */
-  updateTask: (taskId: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>): Task | null => {
+  updateTask: async (taskId: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>): Promise<Task | null> => {
     const taskIndex = tasks.findIndex(t => t.id === taskId);
     if (taskIndex === -1) return null;
     
@@ -127,20 +203,28 @@ export const TaskManager = {
     };
     
     // Make sure to save after updating
-    saveTasks();
+    await saveTasks();
+    
+    // Update in Supabase
+    await saveTaskToSupabase(tasks[taskIndex]);
+    
     return tasks[taskIndex];
   },
   
   /**
    * Delete a task
    */
-  deleteTask: (taskId: string): boolean => {
+  deleteTask: async (taskId: string): Promise<boolean> => {
     const initialLength = tasks.length;
     tasks = tasks.filter(task => task.id !== taskId);
     
     if (tasks.length !== initialLength) {
       // Make sure to save after deleting
-      saveTasks();
+      await saveTasks();
+      
+      // Delete from Supabase
+      await deleteTaskFromSupabase(taskId);
+      
       return true;
     }
     
@@ -314,16 +398,30 @@ export const TaskManager = {
   /**
    * Force reload tasks from storage
    */
-  reloadTasks: (): Task[] => {
-    loadTasks();
+  reloadTasks: async (): Promise<Task[]> => {
+    await loadTasks();
     return [...tasks];
   },
   
   /**
    * Clear all tasks (for testing)
    */
-  clearTasks: (): void => {
+  clearTasks: async (): Promise<void> => {
     tasks = [];
-    saveTasks();
+    await saveTasks();
+    
+    try {
+      // Also clear from Supabase
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .neq('id', 'none'); // This will delete all rows
+        
+      if (error) {
+        console.error('Error clearing tasks from Supabase:', error);
+      }
+    } catch (error) {
+      console.error('Failed to clear tasks from Supabase:', error);
+    }
   }
 };

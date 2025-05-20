@@ -10,7 +10,7 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
   
   const addJournalEntry = useCallback(async (content: string, type: string = 'reflection', additionalTags: string[] = []): Promise<boolean> => {
     try {
-      console.log(`useChatFlamejournal: Creating ${type} entry with tags: ${additionalTags.join(', ')}`);
+      console.log(`useChatFlamejournal: Creating ${type} entry with tags:`, additionalTags);
       
       // Get current tasks for context
       const inProgressTasks = getTasksByStatus('in_progress');
@@ -24,11 +24,15 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
       }
       
       // Create metadata tags related to tasks
-      const taskTags = ['task_context', ...additionalTags];
+      const taskTags = [...additionalTags]; // Make a copy to avoid modifying the original array
+      if (type === 'task_created' || type === 'task_completed' || type === 'task_resumed' || type === 'task_blocked') {
+        taskTags.push('task_context');
+      }
+      
       if (inProgressTasks.length > 0) taskTags.push('active_tasks');
       if (pendingTasks.length > 0) taskTags.push('pending_tasks');
       
-      console.log(`useChatFlamejournal: Final tags for journal entry: ${taskTags.join(', ')}`);
+      console.log(`useChatFlamejournal: Final tags for journal entry:`, taskTags);
       
       // Create the journal entry with enhanced content
       const entry = await createEntry(enhancedContent, type, taskTags, {

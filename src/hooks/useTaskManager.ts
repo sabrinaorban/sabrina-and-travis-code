@@ -13,23 +13,30 @@ export const useTaskManager = () => {
   useEffect(() => {
     console.log("useTaskManager: Initializing and loading tasks");
     refreshTasks();
-    setIsLoading(false);
   }, []);
   
   // Refresh tasks from the TaskManager
-  const refreshTasks = useCallback(() => {
+  const refreshTasks = useCallback(async () => {
     console.log("useTaskManager: Refreshing tasks");
-    const allTasks = TaskManager.reloadTasks(); // Force reload from storage
-    console.log(`useTaskManager: Retrieved ${allTasks.length} tasks`);
-    setTasks(allTasks);
-    return allTasks;
+    setIsLoading(true);
+    try {
+      const allTasks = await TaskManager.reloadTasks(); // Force reload from storage
+      console.log(`useTaskManager: Retrieved ${allTasks.length} tasks`);
+      setTasks(allTasks);
+      setIsLoading(false);
+      return allTasks;
+    } catch (error) {
+      console.error("useTaskManager: Error refreshing tasks", error);
+      setIsLoading(false);
+      return [];
+    }
   }, []);
   
   // Create a new task
-  const createTask = useCallback((title: string, description?: string, relatedFile?: string, tags?: string[]) => {
+  const createTask = useCallback(async (title: string, description?: string, relatedFile?: string, tags?: string[]) => {
     try {
       console.log(`useTaskManager: Creating task "${title}"`);
-      const newTask = TaskManager.createTask(title, description, relatedFile, tags);
+      const newTask = await TaskManager.createTask(title, description, relatedFile, tags);
       console.log(`useTaskManager: Task created with ID ${newTask.id}`);
       
       // Update local state
@@ -52,7 +59,7 @@ export const useTaskManager = () => {
   }, [refreshTasks, toast]);
   
   // Create a task from natural language
-  const createTaskFromText = useCallback((text: string, description?: string) => {
+  const createTaskFromText = useCallback(async (text: string, description?: string) => {
     try {
       console.log(`useTaskManager: Creating task from text "${text}"`);
       const { title, tags, relatedFile } = TaskManager.parseTask(text);
@@ -67,7 +74,7 @@ export const useTaskManager = () => {
       }
       
       console.log(`useTaskManager: Parsed task - title: "${title}", tags: ${JSON.stringify(tags)}`);
-      const newTask = TaskManager.createTask(title, description, relatedFile, tags);
+      const newTask = await TaskManager.createTask(title, description, relatedFile, tags);
       console.log(`useTaskManager: Task created with ID ${newTask.id}`);
       
       // Update local state
@@ -90,10 +97,10 @@ export const useTaskManager = () => {
   }, [refreshTasks, toast]);
   
   // Update a task's status
-  const updateTaskStatus = useCallback((taskId: string, status: TaskStatus) => {
+  const updateTaskStatus = useCallback(async (taskId: string, status: TaskStatus) => {
     try {
       console.log(`useTaskManager: Updating task ${taskId} to status ${status}`);
-      const updatedTask = TaskManager.updateTaskStatus(taskId, status);
+      const updatedTask = await TaskManager.updateTaskStatus(taskId, status);
       if (!updatedTask) {
         console.error(`useTaskManager: Task ${taskId} not found`);
         toast({

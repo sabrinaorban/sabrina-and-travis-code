@@ -18,6 +18,11 @@ serve(async (req) => {
     // Parse request body
     const { entryType, content, tags } = await req.json();
     
+    // Ensure tags is always an array even if it's null/undefined
+    const normalizedTags = Array.isArray(tags) ? tags : [];
+    
+    console.log(`Creating ${entryType} journal entry with tags:`, normalizedTags);
+    
     // Create Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") as string;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string;
@@ -29,12 +34,13 @@ serve(async (req) => {
       .insert({
         entry_type: entryType || 'thought',
         content,
-        tags: tags || []
+        tags: normalizedTags
       })
       .select()
       .single();
     
     if (error) {
+      console.error("Error inserting journal entry:", error);
       throw error;
     }
     
