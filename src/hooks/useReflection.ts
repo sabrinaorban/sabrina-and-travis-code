@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Message } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -93,11 +94,11 @@ export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<
     setIsGenerating(true);
     
     try {
-      // Get current tasks for context
-      const inProgressTasks = getTasksByStatus('in_progress');
-      const pendingTasks = getTasksByStatus('pending');
-      const completedTasks = getTasksByStatus('done');
-      const blockedTasks = getTasksByStatus('blocked');
+      // Get current tasks for context - properly await all task-related Promises
+      const inProgressTasks = await getTasksByStatus('in_progress');
+      const pendingTasks = await getTasksByStatus('pending');
+      const completedTasks = await getTasksByStatus('done');
+      const blockedTasks = await getTasksByStatus('blocked');
       
       // Create task summary if tasks exist
       let taskSummary = null;
