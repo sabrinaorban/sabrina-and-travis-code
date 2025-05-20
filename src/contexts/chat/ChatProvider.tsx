@@ -65,6 +65,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Get auth context
   const { user } = useAuth();
 
+  // Track if we've processed recent messages to avoid duplicate processing
+  const processedMessageCount = React.useRef(0);
+
   // Enhanced message sending with memory context
   const sendChatMessage = useCallback(async (content: string) => {
     // First check if it's a command
@@ -82,29 +85,34 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Send the message with enhanced context
       await sendMessage(content, enhancedContext);
 
-      // Trigger insights processing after a short delay to ensure message is stored
-      setTimeout(() => {
-        if (messages.length > 0) {
-          ensureInsightsProcessing([...messages, { 
-            id: 'temp-message', 
-            role: 'user', 
-            content,
-            timestamp: new Date().toISOString() 
-          }]);
-        }
-      }, 1000);
+      // Mark that we have new messages to process for insights
+      // This helps ensure we only process after a real interaction
+      processedMessageCount.current = 0;
     } catch (error) {
       console.error("Error in sendChatMessage:", error);
     }
-  }, [processCommand, enrichMemoryContext, memoryContext, sendMessage, ensureInsightsProcessing, messages]);
+  }, [processCommand, enrichMemoryContext, memoryContext, sendMessage]);
 
-  // Effect to trigger insights processing when messages change significantly
+  // Only process insights after genuine user interaction and with rate limiting
   useEffect(() => {
-    if (messages.length >= 10 && messages.length % 5 === 0) {
-      console.log("Triggering insights processing based on message count");
-      ensureInsightsProcessing(messages);
+    // Only attempt analysis after actual back-and-forth conversation
+    const shouldProcessInsights = 
+      messages.length >= 20 && // Need at least 20 messages total
+      processedMessageCount.current !== messages.length && // Only if messages changed
+      !isLoadingHistory && // Not during initial load
+      !isTyping; // Not while typing
+      
+    if (shouldProcessInsights) {
+      // Update processed count to prevent repeated processing
+      processedMessageCount.current = messages.length;
+      
+      // Only process every 10th message to avoid excessive API calls
+      if (messages.length % 10 === 0) {
+        console.log("Processing insights after meaningful conversation change");
+        ensureInsightsProcessing(messages);
+      }
     }
-  }, [messages.length, ensureInsightsProcessing, messages]);
+  }, [messages, ensureInsightsProcessing, isLoadingHistory, isTyping]);
 
   return (
     <ChatContext.Provider

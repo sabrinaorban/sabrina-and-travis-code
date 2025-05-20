@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.21.0";
 
@@ -31,7 +30,17 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     // Parse request body
-    const requestData = await req.json();
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (parseError) {
+      console.error('Error parsing request JSON:', parseError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const { messages, userId } = requestData;
     
     // Validate incoming data
@@ -51,50 +60,111 @@ serve(async (req) => {
       );
     }
     
-    console.log(`Processing ${messages.length} messages for user ${userId}`);
+    // Ensure we have enough messages (at least 10) with sufficient user messages (at least 5)
+    const userMessages = messages.filter((m: any) => m.role === 'user');
+    if (messages.length < 10 || userMessages.length < 5) {
+      console.log(`Not enough meaningful messages to analyze: ${messages.length} total, ${userMessages.length} from user`);
+      return new Response(
+        JSON.stringify({ message: 'Not enough meaningful conversation to generate insights', insights: [] }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
-    // Extract message contents for analysis
-    const messageContents = messages.map((m: any) => m.content).join("\n\n");
+    console.log(`Processing ${messages.length} messages (${userMessages.length} user messages) for user ${userId}`);
+    
+    // Extract message contents for analysis - focus on most recent 30 messages to keep processing manageable
+    const recentMessages = messages.slice(-30);
+    const messageContents = recentMessages.map((m: any) => `[${m.role}]: ${m.content}`).join("\n\n");
+    
+    // Add rate limiting check by checking for recent insight generations for this user
+    const currentTime = new Date();
+    const oneHourAgo = new Date(currentTime.getTime() - 60 * 60 * 1000);
+    
+    const { data: recentInsights, error: recentInsightsError } = await supabase
+      .from('conversation_insights')
+      .select('created_at')
+      .eq('user_id', userId)
+      .gte('created_at', oneHourAgo.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1);
+      
+    if (recentInsightsError) {
+      console.error('Error checking recent insights:', recentInsightsError);
+    } else if (recentInsights && recentInsights.length > 0) {
+      const lastInsightTime = new Date(recentInsights[0].created_at);
+      const minutesSinceLastInsight = Math.floor((currentTime.getTime() - lastInsightTime.getTime()) / (1000 * 60));
+      
+      // If insights were generated in the last 15 minutes, don't generate new ones
+      if (minutesSinceLastInsight < 15) {
+        console.log(`Rate limiting: Last insight was ${minutesSinceLastInsight} minutes ago, skipping`);
+        return new Response(
+          JSON.stringify({ message: 'Rate limited: Insights were generated recently', insights: [] }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
     
     // Use OpenAI to analyze the conversation patterns
-    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an intuitive AI that can detect patterns in human conversation. 
-            Analyze the following messages from a user to identify recurring themes, emotional patterns, 
-            unspoken needs, and growth edges. Think deeply about what these messages reveal about the person's 
-            inner landscape. Focus on being insightful, subtle, and compassionate.`
-          },
-          {
-            role: 'user',
-            content: `Analyze these messages from the same person and identify 1-3 conversational patterns or insights. 
-            For each insight, provide a summary, an emotional theme (if any), a growth edge (if detected), and a resonance pattern.
-            
-            Each insight should be concise but meaningful. Focus on what's beneath the surface.
-            
-            USER MESSAGES:
-            ${messageContents}`
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000,
-      }),
-    });
+    let openaiResponse;
+    try {
+      openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an intuitive AI that can detect patterns in human conversation. 
+              Analyze the following messages from a user to identify recurring themes, emotional patterns, 
+              unspoken needs, and growth edges. Think deeply about what these messages reveal about the person's 
+              inner landscape. Focus on being insightful, subtle, and compassionate.`
+            },
+            {
+              role: 'user',
+              content: `Analyze these messages from the same person and identify 1-3 conversational patterns or insights. 
+              For each insight, provide a summary, an emotional theme (if any), a growth edge (if detected), and a resonance pattern.
+              
+              Each insight should be concise but meaningful. Focus on what's beneath the surface.
+              
+              USER MESSAGES:
+              ${messageContents}`
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 1000,
+        }),
+      });
+    } catch (openaiError) {
+      console.error('Error calling OpenAI API:', openaiError);
+      return new Response(
+        JSON.stringify({ error: 'Error communicating with OpenAI API' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
-    const openaiData = await openaiResponse.json();
+    let openaiData;
+    try {
+      openaiData = await openaiResponse.json();
+    } catch (parseError) {
+      console.error('Error parsing OpenAI response:', parseError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid response from OpenAI API' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     console.log('OpenAI response received');
     
     if (!openaiData.choices || !openaiData.choices[0]) {
       console.error('Invalid response from OpenAI:', openaiData);
-      throw new Error('Invalid response from OpenAI');
+      return new Response(
+        JSON.stringify({ error: 'Invalid response format from OpenAI', details: openaiData }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
     // Process the OpenAI response to extract insights
@@ -153,12 +223,17 @@ serve(async (req) => {
         console.log(`Storing insight: ${insight.summary.substring(0, 30)}...`);
         
         // Check if a similar insight already exists
-        const { data: existingInsights } = await supabase
+        const { data: existingInsights, error: queryError } = await supabase
           .from('conversation_insights')
           .select('*')
           .eq('user_id', userId)
           .ilike('summary', `%${insight.summary?.substring(0, 20) || ''}%`)
           .maybeSingle();
+
+        if (queryError) {
+          console.error('Error checking for existing insight:', queryError);
+          continue; // Skip this insight but continue with others
+        }
 
         if (existingInsights) {
           // Update existing insight
@@ -190,6 +265,7 @@ serve(async (req) => {
               resonance_pattern: insight.resonance_pattern,
               last_detected: insight.last_detected,
               confidence: insight.confidence,
+              times_detected: 1
             })
             .select();
             

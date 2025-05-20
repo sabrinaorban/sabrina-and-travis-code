@@ -113,13 +113,14 @@ export const useChatIntentionsAndReflection = (
     }
   }, [getLatestReflection, generateWeeklyReflection, createJournalEntry]);
 
-  // Function to ensure insights are being processed
+  // Function to ensure insights are being processed - now with better safeguards
   const ensureInsightsProcessing = useCallback((messages: Message[]): void => {
-    // Force insight processing on a lower threshold for testing
-    if (messages.length >= 5) {
-      console.log("Ensuring insights processing for messages:", messages.length);
+    // Only process if there are actual user messages to analyze and a significant number (20+)
+    const userMessages = messages.filter(m => m.role === 'user');
+    if (userMessages.length >= 20 && messages.length % 10 === 0) {
+      console.log("Ensuring insights processing for significant conversation:", userMessages.length);
       processMessageHistoryForInsights(messages).catch(err => {
-        console.error("Error in forced insight processing:", err);
+        console.error("Error in scheduled insight processing:", err);
       });
     }
   }, [processMessageHistoryForInsights]);
