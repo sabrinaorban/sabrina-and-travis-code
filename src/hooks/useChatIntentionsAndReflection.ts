@@ -112,6 +112,17 @@ export const useChatIntentionsAndReflection = (
       return false;
     }
   }, [getLatestReflection, generateWeeklyReflection, createJournalEntry]);
+
+  // Function to ensure insights are being processed
+  const ensureInsightsProcessing = useCallback((messages: Message[]): void => {
+    // Force insight processing on a lower threshold for testing
+    if (messages.length >= 5) {
+      console.log("Ensuring insights processing for messages:", messages.length);
+      processMessageHistoryForInsights(messages).catch(err => {
+        console.error("Error in forced insight processing:", err);
+      });
+    }
+  }, [processMessageHistoryForInsights]);
   
   return {
     // Intentions
@@ -136,6 +147,8 @@ export const useChatIntentionsAndReflection = (
     // Insights
     generateInsight,
     processMessageHistoryForInsights,
-    getInsightsForMemoryContext
+    getInsightsForMemoryContext,
+    // New function to ensure insights are being processed
+    ensureInsightsProcessing
   };
 };

@@ -64,7 +64,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${openaiApiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -99,31 +99,41 @@ serve(async (req) => {
     
     // Process the OpenAI response to extract insights
     const aiResponse = openaiData.choices[0].message.content;
+    console.log('AI response content:', aiResponse.substring(0, 100) + '...');
     
     // Parse insights from the AI response
     // This is a simple parsing approach - could be improved with more structure in the prompt
     const insightSegments = aiResponse.split(/Insight \d+:/i).filter(Boolean);
+    console.log(`Parsed ${insightSegments.length} insight segments`);
     
-    const insights = insightSegments.map((segment: string) => {
+    const insights = insightSegments.map((segment: string, index: number) => {
       // Extract elements - this parsing approach is simplistic and might need refinement
       const summaryMatch = segment.match(/Summary:?\s*(.*?)(?=Emotional Theme|Growth Edge|Resonance Pattern|$)/is);
       const emotionalThemeMatch = segment.match(/Emotional Theme:?\s*(.*?)(?=Summary|Growth Edge|Resonance Pattern|$)/is);
       const growthEdgeMatch = segment.match(/Growth Edge:?\s*(.*?)(?=Summary|Emotional Theme|Resonance Pattern|$)/is);
       const resonancePatternMatch = segment.match(/Resonance Pattern:?\s*(.*?)(?=Summary|Emotional Theme|Growth Edge|$)/is);
       
-      return {
-        summary: summaryMatch ? summaryMatch[1].trim() : "Insight detected but not clearly defined",
-        emotional_theme: emotionalThemeMatch ? emotionalThemeMatch[1].trim() : null, // Fixed field name
-        growth_edge: growthEdgeMatch ? growthEdgeMatch[1].trim() : null, // Fixed field name
-        resonance_pattern: resonancePatternMatch ? resonancePatternMatch[1].trim() : null, // Fixed field name
+      const insight = {
+        summary: summaryMatch ? summaryMatch[1].trim() : `Insight ${index + 1} detected but not clearly defined`,
+        emotional_theme: emotionalThemeMatch ? emotionalThemeMatch[1].trim() : null, 
+        growth_edge: growthEdgeMatch ? growthEdgeMatch[1].trim() : null,
+        resonance_pattern: resonancePatternMatch ? resonancePatternMatch[1].trim() : null,
         last_detected: new Date().toISOString(),
         confidence: 0.65, // Initial confidence level
         user_id: userId  // Important: Include the user_id for RLS policies
       };
+      
+      console.log(`Processed insight ${index + 1}:`, JSON.stringify({
+        summary: insight.summary.substring(0, 50) + '...',
+        has_emotional_theme: !!insight.emotional_theme,
+        has_growth_edge: !!insight.growth_edge,
+        has_resonance_pattern: !!insight.resonance_pattern
+      }));
+      
+      return insight;
     });
     
-    console.log(`Generated ${insights.length} insights`);
-    console.log("Sample insight structure:", JSON.stringify(insights[0], null, 2));
+    console.log(`Generated ${insights.length} insights to store`);
     
     // Validate each insight for required fields before inserting
     for (const insight of insights) {
@@ -136,40 +146,69 @@ serve(async (req) => {
       }
     }
     
-    // Store insights in database
-    try {
-      const { data: insertedData, error: insertError } = await supabase
-        .from('conversation_insights')
-        .insert(insights)
-        .select();
+    // Store insights in database - one by one to avoid batch insert issues
+    const insertedInsights = [];
+    for (const insight of insights) {
+      try {
+        console.log(`Storing insight: ${insight.summary.substring(0, 30)}...`);
         
-      if (insertError) {
-        console.error('Error storing insights in database:', insertError);
-        return new Response(
-          JSON.stringify({ 
-            error: 'Database error when storing insights', 
-            details: insertError.message,
-            payload: insights
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        // Check if a similar insight already exists
+        const { data: existingInsights } = await supabase
+          .from('conversation_insights')
+          .select('*')
+          .eq('user_id', userId)
+          .ilike('summary', `%${insight.summary?.substring(0, 20) || ''}%`)
+          .maybeSingle();
+
+        if (existingInsights) {
+          // Update existing insight
+          const { data: updatedInsight, error: updateError } = await supabase
+            .from('conversation_insights')
+            .update({
+              last_detected: new Date().toISOString(),
+              times_detected: (existingInsights.times_detected || 1) + 1,
+              confidence: Math.min(0.95, (existingInsights.confidence || 0.5) + 0.1), // Increase confidence but cap at 0.95
+            })
+            .eq('id', existingInsights.id)
+            .select();
+            
+          if (updateError) {
+            console.error('Error updating existing insight:', updateError);
+          } else {
+            console.log(`Updated existing insight: ${existingInsights.id}`);
+            insertedInsights.push(updatedInsight);
+          }
+        } else {
+          // Insert new insight
+          const { data: newInsight, error: insertError } = await supabase
+            .from('conversation_insights')
+            .insert({
+              user_id: userId,
+              summary: insight.summary,
+              emotional_theme: insight.emotional_theme,
+              growth_edge: insight.growth_edge,
+              resonance_pattern: insight.resonance_pattern,
+              last_detected: insight.last_detected,
+              confidence: insight.confidence,
+            })
+            .select();
+            
+          if (insertError) {
+            console.error('Error inserting new insight:', insertError);
+          } else {
+            console.log(`Inserted new insight: ${newInsight?.[0]?.id}`);
+            insertedInsights.push(newInsight);
+          }
+        }
+      } catch (dbError) {
+        console.error('Exception when storing insight:', dbError);
       }
-      
-      console.log(`Successfully stored ${insertedData?.length || 0} insights in database`);
-    } catch (dbError) {
-      console.error('Exception when storing insights:', dbError);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Exception when storing insights', 
-          details: dbError instanceof Error ? dbError.message : String(dbError),
-          payload: insights 
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
     
+    console.log(`Successfully processed ${insertedInsights.length} insights`);
+    
     return new Response(
-      JSON.stringify(insights),
+      JSON.stringify(insertedInsights.flat()),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

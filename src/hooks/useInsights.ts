@@ -11,13 +11,20 @@ export const useInsights = () => {
   
   // Process messages to detect patterns and generate insights
   const processMessageHistoryForInsights = useCallback(async (messages: Message[]) => {
-    if (!user || messages.length < 20) return;
+    if (!user) {
+      console.log("Cannot process insights: No authenticated user");
+      return;
+    }
     
     try {
-      // Only analyze once we have enough messages and not too frequently
-      // (e.g., every 10 messages once we pass the 20 message threshold)
-      if (messages.length >= 20 && messages.length % 10 === 0) {
-        await analyzeConversationPatterns(messages);
+      // Lower the threshold to 10 messages and make sure we process more frequently
+      if (messages.length >= 10) {
+        console.log(`Processing ${messages.length} messages for insights`);
+        const insights = await analyzeConversationPatterns(messages);
+        console.log(`Generated ${insights.length} insights from conversation`);
+        return insights;
+      } else {
+        console.log(`Not enough messages (${messages.length}) to generate insights`);
       }
     } catch (error) {
       console.warn('Error processing message history for insights:', error);
@@ -28,6 +35,7 @@ export const useInsights = () => {
   const getInsightsForMemoryContext = useCallback(async () => {
     try {
       const insights = await retrieveInsights(3, 0.65);
+      console.log(`Retrieved ${insights.length} insights for memory context`);
       return insights;
     } catch (error) {
       console.warn('Error getting insights for memory context:', error);
