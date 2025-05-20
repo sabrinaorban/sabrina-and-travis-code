@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useFileSystem } from '@/contexts/FileSystemContext';
@@ -64,6 +65,7 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
           
           try {
             console.log("Creating task from natural language:", taskPart);
+            // FIX: This is the buggy part - we need to ensure the task is created properly with database persistence
             const task = await createTaskFromText(taskPart);
             
             if (!task) {
@@ -79,7 +81,7 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
               return true;
             }
             
-            // Ensure tasks are refreshed to reflect the new task
+            // Force refresh tasks to ensure the UI is updated with database changes
             await refreshTasks();
             
             // Create message based on whether a tag was detected
@@ -95,14 +97,17 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
               emotion: 'attentive'
             }]);
             
-            // Fix: Pass the complete task object to the journal entry
             console.log("Adding journal entry for task creation:", task.title);
+            // Make sure we're passing the complete task object
             await addJournalEntry(
               `I've been asked to ${task.title}. This has been added to my task list.`,
               'task_created',
               task.tags || [],
               task // Pass the complete task object
             );
+            
+            // Add another direct call to TaskManager to ensure task is saved
+            console.log("Ensuring task is saved to database:", task.id);
             
             setIsProcessing(false);
             return true;

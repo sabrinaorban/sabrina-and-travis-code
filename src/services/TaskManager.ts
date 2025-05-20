@@ -98,7 +98,7 @@ const saveTaskToSupabase = async (task: Task): Promise<boolean> => {
     
     const { data, error } = await supabase
       .from('tasks')
-      .upsert(supabaseTask, { onConflict: 'id' })
+      .upsert(supabaseTask)
       .select();
       
     if (error) {
@@ -161,7 +161,7 @@ export const TaskManager = {
     // Always save immediately to localStorage after creating a task
     await saveTasks();
     
-    // Save to Supabase immediately - FIX: await here to ensure it's saved
+    // FIX: Ensure we await the saveTaskToSupabase call
     const saved = await saveTaskToSupabase(task);
     if (!saved) {
       console.error(`TaskManager: Failed to save task "${title}" to Supabase. It's only stored locally.`);
@@ -221,7 +221,7 @@ export const TaskManager = {
     // Make sure to save after updating
     await saveTasks();
     
-    // Update in Supabase - FIX: await this call
+    // FIX: Ensure we await the saveTaskToSupabase call
     const updated = await saveTaskToSupabase(tasks[taskIndex]);
     if (!updated) {
       console.error(`TaskManager: Failed to update task status in Supabase for task ID: ${taskId}`);
@@ -246,7 +246,7 @@ export const TaskManager = {
     // Make sure to save after updating
     await saveTasks();
     
-    // Update in Supabase - FIX: await this call
+    // FIX: Ensure we await the saveTaskToSupabase call
     const updated = await saveTaskToSupabase(tasks[taskIndex]);
     if (!updated) {
       console.error(`TaskManager: Failed to update task in Supabase for task ID: ${taskId}`);
@@ -266,7 +266,7 @@ export const TaskManager = {
       // Make sure to save after deleting
       await saveTasks();
       
-      // Delete from Supabase - FIX: await this call
+      // FIX: Ensure we await the deleteTaskFromSupabase call
       const deleted = await deleteTaskFromSupabase(taskId);
       if (!deleted) {
         console.error(`TaskManager: Failed to delete task from Supabase for task ID: ${taskId}`);
