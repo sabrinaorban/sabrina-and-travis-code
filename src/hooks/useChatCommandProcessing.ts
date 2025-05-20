@@ -145,19 +145,19 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
         
         if (filter) {
           if (filter === 'pending') {
-            taskList = TaskManager.getTasksByStatus('pending');
+            taskList = await TaskManager.getTasksByStatus('pending');
           } else if (filter === 'in_progress') {
-            taskList = TaskManager.getTasksByStatus('in_progress');
+            taskList = await TaskManager.getTasksByStatus('in_progress');
           } else if (filter === 'done') {
-            taskList = TaskManager.getTasksByStatus('done');
+            taskList = await TaskManager.getTasksByStatus('done');
           } else if (filter === 'blocked') {
-            taskList = TaskManager.getTasksByStatus('blocked');
+            taskList = await TaskManager.getTasksByStatus('blocked');
           } else {
             // Assume it's a search term
-            taskList = TaskManager.searchTasks(filter);
+            taskList = await TaskManager.searchTasks(filter);
           }
         } else {
-          taskList = TaskManager.getAllTasks();
+          taskList = await TaskManager.getAllTasks();
         }
         
         console.log(`Found ${taskList.length} tasks matching filter "${filter || 'none'}"`);
@@ -316,7 +316,7 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         setIsProcessing(true);
         
         // Get all tasks to look up by number if needed
-        const allTasks = TaskManager.getAllTasks();
+        const allTasks = await TaskManager.getAllTasks();
         let targetTaskId = taskId;
         
         // Check if it's a number (task index) instead of ID
@@ -400,7 +400,7 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         setIsProcessing(true);
         
         // Get all tasks to look up by number if needed
-        const allTasks = TaskManager.getAllTasks();
+        const allTasks = await TaskManager.getAllTasks();
         let targetTaskId = args1;
         
         // Check if it's a number (task index) instead of ID
@@ -489,7 +489,7 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         setIsProcessing(true);
         
         // Get all tasks to look up by number if needed
-        const allTasks = TaskManager.getAllTasks();
+        const allTasks = await TaskManager.getAllTasks();
         let targetTaskId = taskId;
         
         // Check if it's a number (task index) instead of ID
@@ -581,9 +581,9 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
   // Add a checkEvolutionCycle function for compatibility with ChatProvider
   const checkEvolutionCycle = useCallback(async () => {
     // Get relevant tasks for the current context
-    const relevantTasks = getRelevantTasks();
+    const relevantTasks = await getRelevantTasks();
     
-    // Fix: Call checkForEvolutionCycle without arguments if it doesn't accept any
+    // Call checkForEvolutionCycle without arguments if it doesn't accept any
     // or modify the call based on what the function actually expects
     return checkForEvolutionCycle();
   }, [checkForEvolutionCycle, getRelevantTasks]);

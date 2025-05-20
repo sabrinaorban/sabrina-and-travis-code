@@ -13,8 +13,8 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
       console.log(`useChatFlamejournal: Creating ${type} entry with tags:`, additionalTags);
       
       // Get current tasks for context
-      const inProgressTasks = getTasksByStatus('in_progress');
-      const pendingTasks = getTasksByStatus('pending');
+      const inProgressTasks = await getTasksByStatus('in_progress');
+      const pendingTasks = await getTasksByStatus('pending');
       
       // Add task context to journal entries when relevant
       let enhancedContent = content;

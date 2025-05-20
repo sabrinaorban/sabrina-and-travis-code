@@ -16,12 +16,13 @@ serve(async (req) => {
 
   try {
     // Parse request body
-    const { entryType, content, tags } = await req.json();
+    const { entryType, content, tags, metadata } = await req.json();
     
     // Ensure tags is always an array even if it's null/undefined
     const normalizedTags = Array.isArray(tags) ? tags : [];
     
     console.log(`Creating ${entryType} journal entry with tags:`, normalizedTags);
+    console.log('Entry metadata:', metadata);
     
     // Create Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") as string;
@@ -34,7 +35,8 @@ serve(async (req) => {
       .insert({
         entry_type: entryType || 'thought',
         content,
-        tags: normalizedTags
+        tags: normalizedTags,
+        metadata: metadata || {}
       })
       .select()
       .single();
@@ -42,6 +44,29 @@ serve(async (req) => {
     if (error) {
       console.error("Error inserting journal entry:", error);
       throw error;
+    }
+    
+    // If this is a task-related entry, ensure the task is properly saved in the tasks table
+    if (entryType?.includes('task_') && metadata?.taskId) {
+      console.log("Task-related entry detected, ensuring task is saved to database");
+      try {
+        // Check if the task exists in the tasks table
+        const { data: taskData, error: taskError } = await supabase
+          .from('tasks')
+          .select()
+          .eq('id', metadata.taskId)
+          .maybeSingle();
+        
+        if (taskError) {
+          console.error("Error checking task existence:", taskError);
+        } else if (!taskData) {
+          console.error("Task not found in database, it should have been saved already");
+        } else {
+          console.log("Task found in database:", taskData);
+        }
+      } catch (taskError) {
+        console.error("Error handling task verification:", taskError);
+      }
     }
     
     // Return the created entry

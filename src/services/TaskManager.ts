@@ -80,10 +80,11 @@ const saveTaskToSupabase = async (task: Task): Promise<boolean> => {
       updated_at: task.updatedAt
     };
     
+    console.log('Saving task to Supabase:', supabaseTask);
+    
     const { data, error } = await supabase
       .from('tasks')
-      .upsert(supabaseTask, { onConflict: 'id' })
-      .select();
+      .upsert(supabaseTask, { onConflict: 'id' });
       
     if (error) {
       console.error('Failed to save task to Supabase:', error);
@@ -158,36 +159,34 @@ export const TaskManager = {
   /**
    * Get all tasks
    */
-  getAllTasks: (): Task[] => {
+  getAllTasks: async (): Promise<Task[]> => {
     // Ensure tasks are loaded before returning
-    if (tasks.length === 0) {
-      loadTasks();
-    }
+    await loadTasks();
     return [...tasks];
   },
   
   /**
    * Get tasks by status
    */
-  getTasksByStatus: (status: TaskStatus): Task[] => {
+  getTasksByStatus: async (status: TaskStatus): Promise<Task[]> => {
     // Ensure tasks are loaded before filtering
-    if (tasks.length === 0) {
-      loadTasks();
-    }
+    await loadTasks();
     return tasks.filter(task => task.status === status);
   },
   
   /**
    * Get tasks by tag
    */
-  getTasksByTag: (tag: string): Task[] => {
+  getTasksByTag: async (tag: string): Promise<Task[]> => {
+    await loadTasks();
     return tasks.filter(task => task.tags?.includes(tag));
   },
   
   /**
    * Get tasks by related file
    */
-  getTasksByFile: (filePath: string): Task[] => {
+  getTasksByFile: async (filePath: string): Promise<Task[]> => {
+    await loadTasks();
     return tasks.filter(task => task.relatedFile === filePath);
   },
   
@@ -258,7 +257,8 @@ export const TaskManager = {
   /**
    * Get tasks related to a specific topic or search term
    */
-  searchTasks: (searchTerm: string): Task[] => {
+  searchTasks: async (searchTerm: string): Promise<Task[]> => {
+    await loadTasks();
     const lowercaseTerm = searchTerm.toLowerCase();
     
     return tasks.filter(task => 

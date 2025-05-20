@@ -131,7 +131,7 @@ export const useTaskManager = () => {
   }, [refreshTasks, toast]);
   
   // Get relevant tasks for a file
-  const getRelevantTasks = useCallback((filePath?: string, topic?: string) => {
+  const getRelevantTasks = useCallback(async (filePath?: string, topic?: string) => {
     if (filePath) {
       return TaskManager.getTasksByFile(filePath);
     }
