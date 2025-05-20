@@ -14,13 +14,15 @@ export interface FlameJournalEntry {
   status?: 'draft' | 'published' | 'archived';
 }
 
+export interface CodeMemoryMetadata {
+  file_path: string;
+  action_type: 'create' | 'update' | 'refactor' | 'implement';
+  reason?: string;
+  summary?: string;
+  reflection?: string;
+  related_files?: string[];
+}
+
 export interface CodeMemoryEntry extends FlameJournalEntry {
-  metadata: {
-    file_path: string;
-    action_type: 'create' | 'update' | 'refactor' | 'implement';
-    reason?: string;
-    summary?: string;
-    reflection?: string;
-    related_files?: string[];
-  } | null;
+  metadata: CodeMemoryMetadata | null;
 }

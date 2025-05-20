@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { FlameJournalEntry, CodeMemoryEntry } from '@/types';
+import { FlameJournalEntry, CodeMemoryEntry, CodeMemoryMetadata } from '@/types';
 
 export const useFlamejournal = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -96,7 +96,7 @@ export const useFlamejournal = () => {
     const tags = ['code_memory', action, fileExt];
     
     // Create metadata
-    const metadata = {
+    const metadata: CodeMemoryMetadata = {
       file_path: filePath,
       action_type: action,
       reason,
