@@ -13,3 +13,14 @@ export interface FlameJournalEntry {
   metadata?: Json | null;
   status?: 'draft' | 'published' | 'archived';
 }
+
+export interface CodeMemoryEntry extends FlameJournalEntry {
+  metadata: {
+    file_path: string;
+    action_type: 'create' | 'update' | 'refactor' | 'implement';
+    reason?: string;
+    summary?: string;
+    reflection?: string;
+    related_files?: string[];
+  } | null;
+}

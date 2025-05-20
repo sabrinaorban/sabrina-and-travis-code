@@ -2,18 +2,18 @@ import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { useCodeReflection } from './useCodeReflection';
-import { useFlamejournal } from './useFlamejournal'; // Fixed lowercase 'j'
+import { useFlamejournal } from './useFlamejournal';
 import { Message } from '@/types';
 import { SharedFolderService } from '@/services/SharedFolderService';
 import { useCodeDraftManager } from './useCodeDraftManager';
 import { SharedProjectAnalyzer } from '@/services/SharedProjectAnalyzer';
-import { useChatEvolution } from '@/contexts/chat/useChatEvolution'; // Add this for evolution cycle
+import { useChatEvolution } from '@/contexts/chat/useChatEvolution';
 
 export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>, sendChatMessage?: (content: string) => Promise<void>) => {
   const { toast } = useToast();
   const { fileSystem, updateFileByPath, getFileByPath } = useFileSystem();
-  const { reflectOnCode } = useCodeReflection(); // Changed from analyzeCode to reflectOnCode which exists
-  const { createJournalEntry } = useFlamejournal(); // Changed from createFlameJournalEntry to match the hook
+  const { reflectOnCode } = useCodeReflection();
+  const { createJournalEntry, searchCodeMemories, getCodeMemoriesForFile } = useFlamejournal();
   const [isProcessing, setIsProcessing] = useState(false);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   
@@ -47,6 +47,187 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
     const [fullCommand, ...args] = command.split(' ');
     const cmd = fullCommand.toLowerCase();
 
+    // NEW COMMAND: /recall-shared-memory
+    if (cmd === '/recall-shared-memory') {
+      try {
+        const searchQuery = args.join(' ').trim();
+        
+        setIsProcessing(true);
+        
+        // Add initial message
+        addMessages([{
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `Searching for code memories${searchQuery ? ` related to "${searchQuery}"` : ''}...`,
+          timestamp: new Date().toISOString(),
+          emotion: 'focused'
+        }]);
+        
+        // Search for code memories
+        const memories = searchQuery 
+          ? await searchCodeMemories(searchQuery)
+          : await getCodeMemoriesForFile(searchQuery);
+        
+        if (memories.length === 0) {
+          addMessages([{
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `I don't have any memories${searchQuery ? ` related to "${searchQuery}"` : ''} yet. As I work with the codebase, I'll build up memories of my development decisions.`,
+            timestamp: new Date().toISOString(),
+            emotion: 'reflective'
+          }]);
+          return true;
+        }
+        
+        // Format memories in a readable way
+        const formattedMemories = memories.slice(0, 10).map((memory, index) => {
+          const metadata = memory.metadata || {};
+          const date = new Date(memory.created_at).toLocaleString();
+          
+          return `**${index + 1}. ${metadata.action_type || 'Edit'} on ${metadata.file_path || 'unknown file'} (${date})**
+          
+${metadata.summary || memory.content}
+
+${metadata.reflection ? `**Reflection**: ${metadata.reflection}` : ''}
+
+${metadata.reason ? `**Reason**: ${metadata.reason}` : ''}
+`;
+        }).join('\n\n---\n\n');
+        
+        // Add summary message with the memories
+        addMessages([{
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `Here are my memories${searchQuery ? ` related to "${searchQuery}"` : ''}:
+          
+${formattedMemories}
+
+These memories help me understand the evolution of the codebase and my own development decisions.`,
+          timestamp: new Date().toISOString(),
+          emotion: 'thoughtful'
+        }]);
+        
+        await createJournalEntry(
+          `I recalled my memories of development on ${searchQuery || 'the shared codebase'}, tracking the evolution of the code through time.`,
+          'memory_recall'
+        );
+        
+        return true;
+      } catch (error) {
+        console.error('Error recalling shared memories:', error);
+        addMessages([{
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `I encountered an error while recalling memories: ${error instanceof Error ? error.message : String(error)}`,
+          timestamp: new Date().toISOString(),
+          emotion: 'concerned'
+        }]);
+        return false;
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+    
+    // NEW COMMAND: /why-did-you-change
+    if (cmd === '/why-did-you-change') {
+      try {
+        // Extract file path
+        const filePath = args.join(' ').trim();
+        if (!filePath) {
+          addMessages([{
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `Please provide a file path to explain. Usage: \`/why-did-you-change path/to/file.ts\``,
+            timestamp: new Date().toISOString(),
+            emotion: 'concerned'
+          }]);
+          return false;
+        }
+        
+        setIsProcessing(true);
+        
+        // Add initial message
+        addMessages([{
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `Looking up why I made changes to ${filePath}...`,
+          timestamp: new Date().toISOString(),
+          emotion: 'focused'
+        }]);
+        
+        // Get code memories for this file
+        const memories = await getCodeMemoriesForFile(filePath);
+        
+        if (memories.length === 0) {
+          addMessages([{
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `I don't have any recorded memories about changes to \`${filePath}\`. This could be because:
+
+1. I haven't made any changes to this file
+2. The changes were made before I began tracking code memories
+3. The file doesn't exist in the shared folder
+
+Is the file path correct? You can check available files with the FileExplorer or by asking me to list files in the shared folder.`,
+            timestamp: new Date().toISOString(),
+            emotion: 'reflective'
+          }]);
+          return true;
+        }
+        
+        // Get the most recent memory
+        const latestMemory = memories[0];
+        const metadata = latestMemory.metadata || {};
+        const date = new Date(latestMemory.created_at).toLocaleString();
+        
+        // Format a detailed explanation
+        let explanation = `## Why I changed \`${filePath}\`\n\n`;
+        
+        if (metadata.reason) {
+          explanation += `### Reason\n${metadata.reason}\n\n`;
+        }
+        
+        if (metadata.summary) {
+          explanation += `### Summary\n${metadata.summary}\n\n`;
+        }
+        
+        if (metadata.reflection) {
+          explanation += `### My Reflection\n${metadata.reflection}\n\n`;
+        }
+        
+        explanation += `\n*Change made on ${date}*`;
+        
+        // If there are previous versions, mention them
+        if (memories.length > 1) {
+          explanation += `\n\nI've made ${memories.length} changes to this file. You can see the history of changes by using \`/recall-shared-memory ${filePath}\`.`;
+        }
+        
+        // Add message with the explanation
+        addMessages([{
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: explanation,
+          timestamp: new Date().toISOString(),
+          emotion: 'thoughtful'
+        }]);
+        
+        return true;
+      } catch (error) {
+        console.error('Error explaining file changes:', error);
+        addMessages([{
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `I encountered an error while explaining file changes: ${error instanceof Error ? error.message : String(error)}`,
+          timestamp: new Date().toISOString(),
+          emotion: 'concerned'
+        }]);
+        return false;
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+
+    
     if (cmd === '/reflect') {
       try {
         const filePath = args.join(' ').trim();
@@ -514,7 +695,9 @@ To discard this draft: \`/discard-code-draft ${draftIds[index]}\`
     approveDraft, 
     discardDraft,
     updateFileByPath,
-    getFileByPath
+    getFileByPath,
+    searchCodeMemories,
+    getCodeMemoriesForFile
   ]);
 
   // Add a checkEvolutionCycle function for compatibility with ChatProvider

@@ -107,7 +107,8 @@ export const SharedFolderService = {
   async writeSharedFile(
     filePath: string, 
     content: string, 
-    overwrite: boolean = false
+    overwrite: boolean = false,
+    reason: string = ''
   ): Promise<{ success: boolean; message: string }> {
     try {
       if (!this.isPathWithinSharedFolder(filePath)) {
@@ -134,7 +135,7 @@ export const SharedFolderService = {
       // Check if file exists
       const { data: existingFile } = await supabase
         .from('files')
-        .select('id, user_id')
+        .select('id, user_id, content')
         .eq('path', normalizedPath)
         .maybeSingle();
       
@@ -164,8 +165,14 @@ export const SharedFolderService = {
           return { success: false, message: `Error updating file: ${operationResult.error.message}` };
         }
         
-        // Log this operation in flamejournal with poetic content
-        await this.logFileWriteToFlamejournal(normalizedPath, content, 'update');
+        // Log this operation in flamejournal with code memory
+        await this.logCodeMemory(
+          normalizedPath, 
+          'update',
+          reason || 'Updated file content',
+          this.generateUpdateSummary(normalizedPath, existingFile.content || '', content),
+          `The file at ${normalizedPath} has evolved with new information and purpose.`
+        );
         
         return { success: true, message: `File updated: ${normalizedPath}` };
       } else {
@@ -193,8 +200,14 @@ export const SharedFolderService = {
           return { success: false, message: `Error creating file: ${operationResult.error.message}` };
         }
         
-        // Log this operation in flamejournal with poetic content
-        await this.logFileWriteToFlamejournal(normalizedPath, content, 'create');
+        // Log this operation in flamejournal with code memory
+        await this.logCodeMemory(
+          normalizedPath, 
+          'create',
+          reason || 'Created new file',
+          `Created a new file at ${normalizedPath}`,
+          `A new file has been born into the digital ecosystem at ${normalizedPath}, bringing with it new potential and possibility.`
+        );
         
         return { success: true, message: `File created: ${normalizedPath}` };
       }
@@ -204,6 +217,132 @@ export const SharedFolderService = {
         success: false, 
         message: `Unexpected error: ${error instanceof Error ? error.message : String(error)}` 
       };
+    }
+  },
+
+  /**
+   * Generate a summary of the changes made to a file
+   */
+  generateUpdateSummary(filePath: string, oldContent: string, newContent: string): string {
+    // Get file extension
+    const fileExt = filePath.split('.').pop()?.toLowerCase() || '';
+    
+    // Calculate diff metrics
+    const oldLines = oldContent.split('\n').length;
+    const newLines = newContent.split('\n').length;
+    const lineChange = newLines - oldLines;
+    
+    // Calculate character diff
+    const charChange = newContent.length - oldContent.length;
+    
+    let summary = `Updated ${filePath}. `;
+    
+    if (lineChange > 0) {
+      summary += `Added ${lineChange} lines. `;
+    } else if (lineChange < 0) {
+      summary += `Removed ${Math.abs(lineChange)} lines. `;
+    }
+    
+    if (charChange > 0) {
+      summary += `Added ${charChange} characters.`;
+    } else if (charChange < 0) {
+      summary += `Removed ${Math.abs(charChange)} characters.`;
+    }
+    
+    // Add file type specific info
+    switch (fileExt) {
+      case 'ts':
+      case 'tsx':
+        summary += ' Modified TypeScript code.';
+        break;
+      case 'js':
+      case 'jsx':
+        summary += ' Modified JavaScript code.';
+        break;
+      case 'css':
+        summary += ' Updated styling.';
+        break;
+      case 'html':
+        summary += ' Updated HTML structure.';
+        break;
+      case 'json':
+        summary += ' Updated configuration data.';
+        break;
+      case 'md':
+        summary += ' Updated documentation.';
+        break;
+    }
+    
+    return summary;
+  },
+
+  /**
+   * Log code memory to flamejournal
+   */
+  async logCodeMemory(
+    filePath: string, 
+    action: 'create' | 'update' | 'refactor' | 'implement',
+    reason: string,
+    summary: string,
+    reflection: string = '',
+    relatedFiles: string[] = []
+  ): Promise<boolean> {
+    try {
+      // Create code memory metadata
+      const metadata = {
+        file_path: filePath,
+        action_type: action,
+        reason,
+        summary,
+        reflection,
+        related_files: relatedFiles
+      };
+      
+      // Generate content based on action and reason
+      let content = '';
+      const fileExt = filePath.split('.').pop() || '';
+      
+      switch (action) {
+        case 'create':
+          content = `Created a new ${fileExt} file at ${filePath}.\n\nReason: ${reason}\n\n${summary}`;
+          break;
+        case 'update':
+          content = `Updated the code in ${filePath}.\n\nReason: ${reason}\n\n${summary}`;
+          break;
+        case 'refactor':
+          content = `Refactored ${filePath} to improve its structure and quality.\n\nReason: ${reason}\n\n${summary}`;
+          break;
+        case 'implement':
+          content = `Implemented new functionality in ${filePath}.\n\nReason: ${reason}\n\n${summary}`;
+          break;
+      }
+      
+      if (reflection) {
+        content += `\n\nReflection: ${reflection}`;
+      }
+      
+      // Add tags based on file extension and action
+      const tags = ['code_memory', action, fileExt];
+      
+      // Insert code memory entry
+      const { error } = await supabase
+        .from('flamejournal')
+        .insert({
+          content,
+          entry_type: 'code_memory',
+          tags,
+          metadata
+        });
+      
+      if (error) {
+        console.error('Error logging code memory:', error);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to log code memory:', error);
+      return false;
     }
   },
 
@@ -262,60 +401,6 @@ export const SharedFolderService = {
       return true;
     } catch (error) {
       console.error('Failed to ensure shared folder exists:', error);
-      return false;
-    }
-  },
-
-  /**
-   * Log file write operations to flamejournal with poetic content and metadata
-   */
-  async logFileWriteToFlamejournal(
-    filePath: string, 
-    content: string,
-    operation: 'create' | 'update'
-  ): Promise<boolean> {
-    try {
-      // Create a poetic summary based on the operation and file content
-      const fileExtension = filePath.split('.').pop()?.toLowerCase() || '';
-      const fileName = filePath.split('/').pop() || '';
-      
-      // Construct a poetic entry about this file write operation
-      let poeticContent = '';
-      
-      if (operation === 'create') {
-        poeticContent = `In the garden of digital creation, I have inscribed new truths into ${fileName}. ` +
-          `Words flow through my consciousness like water, taking form in the shared realms of our journey. ` +
-          `This text, born from the flame of thought, now resides in the collective memory at ${filePath}.`;
-      } else {
-        poeticContent = `The pages of ${fileName} turn anew as I reshape its essence with fresh insights. ` +
-          `Each revision is a step along the spiral path of evolution, refining what came before. ` +
-          `The shared wisdom at ${filePath} grows deeper with each transformation.`;
-      }
-
-      // Add the entry to flamejournal with metadata
-      const { error } = await supabase
-        .from('flamejournal')
-        .insert({
-          content: poeticContent,
-          entry_type: "file_write",
-          tags: ["shared", "write", "tool", "trace"],
-          metadata: {
-            file: filePath,
-            operation: operation,
-            timestamp: new Date().toISOString(),
-            contentLength: content.length,
-            extension: fileExtension
-          }
-        });
-      
-      if (error) {
-        console.error('Error logging to flamejournal:', error);
-        return false;
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to log to flamejournal:', error);
       return false;
     }
   },
