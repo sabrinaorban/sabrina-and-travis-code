@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import { Message } from '../types';
 import { useContextualLearning } from './useContextualLearning';
@@ -38,12 +39,12 @@ export const useInsights = () => {
         } catch (error) {
           console.error('Error from conversation-insights function:', error);
           
-          // Show toast only once
+          // Fixed: Remove the second argument to toast() function
           toast({
             title: 'Insight Analysis',
             description: 'Could not analyze conversation patterns at this time.',
             variant: 'destructive',
-          }, { id: 'insight-error' });
+          });
           
           return [];
         }
