@@ -516,6 +516,7 @@ To discard this draft, use \`/discard-code-draft ${draftId}\``,
         // Add summary message with the implementation details
         addMessages([{
           id: crypto.randomUUID(),
+          role: 'assistant',
           content: `I've designed an implementation for the feature: "${description}"
           
 **Implementation approach:**
