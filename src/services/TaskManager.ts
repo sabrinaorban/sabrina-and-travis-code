@@ -174,6 +174,14 @@ export const TaskManager = {
       tags.push(hashtagMatch[1]);
     }
     
+    // NEW: Extract common task tags based on keywords in text
+    if (tags.length === 0) {
+      const detectedTag = TaskManager.detectTaskTag(text);
+      if (detectedTag) {
+        tags.push(detectedTag);
+      }
+    }
+    
     // Clean up the title
     const title = text
       .replace(/#\w+/g, '')  // Remove hashtags
@@ -181,5 +189,106 @@ export const TaskManager = {
       .trim();
       
     return { title, tags, relatedFile };
+  },
+  
+  /**
+   * NEW: Detect task tag based on text content
+   */
+  detectTaskTag: (text: string): string | null => {
+    const lowerText = text.toLowerCase();
+    
+    // Define tag keywords mapping
+    const tagPatterns: Record<string, RegExp[]> = {
+      'bug': [
+        /\bfix\b/i,
+        /\bbug\b/i,
+        /\bbroken\b/i,
+        /\bissue\b/i,
+        /\berror\b/i,
+        /\bcrash\b/i,
+        /\bdebug\b/i,
+        /\bfail\b/i
+      ],
+      'refactor': [
+        /\brefactor\b/i,
+        /\breorganize\b/i,
+        /\bcleanup\b/i,
+        /\bclean up\b/i,
+        /\brestructure\b/i,
+        /\bimprove code\b/i,
+        /\bmodernize\b/i,
+        /\bsimplify\b/i,
+        /\bstreamline\b/i
+      ],
+      'enhancement': [
+        /\badd feature\b/i,
+        /\bfeature\b/i,
+        /\bimprove\b/i,
+        /\bimplement\b/i,
+        /\benhance\b/i,
+        /\bcreate \w+ component\b/i,
+        /\badd \w+ functionality\b/i,
+        /\bbuild\b/i
+      ],
+      'infra': [
+        /\bdocker\b/i,
+        /\bci\/cd\b/i,
+        /\bpipeline\b/i,
+        /\bdevops\b/i,
+        /\bsetup\b/i,
+        /\bconfig\b/i,
+        /\bconfiguration\b/i,
+        /\benvironment\b/i,
+        /\bdeploy\b/i,
+        /\binfrastructure\b/i,
+        /\bserver\b/i
+      ],
+      'docs': [
+        /\bdocument\b/i,
+        /\bdoc\b/i,
+        /\bdocs\b/i,
+        /\bdocumentation\b/i,
+        /\bcomment\b/i,
+        /\breadme\b/i,
+        /\bexplain\b/i
+      ],
+      'test': [
+        /\btest\b/i,
+        /\btesting\b/i,
+        /\bunit test\b/i,
+        /\bintegration test\b/i,
+        /\be2e\b/i,
+        /\bspecs?\b/i
+      ],
+      'ui': [
+        /\bui\b/i,
+        /\bux\b/i,
+        /\bstyle\b/i,
+        /\bdesign\b/i,
+        /\bcss\b/i,
+        /\blayout\b/i,
+        /\bvisual\b/i,
+        /\binterface\b/i,
+        /\banimation\b/i
+      ],
+      'perf': [
+        /\bperformance\b/i,
+        /\bperf\b/i,
+        /\boptimize\b/i,
+        /\bspeed\b/i,
+        /\befficiency\b/i,
+        /\bfaster\b/i,
+        /\bslow\b/i
+      ]
+    };
+    
+    // Check for matches
+    for (const [tag, patterns] of Object.entries(tagPatterns)) {
+      if (patterns.some(pattern => pattern.test(lowerText))) {
+        return tag;
+      }
+    }
+    
+    return null;
   }
 };

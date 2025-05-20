@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useFileSystem } from '@/contexts/FileSystemContext';
@@ -63,10 +64,15 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
           try {
             const task = createTaskFromText(taskPart);
             
+            // Create message based on whether a tag was detected
+            const tagMessage = task?.tags && task.tags.length > 0 
+              ? ` Tagged as "${task.tags[0]}".` 
+              : '';
+              
             addMessages([{
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `I've added a new task: "${task?.title}"`,
+              content: `I've added a new task: "${task?.title}"${tagMessage}`,
               timestamp: new Date().toISOString(),
               emotion: 'attentive'
             }]);
@@ -208,11 +214,15 @@ You can update task status using \`/donetask [id]\`, \`/blocktask [id]\`, or \`/
         // Create the task
         const task = createTaskFromText(taskText);
         
-        // Notify about task creation
+        // Notify about task creation with tag if present
+        const tagMessage = task?.tags && task.tags.length > 0 
+          ? ` Tagged as "${task.tags[0]}".` 
+          : '';
+        
         addMessages([{
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `I've added a new task: "${task?.title}"
+          content: `I've added a new task: "${task?.title}"${tagMessage}
           
 You can view all tasks with \`/tasks\` or mark this task as complete with \`/donetask\`.`,
           timestamp: new Date().toISOString(),
