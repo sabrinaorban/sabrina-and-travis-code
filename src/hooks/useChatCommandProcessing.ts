@@ -11,7 +11,7 @@ import { useChatEvolution } from '@/contexts/chat/useChatEvolution'; // Add this
 
 export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>, sendChatMessage?: (content: string) => Promise<void>) => {
   const { toast } = useToast();
-  const { fileSystem, updateFileByPath } = useFileSystem();
+  const { fileSystem, updateFileByPath, getFileByPath } = useFileSystem();
   const { reflectOnCode } = useCodeReflection(); // Changed from analyzeCode to reflectOnCode which exists
   const { createJournalEntry } = useFlamejournal(); // Changed from createFlameJournalEntry to match the hook
   const [isProcessing, setIsProcessing] = useState(false);
@@ -72,8 +72,9 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
           emotion: 'focused'
         }]);
         
-        // Get file content - fixed access to getFileByPath() through fileSystem context
-        const fileContent = fileSystem.getFileByPath(filePath)?.content || null;
+        // Get file content - access getFileByPath through the context, not the fileSystem state
+        const file = getFileByPath(filePath);
+        const fileContent = file?.content || null;
         
         if (!fileContent) {
           addMessages([{
@@ -512,7 +513,8 @@ To discard this draft: \`/discard-code-draft ${draftIds[index]}\`
     createDraft, 
     approveDraft, 
     discardDraft,
-    updateFileByPath
+    updateFileByPath,
+    getFileByPath
   ]);
 
   // Add a checkEvolutionCycle function for compatibility with ChatProvider
