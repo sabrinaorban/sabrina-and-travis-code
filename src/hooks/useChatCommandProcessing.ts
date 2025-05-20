@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useFileSystem } from '@/contexts/FileSystemContext';
@@ -63,7 +64,7 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
           setIsProcessing(true);
           
           try {
-            const task = createTaskFromText(taskPart);
+            const task = await createTaskFromText(taskPart);
             
             if (!task) {
               console.error("Failed to create task - task is null");
@@ -79,7 +80,7 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
             }
             
             // Ensure tasks are refreshed to reflect the new task
-            refreshTasks();
+            await refreshTasks();
             
             // Create message based on whether a tag was detected
             const tagMessage = task.tags && task.tags.length > 0 
@@ -137,24 +138,26 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
         }]);
         
         // Force refresh tasks from storage
-        TaskManager.reloadTasks();
+        await TaskManager.reloadTasks();
         
         // Get tasks based on filter if provided
-        let taskList = refreshTasks();
+        let taskList = [];
         
         if (filter) {
           if (filter === 'pending') {
-            taskList = getTasksByStatus('pending');
+            taskList = TaskManager.getTasksByStatus('pending');
           } else if (filter === 'in_progress') {
-            taskList = getTasksByStatus('in_progress');
+            taskList = TaskManager.getTasksByStatus('in_progress');
           } else if (filter === 'done') {
-            taskList = getTasksByStatus('done');
+            taskList = TaskManager.getTasksByStatus('done');
           } else if (filter === 'blocked') {
-            taskList = getTasksByStatus('blocked');
+            taskList = TaskManager.getTasksByStatus('blocked');
           } else {
             // Assume it's a search term
-            taskList = searchTasks(filter);
+            taskList = TaskManager.searchTasks(filter);
           }
+        } else {
+          taskList = TaskManager.getAllTasks();
         }
         
         console.log(`Found ${taskList.length} tasks matching filter "${filter || 'none'}"`);
@@ -239,7 +242,7 @@ You can update task status using \`/donetask [id]\`, \`/blocktask [id]\`, or \`/
         setIsProcessing(true);
         
         // Create the task
-        const task = createTaskFromText(taskText);
+        const task = await createTaskFromText(taskText);
         
         if (!task) {
           addMessages([{
@@ -254,7 +257,7 @@ You can update task status using \`/donetask [id]\`, \`/blocktask [id]\`, or \`/
         }
         
         // Force refresh tasks to ensure the UI is updated
-        refreshTasks();
+        await refreshTasks();
         
         // Notify about task creation with tag if present
         const tagMessage = task.tags && task.tags.length > 0 
@@ -313,7 +316,7 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         setIsProcessing(true);
         
         // Get all tasks to look up by number if needed
-        const allTasks = refreshTasks();
+        const allTasks = TaskManager.getAllTasks();
         let targetTaskId = taskId;
         
         // Check if it's a number (task index) instead of ID
@@ -334,7 +337,7 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         }
         
         // Update the task status
-        const updatedTask = updateTaskStatus(targetTaskId, 'done');
+        const updatedTask = await updateTaskStatus(targetTaskId, 'done');
         
         if (!updatedTask) {
           addMessages([{
@@ -397,7 +400,7 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         setIsProcessing(true);
         
         // Get all tasks to look up by number if needed
-        const allTasks = refreshTasks();
+        const allTasks = TaskManager.getAllTasks();
         let targetTaskId = args1;
         
         // Check if it's a number (task index) instead of ID
@@ -418,7 +421,7 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         }
         
         // Update the task status
-        const updatedTask = updateTaskStatus(targetTaskId, 'blocked');
+        const updatedTask = await updateTaskStatus(targetTaskId, 'blocked');
         
         if (!updatedTask) {
           addMessages([{
@@ -433,7 +436,7 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         
         // If there's a reason, update the task description
         if (reason) {
-          TaskManager.updateTask(targetTaskId, {
+          await TaskManager.updateTask(targetTaskId, {
             description: `${updatedTask.description || ''}\n\nBlocked reason: ${reason}`.trim()
           });
         }
@@ -486,7 +489,7 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         setIsProcessing(true);
         
         // Get all tasks to look up by number if needed
-        const allTasks = refreshTasks();
+        const allTasks = TaskManager.getAllTasks();
         let targetTaskId = taskId;
         
         // Check if it's a number (task index) instead of ID
@@ -507,7 +510,7 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
         }
         
         // Update the task status
-        const updatedTask = updateTaskStatus(targetTaskId, 'in_progress');
+        const updatedTask = await updateTaskStatus(targetTaskId, 'in_progress');
         
         if (!updatedTask) {
           addMessages([{

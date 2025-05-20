@@ -40,7 +40,7 @@ export const useTaskManager = () => {
       console.log(`useTaskManager: Task created with ID ${newTask.id}`);
       
       // Update local state
-      refreshTasks();
+      await refreshTasks();
       
       toast({
         title: "Task Created",
@@ -78,7 +78,7 @@ export const useTaskManager = () => {
       console.log(`useTaskManager: Task created with ID ${newTask.id}`);
       
       // Update local state
-      refreshTasks();
+      await refreshTasks();
       
       toast({
         title: "Task Created",
@@ -112,7 +112,7 @@ export const useTaskManager = () => {
       }
       
       // Update local state
-      refreshTasks();
+      await refreshTasks();
       
       toast({
         title: "Task Updated",

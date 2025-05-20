@@ -27,8 +27,20 @@ const loadTasks = async (): Promise<void> => {
       if (error) {
         console.error('Failed to fetch tasks from Supabase:', error);
       } else if (data && data.length > 0) {
+        // Transform to match our Task type
+        const transformedTasks: Task[] = data.map(item => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          status: item.status as TaskStatus,
+          relatedFile: item.related_file,
+          tags: item.tags,
+          createdAt: item.created_at,
+          updatedAt: item.updated_at
+        }));
+        
         // Replace local tasks with Supabase data
-        tasks = data;
+        tasks = transformedTasks;
         console.log(`Loaded ${tasks.length} tasks from Supabase`);
         
         // Update localStorage with the latest data
@@ -56,9 +68,21 @@ const saveTasks = async (): Promise<void> => {
 // Save a single task to Supabase (new or updated)
 const saveTaskToSupabase = async (task: Task): Promise<boolean> => {
   try {
+    // Transform task to match Supabase schema
+    const supabaseTask = {
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      related_file: task.relatedFile,
+      tags: task.tags,
+      created_at: task.createdAt,
+      updated_at: task.updatedAt
+    };
+    
     const { data, error } = await supabase
       .from('tasks')
-      .upsert(task, { onConflict: 'id' })
+      .upsert(supabaseTask, { onConflict: 'id' })
       .select();
       
     if (error) {
