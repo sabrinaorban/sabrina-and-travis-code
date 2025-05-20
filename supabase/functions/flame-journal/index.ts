@@ -74,6 +74,8 @@ serve(async (req) => {
               updated_at: new Date().toISOString()
             };
             
+            console.log("Saving task to database:", taskToSave);
+            
             const { data: savedTask, error: saveError } = await supabase
               .from('tasks')
               .upsert(taskToSave)
@@ -85,7 +87,13 @@ serve(async (req) => {
               console.log("Successfully saved task from journal entry:", savedTask);
             }
           } else {
-            console.error("Insufficient task data in metadata to create task record");
+            console.error("Insufficient task data in metadata to create task record:", 
+              JSON.stringify({
+                hasTitle: Boolean(metadata.taskTitle),
+                hasStatus: Boolean(metadata.taskStatus),
+                metadata
+              })
+            );
           }
         } else {
           console.log("Task found in database:", taskData);

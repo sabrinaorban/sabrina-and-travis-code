@@ -45,15 +45,20 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
       
       // Add the specific task data if provided
       if (taskData) {
+        console.log("useChatFlamejournal: Adding task data to metadata:", taskData.id, taskData.title);
         metadata.taskId = taskData.id;
         metadata.taskTitle = taskData.title;
         metadata.taskStatus = taskData.status;
         if (taskData.tags) {
           metadata.taskTags = taskData.tags;
         }
+        if (taskData.relatedFile) {
+          metadata.relatedFile = taskData.relatedFile;
+        }
       }
       
       // Create the journal entry with enhanced content
+      console.log("useChatFlamejournal: Creating journal entry with metadata:", metadata);
       const entry = await createEntry(enhancedContent, type, taskTags, metadata);
       
       if (!entry) {

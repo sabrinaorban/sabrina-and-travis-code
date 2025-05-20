@@ -1,4 +1,3 @@
-
 import { Task, TaskStatus } from '@/types/task';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,16 +8,8 @@ let tasks: Task[] = [];
 // Load tasks from localStorage and Supabase on initialization
 const loadTasks = async (): Promise<void> => {
   try {
-    // First load from localStorage as a fallback
-    const savedTasks = localStorage.getItem('travis_tasks');
-    if (savedTasks) {
-      tasks = JSON.parse(savedTasks);
-      console.log(`Loaded ${tasks.length} tasks from localStorage`);
-    } else {
-      console.log('No saved tasks found in localStorage');
-    }
-    
-    // Then try to fetch from Supabase (if available)
+    console.log('TaskManager: Loading tasks from localStorage and Supabase');
+    // First try to fetch from Supabase (if available)
     try {
       const { data, error } = await supabase
         .from('tasks')
@@ -41,13 +32,36 @@ const loadTasks = async (): Promise<void> => {
         
         // Replace local tasks with Supabase data
         tasks = transformedTasks;
-        console.log(`Loaded ${tasks.length} tasks from Supabase`);
+        console.log(`TaskManager: Loaded ${tasks.length} tasks from Supabase`);
         
         // Update localStorage with the latest data
         saveTasks();
+      } else {
+        console.log('TaskManager: No tasks found in Supabase');
+        // If no tasks in Supabase but we have them in localStorage, let's try to load those
+        const savedTasks = localStorage.getItem('travis_tasks');
+        if (savedTasks) {
+          tasks = JSON.parse(savedTasks);
+          console.log(`TaskManager: Loaded ${tasks.length} tasks from localStorage`);
+          
+          // Since we have tasks in localStorage but not in Supabase, sync them to Supabase
+          for (const task of tasks) {
+            await saveTaskToSupabase(task);
+          }
+          console.log(`TaskManager: Synced ${tasks.length} tasks to Supabase`);
+        } else {
+          console.log('TaskManager: No saved tasks found in localStorage');
+        }
       }
     } catch (dbError) {
       console.error('Supabase error when loading tasks:', dbError);
+      
+      // Fallback to localStorage
+      const savedTasks = localStorage.getItem('travis_tasks');
+      if (savedTasks) {
+        tasks = JSON.parse(savedTasks);
+        console.log(`TaskManager: Loaded ${tasks.length} tasks from localStorage (after DB error)`);
+      }
     }
   } catch (error) {
     console.error('Failed to load tasks:', error);
@@ -59,7 +73,7 @@ const saveTasks = async (): Promise<void> => {
   try {
     // Always save to localStorage as a backup
     localStorage.setItem('travis_tasks', JSON.stringify(tasks));
-    console.log(`Saved ${tasks.length} tasks to localStorage`);
+    console.log(`TaskManager: Saved ${tasks.length} tasks to localStorage`);
   } catch (error) {
     console.error('Failed to save tasks to localStorage:', error);
   }
@@ -80,18 +94,19 @@ const saveTaskToSupabase = async (task: Task): Promise<boolean> => {
       updated_at: task.updatedAt
     };
     
-    console.log('Saving task to Supabase:', supabaseTask);
+    console.log('TaskManager: Saving task to Supabase:', supabaseTask);
     
     const { data, error } = await supabase
       .from('tasks')
-      .upsert(supabaseTask, { onConflict: 'id' });
+      .upsert(supabaseTask, { onConflict: 'id' })
+      .select();
       
     if (error) {
       console.error('Failed to save task to Supabase:', error);
       return false;
     }
     
-    console.log(`Task "${task.title}" saved to Supabase with ID: ${task.id}`);
+    console.log(`TaskManager: Task "${task.title}" saved to Supabase with ID: ${task.id}`);
     return true;
   } catch (error) {
     console.error('Error saving task to Supabase:', error);
@@ -112,7 +127,7 @@ const deleteTaskFromSupabase = async (taskId: string): Promise<boolean> => {
       return false;
     }
     
-    console.log(`Task with ID ${taskId} deleted from Supabase`);
+    console.log(`TaskManager: Task with ID ${taskId} deleted from Supabase`);
     return true;
   } catch (error) {
     console.error('Error deleting task from Supabase:', error);
@@ -146,13 +161,13 @@ export const TaskManager = {
     // Always save immediately to localStorage after creating a task
     await saveTasks();
     
-    // Save to Supabase
+    // Save to Supabase immediately - FIX: await here to ensure it's saved
     const saved = await saveTaskToSupabase(task);
     if (!saved) {
-      console.error(`Failed to save task "${title}" to Supabase. It's only stored locally.`);
+      console.error(`TaskManager: Failed to save task "${title}" to Supabase. It's only stored locally.`);
     }
     
-    console.log(`Created new task: "${title}" with ID: ${task.id}`);
+    console.log(`TaskManager: Created new task: "${title}" with ID: ${task.id}`);
     return task;
   },
   
@@ -160,7 +175,7 @@ export const TaskManager = {
    * Get all tasks
    */
   getAllTasks: async (): Promise<Task[]> => {
-    // Ensure tasks are loaded before returning
+    // First, try to refresh from the database to ensure we have the latest data
     await loadTasks();
     return [...tasks];
   },
@@ -206,8 +221,11 @@ export const TaskManager = {
     // Make sure to save after updating
     await saveTasks();
     
-    // Update in Supabase
-    await saveTaskToSupabase(tasks[taskIndex]);
+    // Update in Supabase - FIX: await this call
+    const updated = await saveTaskToSupabase(tasks[taskIndex]);
+    if (!updated) {
+      console.error(`TaskManager: Failed to update task status in Supabase for task ID: ${taskId}`);
+    }
     
     return tasks[taskIndex];
   },
@@ -228,8 +246,11 @@ export const TaskManager = {
     // Make sure to save after updating
     await saveTasks();
     
-    // Update in Supabase
-    await saveTaskToSupabase(tasks[taskIndex]);
+    // Update in Supabase - FIX: await this call
+    const updated = await saveTaskToSupabase(tasks[taskIndex]);
+    if (!updated) {
+      console.error(`TaskManager: Failed to update task in Supabase for task ID: ${taskId}`);
+    }
     
     return tasks[taskIndex];
   },
@@ -245,8 +266,11 @@ export const TaskManager = {
       // Make sure to save after deleting
       await saveTasks();
       
-      // Delete from Supabase
-      await deleteTaskFromSupabase(taskId);
+      // Delete from Supabase - FIX: await this call
+      const deleted = await deleteTaskFromSupabase(taskId);
+      if (!deleted) {
+        console.error(`TaskManager: Failed to delete task from Supabase for task ID: ${taskId}`);
+      }
       
       return true;
     }

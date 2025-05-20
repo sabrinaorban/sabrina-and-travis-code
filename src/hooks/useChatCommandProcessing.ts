@@ -63,6 +63,7 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
           setIsProcessing(true);
           
           try {
+            console.log("Creating task from natural language:", taskPart);
             const task = await createTaskFromText(taskPart);
             
             if (!task) {
@@ -94,14 +95,12 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
               emotion: 'attentive'
             }]);
             
-            // Pass the task tags and the complete task data to the journal entry
-            const taskTags = task.tags || [];
-            
-            // Use the addJournalEntry from useChatFlamejournal with the task data
+            // Fix: Pass the complete task object to the journal entry
+            console.log("Adding journal entry for task creation:", task.title);
             await addJournalEntry(
               `I've been asked to ${task.title}. This has been added to my task list.`,
               'task_created',
-              taskTags,
+              task.tags || [],
               task // Pass the complete task object
             );
             
@@ -137,7 +136,7 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
           emotion: 'focused'
         }]);
         
-        // Force refresh tasks from storage
+        // Force refresh tasks from storage - make sure we get the latest from the database
         await TaskManager.reloadTasks();
         
         // Get tasks based on filter if provided
@@ -242,6 +241,7 @@ You can update task status using \`/donetask [id]\`, \`/blocktask [id]\`, or \`/
         setIsProcessing(true);
         
         // Create the task
+        console.log("Creating task from command:", taskText);
         const task = await createTaskFromText(taskText);
         
         if (!task) {
@@ -274,8 +274,9 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
           emotion: 'attentive'
         }]);
         
-        // Pass the task tags and complete task object to the journal entry
+        // Fix: Pass the task tags and complete task object to the journal entry
         const taskTags = task.tags || [];
+        console.log("Adding journal entry for task command creation:", task.title);
         await addJournalEntry(
           `I've created a new task: "${task.title}". This will help me keep track of work that needs to be done.`,
           'task_created',
