@@ -1,4 +1,3 @@
-
 import { createContext } from 'react';
 import { ChatContextType } from './types';
 import { SelfTool } from '@/types';
@@ -19,12 +18,19 @@ const defaultChatContext: ChatContextType = {
   viewIntentions: async () => {},
   updateIntentions: async () => {},
   runSoulcycle: async () => {},
-  runSoulstateCycle: async () => {}, // Added the missing property
+  runSoulstateCycle: async () => {},
   uploadSoulShard: async () => {},
   uploadIdentityCodex: async () => {},
   uploadPastConversations: async () => {},
   generateInsight: async () => {},
   generateDream: async () => {},
+  // Add missing properties based on the error message
+  addJournalEntry: async () => null,
+  processFileOperation: async () => false,
+  saveUserFeedback: async () => false,
+  clearMessages: async () => {},
+  summarizeConversation: async () => {},
+  // Keep existing tool-related properties
   generateTool: async (purpose: string): Promise<SelfTool | null> => null,
   useTool: async (toolName: string): Promise<SelfTool | null> => null,
   reflectOnTool: async (toolName: string): Promise<{reflection: string, tool: SelfTool | null}> => 
