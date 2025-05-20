@@ -1,102 +1,54 @@
 
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
+import { Message } from '@/types';
 import { useFlamejournal } from './useFlamejournal';
-import { useDreamGeneration } from './useDreamGeneration';
-import { FlameJournalEntry, Message } from '@/types';
-import { useToast } from './use-toast';
+import { useTaskManager } from './useTaskManager'; // Import TaskManager hook
 
-/**
- * Hook for managing flamejournal entries and dream generation within the chat
- */
-export const useChatFlamejournal = (
-  setMessages?: React.Dispatch<React.SetStateAction<Message[]>>
-) => {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const { toast } = useToast();
-  const { createJournalEntry } = useFlamejournal();
-  const { generateDream: generateDreamBase } = useDreamGeneration();
-
-  // Create a new flamejournal entry - this is the function referenced as addJournalEntry in ChatProvider
-  const addJournalEntry = useCallback(async (content?: string, entryType: string = 'thought'): Promise<FlameJournalEntry | null> => {
-    setIsProcessing(true);
+export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>) => {
+  const { createJournalEntry: createEntry } = useFlamejournal();
+  const { getTasksByStatus } = useTaskManager(); // Get TaskManager functions
+  
+  const addJournalEntry = useCallback(async (content: string, type: string = 'reflection'): Promise<boolean> => {
     try {
-      const entryContent = content || `Creating a new ${entryType} entry in my flamejournal. The eternal flame flickers with insight.`;
-      const entry = await createJournalEntry(entryContent, entryType);
+      // Get current tasks for context
+      const inProgressTasks = getTasksByStatus('in_progress');
+      const pendingTasks = getTasksByStatus('pending');
       
-      if (entry && setMessages) {
-        setMessages(prev => [...prev, {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: `I've created a new ${entryType} entry in my flamejournal: "${entryContent}"`,
-          timestamp: new Date().toISOString(),
-          emotion: 'reflective'
-        }]);
+      // Add task context to journal entries when relevant
+      let enhancedContent = content;
+      
+      if (inProgressTasks.length > 0 && (type === 'reflection' || type === 'code_reflection')) {
+        enhancedContent += `\n\nCurrently working on: ${inProgressTasks.map(t => t.title).join(', ')}`;
       }
       
-      return entry;
+      // Create the journal entry with enhanced content
+      const entry = await createEntry(enhancedContent, type, {
+        activeTasks: inProgressTasks.length,
+        pendingTasks: pendingTasks.length
+      });
+      
+      // Only add message if setMessages is provided
+      if (setMessages && entry) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: entry.id,
+            role: 'assistant',
+            content: `I've added a new journal entry: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
+            timestamp: new Date().toISOString(),
+            emotion: 'reflective'
+          }
+        ]);
+      }
+      
+      return true;
     } catch (error) {
       console.error('Error creating flame journal entry:', error);
-      toast({
-        title: 'Journal Entry Failed',
-        description: 'Unable to create flamejournal entry',
-        variant: 'destructive',
-      });
-      return null;
-    } finally {
-      setIsProcessing(false);
+      return false;
     }
-  }, [createJournalEntry, setMessages, toast]);
-
-  // Create standard interface function with same name as in ChatContext
-  const createFlameJournalEntry = useCallback(async (content?: string): Promise<void> => {
-    await addJournalEntry(content);
-  }, [addJournalEntry]);
-
-  // Generate a dream and add it to the chat
-  const generateDream = useCallback(async (): Promise<FlameJournalEntry | null> => {
-    setIsProcessing(true);
-    try {
-      const dreamEntry = await generateDreamBase();
-      
-      if (dreamEntry && setMessages) {
-        // Format a message to display the dream
-        const dreamResponseContent = `
-I've woven a dream from the threads of memory and emotion:
-
-${dreamEntry.content}
-
-*Dream motifs: ${dreamEntry.tags?.join(', ') || 'none detected'}*
-`;
-        
-        // Add the dream response as a system message
-        setMessages(prev => [...prev, {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: dreamResponseContent,
-          timestamp: new Date().toISOString(),
-          emotion: 'dreamlike'
-        }]);
-      }
-      
-      return dreamEntry;
-    } catch (error) {
-      console.error('Error generating dream:', error);
-      toast({
-        title: 'Dream Generation Failed',
-        description: 'Unable to generate dream content',
-        variant: 'destructive',
-      });
-      return null;
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [generateDreamBase, setMessages, toast]);
+  }, [createEntry, setMessages, getTasksByStatus]);
 
   return {
-    createFlameJournalEntry,
-    generateDream,
-    isProcessing,
-    // Export the original addJournalEntry function for backward compatibility
     addJournalEntry
   };
 };

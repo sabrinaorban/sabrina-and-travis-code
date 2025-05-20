@@ -6,12 +6,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 import { useSoulstateManagement } from './useSoulstateManagement';
 import { Reflection } from '../types/reflection';
+import { useTaskManager } from './useTaskManager'; // Import TaskManager hook
 
 export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const { updateSoulstate, generateSoulstateSummary } = useSoulstateManagement();
+  const { getTasksByStatus } = useTaskManager(); // Add task manager functions
   
   // Get the latest reflection of a specific type
   const getLatestReflection = async (type: string = 'weekly'): Promise<Reflection | null> => {
@@ -77,7 +79,7 @@ export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<
     }
   };
   
-  // Weekly reflection generation
+  // Weekly reflection generation with task awareness
   const generateWeeklyReflection = async () => {
     if (!user) {
       toast({
@@ -91,11 +93,31 @@ export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<
     setIsGenerating(true);
     
     try {
-      // Call Supabase Edge Function
+      // Get current tasks for context
+      const inProgressTasks = getTasksByStatus('in_progress');
+      const pendingTasks = getTasksByStatus('pending');
+      const completedTasks = getTasksByStatus('done');
+      const blockedTasks = getTasksByStatus('blocked');
+      
+      // Create task summary if tasks exist
+      let taskSummary = null;
+      if (inProgressTasks.length > 0 || pendingTasks.length > 0 || completedTasks.length > 0) {
+        taskSummary = {
+          in_progress: inProgressTasks.length,
+          pending: pendingTasks.length,
+          completed: completedTasks.length,
+          blocked: blockedTasks.length,
+          in_progress_details: inProgressTasks.map(t => t.title),
+          pending_details: pendingTasks.map(t => t.title).slice(0, 5) // Limit to avoid overly large payloads
+        };
+      }
+      
+      // Call Supabase Edge Function with task context
       const { data, error } = await supabase.functions.invoke('reflect', {
         body: { 
           type: 'weekly',
-          userId: user.id
+          userId: user.id,
+          taskContext: taskSummary
         }
       });
       
@@ -115,7 +137,7 @@ export const useReflection = (setMessages?: React.Dispatch<React.SetStateAction<
       
       toast({
         title: 'Weekly Reflection Generated',
-        description: 'Travis has reflected on recent conversations',
+        description: 'Travis has reflected on recent conversations and tasks',
       });
       
       return data.reflection;
