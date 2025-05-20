@@ -2,7 +2,7 @@
 // Import types from individual files
 import { Message, FileOperation, OpenAIMessage, Insight } from './chat';
 import { FileEntry, FileSystemState, FileSystemContextType } from './fileSystem';
-import { FlameJournalEntry } from './flamejournal';
+import { FlameJournalEntry, CodeMemoryEntry } from './flamejournal';
 // Fix reflection import - assuming it's actually named Reflection in the file
 import { Reflection as ReflectionEntry } from './reflection'; 
 import { SelfTool } from './selftool';
@@ -14,7 +14,7 @@ import { User, MemoryEmbedding } from './user';
 // Re-export all types properly using export type for TypeScript isolatedModules mode
 export type { Message, FileOperation, OpenAIMessage, Insight } from './chat';
 export type { FileEntry, FileSystemState, FileSystemContextType } from './fileSystem';
-export type { FlameJournalEntry } from './flamejournal';
+export type { FlameJournalEntry, CodeMemoryEntry } from './flamejournal';
 export type { Reflection as ReflectionEntry } from './reflection';
 export type { SelfTool } from './selftool';
 export type { SoulState } from './soulstate';
