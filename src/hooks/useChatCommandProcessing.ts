@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useFileSystem } from '@/contexts/FileSystemContext';
@@ -77,9 +76,12 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
               emotion: 'attentive'
             }]);
             
+            // Pass the task tags if they exist to the journal entry
+            const taskTags = task?.tags || [];
             await createJournalEntry(
               `I've been asked to ${task?.title}. This has been added to my task list.`,
-              'task_created'
+              'task_created',
+              taskTags
             );
             
             setIsProcessing(false);
@@ -229,9 +231,12 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
           emotion: 'attentive'
         }]);
         
+        // Pass the task tags to the journal entry
+        const taskTags = task?.tags || [];
         await createJournalEntry(
           `I've created a new task: "${task?.title}". This will help me keep track of work that needs to be done.`,
-          'task_created'
+          'task_created',
+          taskTags
         );
         
         return true;

@@ -8,7 +8,7 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
   const { createJournalEntry: createEntry } = useFlamejournal();
   const { getTasksByStatus } = useTaskManager();
   
-  const addJournalEntry = useCallback(async (content: string, type: string = 'reflection'): Promise<boolean> => {
+  const addJournalEntry = useCallback(async (content: string, type: string = 'reflection', additionalTags: string[] = []): Promise<boolean> => {
     try {
       // Get current tasks for context
       const inProgressTasks = getTasksByStatus('in_progress');
@@ -22,7 +22,7 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
       }
       
       // Create metadata tags related to tasks
-      const taskTags = ['task_context'];
+      const taskTags = ['task_context', ...additionalTags];
       if (inProgressTasks.length > 0) taskTags.push('active_tasks');
       if (pendingTasks.length > 0) taskTags.push('pending_tasks');
       
