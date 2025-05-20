@@ -53,6 +53,30 @@ export const useChatTools = (setMessages: React.Dispatch<React.SetStateAction<Me
     }
   }, [setMessages]);
 
+  /**
+   * Process a file operation request
+   * This is a placeholder implementation that needs to be connected to actual file operations
+   */
+  const processFileOperation = useCallback(async (operation: string, filePath: string, content?: string): Promise<boolean> => {
+    try {
+      console.log('Processing file operation:', { operation, filePath, content });
+      
+      // Add a message to indicate the file operation
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `I processed a file operation: ${operation} on ${filePath}`,
+        timestamp: new Date().toISOString(),
+        emotion: 'helpful'
+      }]);
+      
+      return true;
+    } catch (error) {
+      console.error('Error processing file operation:', error);
+      return false;
+    }
+  }, [setMessages]);
+
   // Create wrapper functions with compatible return types to match ChatContext
   const useTool = useCallback((toolName: string): Promise<SelfTool | null> => {
     return baseUseTool(toolName);
@@ -81,6 +105,8 @@ export const useChatTools = (setMessages: React.Dispatch<React.SetStateAction<Me
     // Also expose these from the base hook
     processToolCreation,
     handleToolCommand,
-    isProcessing
+    isProcessing,
+    // Add the processFileOperation function
+    processFileOperation
   };
 };

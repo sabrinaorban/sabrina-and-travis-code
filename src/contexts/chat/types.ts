@@ -22,6 +22,11 @@ export interface ChatContextType {
   uploadPastConversations: (content?: string) => Promise<void>;
   generateInsight: () => Promise<void>;
   generateDream: () => Promise<void>;
+  // Add addJournalEntry and processFileOperation
+  addJournalEntry: (content?: string, entryType?: string) => Promise<any>;
+  processFileOperation: (operation: string, filePath: string, content?: string) => Promise<boolean>;
+  // Save user feedback
+  saveUserFeedback: (memoryId: string, feedback: { accurate: boolean, useful: boolean, notes?: string }) => Promise<boolean>;
   // Updated tool function signatures to match implementations
   generateTool: (purpose: string) => Promise<SelfTool | null>;
   useTool: (toolName: string) => Promise<SelfTool | null>;
@@ -40,6 +45,8 @@ export interface ChatContextType {
   error: string | null;
   clearError: () => void;
   retryMessage: (message: Message) => Promise<void>;
+  clearMessages: () => Promise<void>;
+  summarizeConversation: () => Promise<void>;
 }
 
 export interface ChatProviderProps {

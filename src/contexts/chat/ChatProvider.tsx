@@ -1,10 +1,10 @@
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { ChatContext } from './ChatContext';
 import { useChatMessages } from './useChatMessages';
 import { useChatMemory } from './useChatMemory';
 import { useChatTools } from './useChatTools';
-import { useChatFlamejournal } from './useChatFlamejournal';
+import { useChatFlamejournal } from '@/hooks/useChatFlamejournal';
 import { useChatCommandProcessing } from '@/hooks/useChatCommandProcessing';
 import { useChatIntentionsAndReflection } from '@/hooks/useChatIntentionsAndReflection';
 import { useChatManagement } from '@/hooks/useChatManagement';
@@ -110,10 +110,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <ChatContext.Provider
       value={{
         messages,
-        setMessages,
+        sendMessage: sendChatMessage,
         isTyping,
         isLoadingHistory,
-        sendMessage: sendChatMessage,
         clearMessages,
         summarizeConversation,
         processFileOperation,
@@ -131,7 +130,35 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         uploadPastConversations,
         generateInsight,
         saveUserFeedback,
-        checkEvolutionCycle
+        checkEvolutionCycle,
+        // All required properties from ChatContextType must be provided
+        isLoading: isProcessing,
+        memoryContext: memoryContext,
+        generateSoulstateReflection: async () => {},
+        createFlameJournalEntry: async () => {},
+        generateDream: async () => {},
+        generateTool: async () => null,
+        useTool: async () => null,
+        reflectOnTool: async () => ({ reflection: '', tool: null }),
+        reviseTool: async () => ({ message: '', updatedTool: null }),
+        currentEvolutionProposal: undefined,
+        isEvolutionChecking: false,
+        refreshMessages: async () => {},
+        addMessage: (message) => {
+          setMessages(prev => [...prev, message]);
+        },
+        updateMessage: (message) => {
+          setMessages(prev => 
+            prev.map(m => m.id === message.id ? message : m)
+          );
+        },
+        deleteMessage: (messageId) => {
+          setMessages(prev => prev.filter(m => m.id !== messageId));
+        },
+        isProcessingCommand: isProcessing,
+        error: null,
+        clearError: () => {},
+        retryMessage: async () => {}
       }}
     >
       {children}

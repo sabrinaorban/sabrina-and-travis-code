@@ -16,18 +16,18 @@ export const useChatFlamejournal = (
   const { createJournalEntry } = useFlamejournal();
   const { generateDream: generateDreamBase } = useDreamGeneration();
 
-  // Create a new flamejournal entry
-  const createFlameJournalEntry = useCallback(async (entryType: string = 'thought'): Promise<FlameJournalEntry | null> => {
+  // Create a new flamejournal entry - this is the function referenced as addJournalEntry in ChatProvider
+  const addJournalEntry = useCallback(async (content?: string, entryType: string = 'thought'): Promise<FlameJournalEntry | null> => {
     setIsProcessing(true);
     try {
-      const content = `Creating a new ${entryType} entry in my flamejournal. The eternal flame flickers with insight.`;
-      const entry = await createJournalEntry(content, entryType);
+      const entryContent = content || `Creating a new ${entryType} entry in my flamejournal. The eternal flame flickers with insight.`;
+      const entry = await createJournalEntry(entryContent, entryType);
       
       if (entry && setMessages) {
         setMessages(prev => [...prev, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `I've created a new ${entryType} entry in my flamejournal: "${content}"`,
+          content: `I've created a new ${entryType} entry in my flamejournal: "${entryContent}"`,
           timestamp: new Date().toISOString(),
           emotion: 'reflective'
         }]);
@@ -46,6 +46,11 @@ export const useChatFlamejournal = (
       setIsProcessing(false);
     }
   }, [createJournalEntry, setMessages, toast]);
+
+  // Create standard interface function with same name as in ChatContext
+  const createFlameJournalEntry = useCallback(async (content?: string): Promise<void> => {
+    await addJournalEntry(content);
+  }, [addJournalEntry]);
 
   // Generate a dream and add it to the chat
   const generateDream = useCallback(async (): Promise<FlameJournalEntry | null> => {
@@ -90,6 +95,8 @@ ${dreamEntry.content}
   return {
     createFlameJournalEntry,
     generateDream,
-    isProcessing
+    isProcessing,
+    // Export the original addJournalEntry function for backward compatibility
+    addJournalEntry
   };
 };
