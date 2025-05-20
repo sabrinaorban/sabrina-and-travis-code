@@ -1,9 +1,10 @@
+
 import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import { useFileSystem } from '@/contexts/FileSystemContext';
 import { useCodeReflection } from './useCodeReflection';
 import { useFlamejournal } from './useFlamejournal';
-import { Message } from '@/types';
+import { Message, CodeMemoryEntry } from '@/types';
 import { SharedFolderService } from '@/services/SharedFolderService';
 import { useCodeDraftManager } from './useCodeDraftManager';
 import { SharedProjectAnalyzer } from '@/services/SharedProjectAnalyzer';
