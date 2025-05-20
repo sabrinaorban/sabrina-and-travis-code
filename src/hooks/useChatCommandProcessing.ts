@@ -523,12 +523,9 @@ You can view all tasks with \`/tasks\` or mark this task as complete with \`/don
     // Get relevant tasks for the current context
     const relevantTasks = getRelevantTasks();
     
-    // Include task information in the evolution cycle
-    return checkForEvolutionCycle({
-      additionalContext: {
-        currentTasks: relevantTasks.length > 0 ? relevantTasks : undefined
-      }
-    });
+    // Fix: Call checkForEvolutionCycle without arguments if it doesn't accept any
+    // or modify the call based on what the function actually expects
+    return checkForEvolutionCycle();
   }, [checkForEvolutionCycle, getRelevantTasks]);
 
   return {

@@ -27,7 +27,8 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
       if (pendingTasks.length > 0) taskTags.push('pending_tasks');
       
       // Create the journal entry with enhanced content
-      // Fix: Pass the task metadata as the fourth parameter (metadata) instead of trying to use it as tags
+      // Make sure we're using the correct signature for createEntry:
+      // content, type, tags, metadata - where metadata is a separate object, not part of tags
       const entry = await createEntry(enhancedContent, type, taskTags, {
         taskContext: {
           activeTasks: inProgressTasks.length,
