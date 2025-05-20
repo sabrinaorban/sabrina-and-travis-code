@@ -65,7 +65,8 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
           
           try {
             console.log("Creating task from natural language:", taskPart);
-            // FIX: This is the buggy part - we need to ensure the task is created properly with database persistence
+            
+            // Create the task with proper awaiting
             const task = await createTaskFromText(taskPart);
             
             if (!task) {
@@ -81,8 +82,13 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
               return true;
             }
             
-            // Force refresh tasks to ensure the UI is updated with database changes
+            // Force an aggressive refresh of tasks to ensure immediate database sync
+            console.log("Forcing aggressive task refresh after natural language task creation");
             await refreshTasks();
+            
+            // Double-check task persistence by directly calling the TaskManager
+            const allTasks = await TaskManager.reloadTasks();
+            console.log(`After creating task "${task.title}", there are ${allTasks.length} total tasks`);
             
             // Create message based on whether a tag was detected
             const tagMessage = task.tags && task.tags.length > 0 
@@ -97,17 +103,36 @@ export const useChatCommandProcessing = (setMessages?: React.Dispatch<React.SetS
               emotion: 'attentive'
             }]);
             
-            console.log("Adding journal entry for task creation:", task.title);
-            // Make sure we're passing the complete task object
+            console.log("Adding journal entry for task creation:", task.title, "with ID:", task.id);
+            
+            // Ensure we have all required task data for the journal entry
+            const taskWithMetadata = {
+              ...task,
+              // Ensure these fields exist since they're used by flame-journal
+              id: task.id,
+              title: task.title,
+              status: task.status,
+              tags: task.tags || [],
+              relatedFile: task.relatedFile
+            };
+            
+            // Pass the complete task object to ensure it's saved in the journal metadata
             await addJournalEntry(
               `I've been asked to ${task.title}. This has been added to my task list.`,
               'task_created',
               task.tags || [],
-              task // Pass the complete task object
+              taskWithMetadata // Pass the complete task object with guaranteed fields
             );
             
-            // Add another direct call to TaskManager to ensure task is saved
-            console.log("Ensuring task is saved to database:", task.id);
+            // Final verification of task persistence
+            console.log(`Task creation complete. Verifying task "${task.title}" with ID ${task.id} is in database`);
+            const finalCheck = await TaskManager.reloadTasks();
+            const foundTask = finalCheck.find(t => t.id === task.id);
+            if (foundTask) {
+              console.log("Task persistence verification successful - task found in database");
+            } else {
+              console.error("CRITICAL: Task persistence verification failed - task not found in database");
+            }
             
             setIsProcessing(false);
             return true;

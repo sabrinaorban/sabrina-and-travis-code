@@ -64,14 +64,18 @@ serve(async (req) => {
           
           // If metadata contains enough information, we can save the task
           if (metadata.taskTitle && metadata.taskStatus) {
+            // Format the timestamp properly
+            const now = new Date().toISOString();
+            
             const taskToSave = {
               id: metadata.taskId,
               title: metadata.taskTitle,
+              description: metadata.taskDescription || null, // Include description if available
               status: metadata.taskStatus,
               tags: metadata.taskTags || [],
-              related_file: metadata.relatedFile,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              related_file: metadata.relatedFile || null,
+              created_at: metadata.taskCreatedAt || now,
+              updated_at: now
             };
             
             console.log("Saving task to database:", taskToSave);

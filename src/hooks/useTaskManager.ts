@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from 'react';
 import { TaskManager } from '@/services/TaskManager';
 import { Task, TaskStatus } from '@/types/task';
@@ -38,7 +39,7 @@ export const useTaskManager = () => {
       const newTask = await TaskManager.createTask(title, description, relatedFile, tags);
       console.log(`useTaskManager: Task created with ID ${newTask.id}`);
       
-      // Update local state
+      // Force an immediate refresh to update the UI with database changes
       await refreshTasks();
       
       toast({

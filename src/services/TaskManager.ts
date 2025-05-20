@@ -1,3 +1,4 @@
+
 import { Task, TaskStatus } from '@/types/task';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
@@ -165,6 +166,14 @@ export const TaskManager = {
     const saved = await saveTaskToSupabase(task);
     if (!saved) {
       console.error(`TaskManager: Failed to save task "${title}" to Supabase. It's only stored locally.`);
+      
+      // Retry saving to Supabase once in case of transient issues
+      setTimeout(async () => {
+        const retrySaved = await saveTaskToSupabase(task);
+        if (retrySaved) {
+          console.log(`TaskManager: Successfully saved task "${title}" to Supabase on retry`);
+        }
+      }, 2000);
     }
     
     console.log(`TaskManager: Created new task: "${title}" with ID: ${task.id}`);
@@ -225,6 +234,14 @@ export const TaskManager = {
     const updated = await saveTaskToSupabase(tasks[taskIndex]);
     if (!updated) {
       console.error(`TaskManager: Failed to update task status in Supabase for task ID: ${taskId}`);
+      
+      // Retry saving to Supabase once in case of transient issues
+      setTimeout(async () => {
+        const retryUpdated = await saveTaskToSupabase(tasks[taskIndex]);
+        if (retryUpdated) {
+          console.log(`TaskManager: Successfully updated task status in Supabase for task ID: ${taskId} on retry`);
+        }
+      }, 2000);
     }
     
     return tasks[taskIndex];

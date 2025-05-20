@@ -46,19 +46,41 @@ export const useChatFlamejournal = (setMessages?: React.Dispatch<React.SetStateA
       // Add the specific task data if provided
       if (taskData) {
         console.log("useChatFlamejournal: Adding task data to metadata:", taskData.id, taskData.title);
+        
+        // Ensure all required fields are present
+        if (!taskData.id || !taskData.title || !taskData.status) {
+          console.error("useChatFlamejournal: Task data is missing required fields (id, title, or status)");
+          console.log("Task data:", JSON.stringify(taskData));
+          
+          // Add any missing required fields with default values to prevent errors
+          if (!taskData.id) taskData.id = crypto.randomUUID();
+          if (!taskData.title) taskData.title = "Untitled Task";
+          if (!taskData.status) taskData.status = "pending";
+        }
+        
+        // Add task data to metadata
         metadata.taskId = taskData.id;
         metadata.taskTitle = taskData.title;
         metadata.taskStatus = taskData.status;
+        
+        // Add optional fields if they exist
         if (taskData.tags) {
           metadata.taskTags = taskData.tags;
         }
         if (taskData.relatedFile) {
           metadata.relatedFile = taskData.relatedFile;
         }
+        if (taskData.description) {
+          metadata.taskDescription = taskData.description;
+        }
+        if (taskData.createdAt) {
+          metadata.taskCreatedAt = taskData.createdAt;
+        }
       }
       
+      console.log("useChatFlamejournal: Creating journal entry with metadata:", JSON.stringify(metadata));
+      
       // Create the journal entry with enhanced content
-      console.log("useChatFlamejournal: Creating journal entry with metadata:", metadata);
       const entry = await createEntry(enhancedContent, type, taskTags, metadata);
       
       if (!entry) {
