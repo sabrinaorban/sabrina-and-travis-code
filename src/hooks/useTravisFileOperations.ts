@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { SharedFolderService } from '@/services/SharedFolderService';
 import { useChatFlamejournal } from './useChatFlamejournal';
@@ -33,12 +34,7 @@ export const useTravisFileOperations = (
         await addJournalEntry(
           `I read the file at ${path}. This file contains ${result.content.length} characters of information.`,
           'file_read',
-          ['shared_folder', 'file_read', 'memory'],
-          { 
-            relatedFile: path,
-            // Removed content_length property as it doesn't exist in Task type
-            // Storing this information in the journal entry content instead
-          }
+          ['shared_folder', 'file_read', 'memory']
         );
       }
       
@@ -81,14 +77,7 @@ export const useTravisFileOperations = (
         await addJournalEntry(
           `I ${action} the file at ${path} with ${content.length} characters of information. Reason: ${reason || 'No specific reason provided'}`,
           memoryType,
-          ['shared_folder', 'file_write', 'memory', action],
-          { 
-            relatedFile: path,
-            // Removed content_length property as it doesn't exist in Task type
-            // Information about content length is already in the journal entry text
-            reason,
-            action
-          }
+          ['shared_folder', 'file_write', 'memory', action]
         );
       }
       
