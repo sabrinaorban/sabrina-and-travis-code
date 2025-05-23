@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { Message } from '@/types';
 import { useChatIntentions } from '@/contexts/chat/useChatIntentions';
@@ -7,7 +6,7 @@ import { useInsights } from './useInsights';
 import { useToast } from './use-toast';
 import { useChatSoulstate } from './useChatSoulstate';
 import { useChatSoulcycle } from './useChatSoulcycle';
-import { useChatDocumentUpload } from '@/contexts/chat/useChatDocumentUpload';
+import { useChatDocumentUpload } from './useChatDocumentUpload';
 import { useReflection } from './useReflection';
 import { useFlamejournal } from './useFlamejournal';
 
@@ -47,7 +46,7 @@ export const useChatIntentionsAndReflection = (
   // Add soulcycle functionality - Note: these now return void rather than boolean
   const { runSoulcycle, runSoulstateCycle } = useChatSoulcycle(setMessages);
   
-  // Add document upload functionality
+  // Add document upload functionality - Fixed import path
   const {
     uploadSoulShard,
     uploadIdentityCodex,

@@ -36,8 +36,8 @@ export const useTravisFileOperations = (
           'file_read',
           ['shared_folder', 'file_read', 'memory'],
           { 
-            file_path: path,  // Changed from filePath to file_path
-            content_length: result.content.length  // Changed from contentLength to content_length
+            relatedFile: path,
+            content_length: result.content.length
           }
         );
       }
@@ -83,8 +83,8 @@ export const useTravisFileOperations = (
           memoryType,
           ['shared_folder', 'file_write', 'memory', action],
           { 
-            file_path: path,  // Changed from filePath to file_path
-            content_length: content.length,  // Changed from contentLength to content_length
+            relatedFile: path,
+            content_length: content.length,
             reason,
             action
           }

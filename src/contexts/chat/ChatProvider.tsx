@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ChatContext } from './ChatContext';
 import { Message, MemoryContext } from '@/types';
@@ -42,7 +41,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { generateTool, useTool, reflectOnTool, reviseTool } = useChatTools(setMessages);
   const { addJournalEntry } = useChatFlamejournal(setMessages);
 
-  // Add the file operations hook
+  // Add the file operations hook - Fixed: pass setMessages as argument
   const {
     readFile,
     writeFile,
