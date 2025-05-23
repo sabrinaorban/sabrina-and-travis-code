@@ -2,6 +2,8 @@
 import { useCallback, useState } from 'react';
 import { Message, SelfTool } from '@/types';
 import { useChatTools as useBaseChatTools } from '@/hooks/useChatTools';
+import { useTravisFileOperations } from '@/hooks/useTravisFileOperations';
+import { SharedFolderService } from '@/services/SharedFolderService';
 
 /**
  * Hook for managing tool execution within the chat context
@@ -18,6 +20,9 @@ export const useChatTools = (setMessages: React.Dispatch<React.SetStateAction<Me
     handleToolCommand,
     isProcessing
   } = useBaseChatTools(setMessages);
+
+  // Add file operations
+  const { readFile, writeFile, listFiles } = useTravisFileOperations(setMessages);
 
   /**
    * Execute a tool based on the prompt
@@ -55,27 +60,89 @@ export const useChatTools = (setMessages: React.Dispatch<React.SetStateAction<Me
 
   /**
    * Process a file operation request
-   * This is a placeholder implementation that needs to be connected to actual file operations
    */
   const processFileOperation = useCallback(async (operation: string, filePath: string, content?: string): Promise<boolean> => {
     try {
       console.log('Processing file operation:', { operation, filePath, content });
       
-      // Add a message to indicate the file operation
+      // Validate the file path is within the shared folder
+      if (!SharedFolderService.isPathWithinSharedFolder(filePath)) {
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `I cannot access files outside the shared folder. The path must be within ${SharedFolderService.getSharedFolderPath()}.`,
+          timestamp: new Date().toISOString(),
+          emotion: 'concerned'
+        }]);
+        return false;
+      }
+      
+      let result;
+      let message = '';
+      
+      switch (operation) {
+        case 'read':
+          result = await readFile(filePath);
+          if (result.success) {
+            message = `I read the file at ${filePath}:\n\n\`\`\`\n${result.content?.substring(0, 500)}${result.content && result.content.length > 500 ? '...' : ''}\n\`\`\``;
+          } else {
+            message = `I couldn't read the file: ${result.message}`;
+          }
+          break;
+          
+        case 'write':
+          if (!content) {
+            message = 'No content provided for writing to file.';
+            break;
+          }
+          
+          result = await writeFile(filePath, content, true);
+          if (result.success) {
+            message = `I successfully wrote ${content.length} characters to ${filePath}.`;
+          } else {
+            message = `I couldn't write to the file: ${result.message}`;
+          }
+          break;
+          
+        case 'list':
+          const files = await listFiles();
+          if (files.length > 0) {
+            message = `Here are the files in the shared folder:\n\n${files.map(f => `- ${f}`).join('\n')}`;
+          } else {
+            message = `No files found in the shared folder.`;
+          }
+          break;
+          
+        default:
+          message = `Unknown file operation: ${operation}`;
+          break;
+      }
+      
+      // Add a message to indicate the file operation result
       setMessages(prev => [...prev, {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: `I processed a file operation: ${operation} on ${filePath}`,
+        content: message,
         timestamp: new Date().toISOString(),
-        emotion: 'helpful'
+        emotion: result?.success ? 'helpful' : 'concerned'
       }]);
       
-      return true;
+      return result?.success || false;
     } catch (error) {
       console.error('Error processing file operation:', error);
+      
+      // Add error message
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `Error processing file operation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date().toISOString(),
+        emotion: 'concerned'
+      }]);
+      
       return false;
     }
-  }, [setMessages]);
+  }, [readFile, writeFile, listFiles, setMessages]);
 
   // Create wrapper functions with compatible return types to match ChatContext
   const useTool = useCallback((toolName: string): Promise<SelfTool | null> => {

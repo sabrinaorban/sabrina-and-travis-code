@@ -1,3 +1,4 @@
+
 import { createContext } from 'react';
 import { ChatContextType } from './types';
 import { SelfTool } from '@/types';
@@ -49,6 +50,10 @@ const defaultChatContext: ChatContextType = {
   error: null,
   clearError: () => {},
   retryMessage: async () => {},
+  // Add file operation functions
+  readSharedFile: async () => ({ success: false, message: '', content: '' }),
+  writeSharedFile: async () => ({ success: false, message: '' }),
+  listSharedFiles: async () => ([]),
 };
 
 export const ChatContext = createContext<ChatContextType>(defaultChatContext);

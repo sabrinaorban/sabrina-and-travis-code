@@ -105,6 +105,11 @@ serve(async (req) => {
       } catch (taskError) {
         console.error("Error handling task verification:", taskError);
       }
+    } 
+    // Handle file operation entries
+    else if (entryType?.includes('file_') && metadata?.filePath) {
+      console.log("File operation entry detected:", entryType);
+      // No additional processing needed for now - file operations are already recorded
     }
     
     // Return the created entry

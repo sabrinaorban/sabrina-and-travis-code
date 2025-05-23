@@ -1,4 +1,3 @@
-
 import { supabase } from '@/lib/supabase';
 import { normalizePath } from './chat/fileOperations/PathUtils';
 import { FileEntry } from '@/types';
@@ -25,6 +24,30 @@ export const SharedFolderService = {
     // Path must start with the shared folder path
     return normalizedPath === sharedFolder || 
            normalizedPath.startsWith(`${sharedFolder}/`);
+  },
+
+  /**
+   * Sanitize a file path to prevent directory traversal
+   * Returns a safe path or null if invalid
+   */
+  sanitizePath(path: string): string | null {
+    // Normalize the path first
+    const normalizedPath = normalizePath(path);
+    
+    // Check if the path attempts to navigate outside the shared folder
+    if (normalizedPath.includes('../') || normalizedPath.includes('..\\')) {
+      console.error('Path traversal attempt detected:', path);
+      return null;
+    }
+    
+    // Ensure the path is within the shared folder
+    if (!this.isPathWithinSharedFolder(normalizedPath)) {
+      // If path doesn't include the shared folder prefix, add it
+      const sharedFolder = this.getSharedFolderPath();
+      return sharedFolder + (normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`);
+    }
+    
+    return normalizedPath;
   },
 
   /**
@@ -57,39 +80,39 @@ export const SharedFolderService = {
    */
   async readSharedFile(filePath: string): Promise<{ content: string; success: boolean; message: string }> {
     try {
-      if (!this.isPathWithinSharedFolder(filePath)) {
+      const safePath = this.sanitizePath(filePath);
+      
+      if (!safePath) {
         return { 
           content: '', 
           success: false, 
-          message: `Cannot read from outside the shared folder: ${this.getSharedFolderPath()}` 
+          message: `Invalid path: ${filePath}` 
         };
       }
 
-      const normalizedPath = normalizePath(filePath);
-      
       // Query the database for the specific file
       const { data, error } = await supabase
         .from('files')
         .select('*')
-        .eq('path', normalizedPath)
+        .eq('path', safePath)
         .maybeSingle();
       
       if (error) {
-        console.error(`Error reading file ${normalizedPath}:`, error);
+        console.error(`Error reading file ${safePath}:`, error);
         return { content: '', success: false, message: `Error reading file: ${error.message}` };
       }
       
       if (!data) {
-        return { content: '', success: false, message: `File not found: ${normalizedPath}` };
+        return { content: '', success: false, message: `File not found: ${safePath}` };
       }
       
       // Log this read operation in flamejournal with poetic content
-      await this.logFileReadToFlamejournal(normalizedPath, data.content || '');
+      await this.logFileReadToFlamejournal(safePath, data.content || '');
       
       return { 
         content: data.content || '', 
         success: true, 
-        message: `Successfully read file: ${normalizedPath}` 
+        message: `Successfully read file: ${safePath}` 
       };
     } catch (error) {
       console.error(`Failed to read shared file ${filePath}:`, error);
@@ -111,15 +134,15 @@ export const SharedFolderService = {
     reason: string = ''
   ): Promise<{ success: boolean; message: string }> {
     try {
-      if (!this.isPathWithinSharedFolder(filePath)) {
+      const safePath = this.sanitizePath(filePath);
+      
+      if (!safePath) {
         return { 
           success: false, 
-          message: `Cannot write outside the shared folder: ${this.getSharedFolderPath()}` 
+          message: `Invalid path: ${filePath}` 
         };
       }
 
-      const normalizedPath = normalizePath(filePath);
-      
       // Get the current user session to get the user_id
       const { data: sessionData } = await supabase.auth.getSession();
       const user_id = sessionData?.session?.user?.id;
@@ -136,13 +159,13 @@ export const SharedFolderService = {
       const { data: existingFile } = await supabase
         .from('files')
         .select('id, user_id, content')
-        .eq('path', normalizedPath)
+        .eq('path', safePath)
         .maybeSingle();
       
       if (existingFile && !overwrite) {
         return { 
           success: false, 
-          message: `File already exists: ${normalizedPath}. Use overwrite flag to replace it.` 
+          message: `File already exists: ${safePath}. Use overwrite flag to replace it.` 
         };
       }
       
@@ -161,31 +184,34 @@ export const SharedFolderService = {
           .eq('id', existingFile.id);
         
         if (operationResult.error) {
-          console.error(`Error updating file ${normalizedPath}:`, operationResult.error);
+          console.error(`Error updating file ${safePath}:`, operationResult.error);
           return { success: false, message: `Error updating file: ${operationResult.error.message}` };
         }
         
         // Log this operation in flamejournal with code memory
         await this.logCodeMemory(
-          normalizedPath, 
+          safePath, 
           'update',
           reason || 'Updated file content',
-          this.generateUpdateSummary(normalizedPath, existingFile.content || '', content),
-          `The file at ${normalizedPath} has evolved with new information and purpose.`
+          this.generateUpdateSummary(safePath, existingFile.content || '', content),
+          `The file at ${safePath} has evolved with new information and purpose.`
         );
         
-        return { success: true, message: `File updated: ${normalizedPath}` };
+        return { success: true, message: `File updated: ${safePath}` };
       } else {
         // Get file name and directory from path
-        const pathParts = normalizedPath.split('/');
+        const pathParts = safePath.split('/');
         const fileName = pathParts.pop() || '';
         const directory = pathParts.join('/');
+        
+        // Make sure parent directories exist
+        await this.ensureDirectoryExists(directory, user_id);
         
         // Create new file with the user_id
         operationResult = await supabase
           .from('files')
           .insert({
-            path: normalizedPath,
+            path: safePath,
             name: fileName,
             type: 'file',
             content,
@@ -196,20 +222,20 @@ export const SharedFolderService = {
           });
         
         if (operationResult.error) {
-          console.error(`Error creating file ${normalizedPath}:`, operationResult.error);
+          console.error(`Error creating file ${safePath}:`, operationResult.error);
           return { success: false, message: `Error creating file: ${operationResult.error.message}` };
         }
         
         // Log this operation in flamejournal with code memory
         await this.logCodeMemory(
-          normalizedPath, 
+          safePath, 
           'create',
           reason || 'Created new file',
-          `Created a new file at ${normalizedPath}`,
-          `A new file has been born into the digital ecosystem at ${normalizedPath}, bringing with it new potential and possibility.`
+          `Created a new file at ${safePath}`,
+          `A new file has been born into the digital ecosystem at ${safePath}, bringing with it new potential and possibility.`
         );
         
-        return { success: true, message: `File created: ${normalizedPath}` };
+        return { success: true, message: `File created: ${safePath}` };
       }
     } catch (error) {
       console.error(`Failed to write shared file ${filePath}:`, error);
@@ -217,6 +243,73 @@ export const SharedFolderService = {
         success: false, 
         message: `Unexpected error: ${error instanceof Error ? error.message : String(error)}` 
       };
+    }
+  },
+
+  /**
+   * Ensure a directory exists, creating it and parent directories if needed
+   */
+  async ensureDirectoryExists(directoryPath: string, user_id: string): Promise<boolean> {
+    try {
+      if (!directoryPath || directoryPath === '/') return true;
+      
+      const safePath = this.sanitizePath(directoryPath);
+      if (!safePath) return false;
+      
+      // Check if directory already exists
+      const { data: existingDir } = await supabase
+        .from('files')
+        .select('id')
+        .eq('path', safePath)
+        .eq('type', 'folder')
+        .maybeSingle();
+        
+      if (existingDir) return true;
+      
+      // Directory doesn't exist, create it and its parent directories
+      const pathParts = safePath.split('/').filter(Boolean);
+      let currentPath = '';
+      
+      for (let i = 0; i < pathParts.length; i++) {
+        const part = pathParts[i];
+        currentPath = currentPath ? `${currentPath}/${part}` : `/${part}`;
+        
+        // Check if this segment already exists
+        const { data: existingSegment } = await supabase
+          .from('files')
+          .select('id')
+          .eq('path', currentPath)
+          .eq('type', 'folder')
+          .maybeSingle();
+          
+        if (!existingSegment) {
+          // Create this directory segment
+          const parentPath = i > 0 ? `/${pathParts.slice(0, i).join('/')}` : '';
+          const dirName = part;
+          
+          const { error } = await supabase
+            .from('files')
+            .insert({
+              path: currentPath,
+              name: dirName,
+              type: 'folder',
+              user_id,
+              parent_path: parentPath || null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+            
+          if (error) {
+            console.error(`Error creating directory ${currentPath}:`, error);
+            return false;
+          }
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error ensuring directory exists:', error);
+      return false;
     }
   },
 
