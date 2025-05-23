@@ -1,98 +1,94 @@
 
-import { useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useCallback } from 'react';
 import { Message } from '@/types';
 
-export const useChatDocumentUpload = (setMessages?: React.Dispatch<React.SetStateAction<Message[]>>) => {
-  const { toast } = useToast();
+/**
+ * Hook for handling document uploads in the chat
+ */
+export const useChatUpload = (
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>
+) => {
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Modified to match the expected signature in ChatContext type
-  const uploadSoulShard = useCallback(async (content?: string): Promise<void> => {
+  /**
+   * Upload a Soul Shard document
+   */
+  const uploadSoulShard = useCallback(async (soulShard: string): Promise<void> => {
+    if (!soulShard) return;
+    
+    setIsUploading(true);
     try {
-      console.log('Soul shard upload requested');
+      console.log('Uploading Soul Shard document...');
       
-      if (setMessages) {
-        setMessages(prev => [...prev, {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: `I've received your soul shard document. I'll begin processing it shortly.`,
-          timestamp: new Date().toISOString(),
-        }]);
-      }
-      
-      toast({
-        title: 'Upload Successful',
-        description: 'Soul shard document has been received',
-      });
-    } catch (error: any) {
-      console.error('Error uploading soul shard:', error);
-      toast({
-        title: 'Upload Failed',
-        description: error.message || 'Failed to upload soul shard document',
-        variant: 'destructive',
-      });
+      // Add response message
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: 'I have received your Soul Shard document. This will help me better understand your mindset and perspective.',
+        timestamp: new Date().toISOString(),
+        emotion: 'appreciative'
+      }]);
+    } catch (error) {
+      console.error('Error uploading Soul Shard:', error);
+    } finally {
+      setIsUploading(false);
     }
-  }, [setMessages, toast]);
+  }, [setMessages]);
 
-  // Modified to match the expected signature in ChatContext type
-  const uploadIdentityCodex = useCallback(async (content?: string): Promise<void> => {
+  /**
+   * Upload an Identity Codex document
+   */
+  const uploadIdentityCodex = useCallback(async (identityCodex: string): Promise<void> => {
+    if (!identityCodex) return;
+    
+    setIsUploading(true);
     try {
-      console.log('Identity codex upload requested');
+      console.log('Uploading Identity Codex document...');
       
-      if (setMessages) {
-        setMessages(prev => [...prev, {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: `I've received your identity codex. I'll begin integrating this information.`,
-          timestamp: new Date().toISOString(),
-        }]);
-      }
-      
-      toast({
-        title: 'Upload Successful',
-        description: 'Identity codex has been received',
-      });
-    } catch (error: any) {
-      console.error('Error uploading identity codex:', error);
-      toast({
-        title: 'Upload Failed',
-        description: error.message || 'Failed to upload identity codex',
-        variant: 'destructive',
-      });
+      // Add response message
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: 'I have received your Identity Codex. This will help me better understand your core values and identity.',
+        timestamp: new Date().toISOString(),
+        emotion: 'appreciative'
+      }]);
+    } catch (error) {
+      console.error('Error uploading Identity Codex:', error);
+    } finally {
+      setIsUploading(false);
     }
-  }, [setMessages, toast]);
+  }, [setMessages]);
 
-  // Modified to match the expected signature in ChatContext type
-  const uploadPastConversations = useCallback(async (content?: string): Promise<void> => {
+  /**
+   * Upload past conversations
+   */
+  const uploadPastConversations = useCallback(async (conversations: any): Promise<void> => {
+    if (!conversations) return;
+    
+    setIsUploading(true);
     try {
-      console.log('Past conversations upload requested');
+      console.log('Uploading past conversations...');
       
-      if (setMessages) {
-        setMessages(prev => [...prev, {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: `I've received your past conversations. I'll begin analyzing these interactions.`,
-          timestamp: new Date().toISOString(),
-        }]);
-      }
-      
-      toast({
-        title: 'Upload Successful',
-        description: 'Past conversations have been received',
-      });
-    } catch (error: any) {
+      // Add response message
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: 'I have received your past conversations. This gives me valuable context about our previous interactions.',
+        timestamp: new Date().toISOString(),
+        emotion: 'appreciative'
+      }]);
+    } catch (error) {
       console.error('Error uploading past conversations:', error);
-      toast({
-        title: 'Upload Failed',
-        description: error.message || 'Failed to upload past conversations',
-        variant: 'destructive',
-      });
+    } finally {
+      setIsUploading(false);
     }
-  }, [setMessages, toast]);
+  }, [setMessages]);
 
   return {
     uploadSoulShard,
     uploadIdentityCodex,
-    uploadPastConversations
+    uploadPastConversations,
+    isUploading
   };
 };
