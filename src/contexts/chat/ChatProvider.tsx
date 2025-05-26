@@ -13,13 +13,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     messages,
     setMessages,
     isTyping,
-    sendMessage: sendMessageSDK,
+    sendMessage,
     isProcessingCommand,
     memoryContext,
     refreshMessages,
     addMessage,
     updateMessage,
-    deleteMessage
+    deleteMessage,
+    isLoadingHistory
   } = useChat();
 
   // Use the state management hook for additional state
@@ -33,8 +34,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentEvolutionProposal,
     isEvolutionChecking,
     setIsEvolutionChecking,
-    isLoadingHistory,
-    setIsLoadingHistory,
     lastMessage
   } = useChatState();
 
@@ -58,13 +57,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Use stub functions hook
   const stubFunctions = useChatStubFunctions();
 
-  // Use chat operations hook
+  // Use chat operations hook - but don't pass sendMessage to avoid conflicts
   const {
     clearMessages,
     summarizeConversation,
-    sendMessage,
     retryMessage
-  } = useChatOperations(messages, setMessages, sendMessageSDK, lastMessage);
+  } = useChatOperations(messages, setMessages, sendMessage, lastMessage);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -89,7 +87,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <ChatContext.Provider
       value={{
         messages,
-        sendMessage,
+        sendMessage, // Use the sendMessage directly from useChat
         isTyping,
         isLoading,
         memoryContext,

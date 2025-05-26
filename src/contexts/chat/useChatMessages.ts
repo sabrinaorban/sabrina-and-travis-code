@@ -123,6 +123,7 @@ export const useChat = () => {
         timestamp: new Date().toISOString()
       };
       
+      // Only add message to state once
       setMessages(prev => [...prev, userMessage]);
       
       // 2. Store user message in database

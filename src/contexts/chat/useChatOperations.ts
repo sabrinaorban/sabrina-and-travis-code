@@ -48,21 +48,6 @@ export const useChatOperations = (
     }
   }, [messages, setMessages]);
 
-  const sendMessage = useCallback(async (messageContent: string) => {
-    if (!messageContent.trim()) return;
-
-    const newMessage: Message = {
-      id: uuidv4(),
-      role: 'user',
-      content: messageContent,
-      timestamp: new Date().toISOString(),
-      emotion: 'neutral'
-    };
-
-    setMessages(prev => [...prev, newMessage]);
-    await sendMessageSDK(messageContent);
-  }, [sendMessageSDK, setMessages]);
-
   const retryMessage = useCallback(async () => {
     if (lastMessage.current) {
       // Just re-send the message content
@@ -78,7 +63,6 @@ export const useChatOperations = (
   return {
     clearMessages,
     summarizeConversation,
-    sendMessage,
     retryMessage
   };
 };
