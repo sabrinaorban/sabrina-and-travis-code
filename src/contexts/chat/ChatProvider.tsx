@@ -8,12 +8,22 @@ import { useChatStubFunctions } from './useChatStubFunctions';
 import { useChatOperations } from './useChatOperations';
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Use the state management hook
+  // Use the main chat hook that handles messages and history
   const {
     messages,
     setMessages,
     isTyping,
-    setIsTyping,
+    sendMessage: sendMessageSDK,
+    isProcessingCommand,
+    memoryContext,
+    refreshMessages,
+    addMessage,
+    updateMessage,
+    deleteMessage
+  } = useChat();
+
+  // Use the state management hook for additional state
+  const {
     isLoading,
     setIsLoading,
     error,
@@ -27,18 +37,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoadingHistory,
     lastMessage
   } = useChatState();
-
-  // Use the useChat hook from local useChatMessages
-  const {
-    sendMessage: sendMessageSDK,
-    isTyping: chatIsTyping,
-    isProcessingCommand,
-    memoryContext,
-    refreshMessages,
-    addMessage,
-    updateMessage,
-    deleteMessage
-  } = useChat();
 
   // Use SDK integrations hook
   const {

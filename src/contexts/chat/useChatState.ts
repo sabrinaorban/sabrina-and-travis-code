@@ -3,8 +3,6 @@ import { useState, useRef } from 'react';
 import { Message } from '@/types';
 
 export const useChatState = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentEvolutionProposal, setCurrentEvolutionProposal] = useState<any>();
@@ -17,10 +15,6 @@ export const useChatState = () => {
   };
 
   return {
-    messages,
-    setMessages,
-    isTyping,
-    setIsTyping,
     isLoading,
     setIsLoading,
     error,
