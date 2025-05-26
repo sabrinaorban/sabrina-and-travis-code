@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ChatContext } from './ChatContext';
 import { Message, MemoryContext } from '@/types';
@@ -35,7 +36,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     deleteMessage
   } = useChat();
 
-  // SDK Hooks - Simplified to match available exports
+  // SDK Hooks - Fixed: pass setMessages as argument to useChatFlamejournal
   const { generateWeeklyReflection, generateSoulReflection } = useChatReflection(setMessages);
   const { checkForEvolutionCycle, isEvolutionChecking: evolutionIsChecking } = useChatEvolution();  
   const { generateTool, useTool, reflectOnTool, reviseTool } = useChatTools(setMessages);
