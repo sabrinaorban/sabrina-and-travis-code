@@ -9,7 +9,7 @@ import { Message } from '@/types';
 export const useChatSDKIntegrations = (setMessages: React.Dispatch<React.SetStateAction<Message[]>>) => {
   // SDK Hooks
   const { generateWeeklyReflection, generateSoulReflection } = useChatReflection(setMessages);
-  const { checkForEvolutionCycle, isEvolutionChecking: evolutionIsChecking } = useChatEvolution();  
+  const { checkForEvolutionCycle, isEvolutionChecking: evolutionIsChecking } = useChatEvolution(setMessages);  
   const { generateTool, useTool, reflectOnTool, reviseTool } = useChatTools(setMessages);
   const { addJournalEntry } = useChatFlamejournal(setMessages);
 
